@@ -1120,6 +1120,8 @@ contract Banny721TokenUriResolver is
             }
 
             // Remove all previous assets up to and including the current category being iterated on.
+            // This inner loop advances through `previousOutfitIds` (bounded by outfit category count) and
+            // terminates when it passes the current category or exhausts the array.
             while (previousOutfitProductCategory <= outfitProductCategory && previousOutfitProductCategory != 0) {
                 // Transfer the previous outfit to the owner of the banny if its not being worn.
                 // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
@@ -1157,6 +1159,9 @@ contract Banny721TokenUriResolver is
         }
 
         // Remove and transfer out any remaining assets no longer being worn.
+        // This loop is bounded by `previousOutfitIds.length`, which equals the number of outfits previously
+        // attached to this banny. Since only one outfit per category is allowed, this is bounded by the number of
+        // outfit categories (a small, fixed set).
         while (previousOutfitId != 0) {
             // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
             // decorated.
