@@ -1084,8 +1084,17 @@ contract Banny721TokenUriResolver is
 
             // Check if the call is being made either by the outfit's owner or the owner of the banny body currently
             // wearing it.
-            if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(wearerOf(hook, outfitId))) {
-                revert Banny721TokenUriResolver_UnauthorizedOutfit();
+            if (_msgSender() != owner) {
+                // Get the banny body currently wearing this outfit.
+                uint256 wearerId = wearerOf(hook, outfitId);
+
+                // If the outfit is not currently worn, only the outfit's owner can use it for decoration.
+                if (wearerId == 0) revert Banny721TokenUriResolver_UnauthorizedOutfit();
+
+                // If the outfit is worn, the banny body's owner can also authorize its use.
+                if (_msgSender() != IERC721(hook).ownerOf(wearerId)) {
+                    revert Banny721TokenUriResolver_UnauthorizedOutfit();
+                }
             }
 
             // Get the outfit's product info.
