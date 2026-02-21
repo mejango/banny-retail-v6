@@ -229,8 +229,7 @@ contract DeployScript is Script, Sphinx {
                 baseCurrency: ETH_CURRENCY,
                 splitOperator: OPERATOR,
                 stageConfigurations: stageConfigurations,
-                loanSources: _loanSources,
-                loans: address(revnet.loans)
+                loanSources: _loanSources
             });
         }
 
