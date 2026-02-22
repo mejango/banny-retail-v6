@@ -376,6 +376,11 @@ contract Banny721TokenUriResolver is
             }
         }
 
+        // Resize the array to the actual number of included outfits (remove trailing zeros).
+        assembly {
+            mstore(outfitIds, numberOfIncludedOutfits)
+        }
+
         // Keep a reference to the background currently stored as attached to the banny body.
         uint256 storedBackgroundOf = _attachedBackgroundIdOf[hook][bannyBodyId];
 
@@ -461,7 +466,7 @@ contract Banny721TokenUriResolver is
 
         if (shouldDressBannyBody) {
             // Get the outfit contents.
-            string memory outfitContents = _outfitContentsFor({hook: hook, outfitIds: outfitIds});
+            string memory outfitContents = _outfitContentsFor({hook: hook, outfitIds: outfitIds, bodyUpc: product.id});
 
             // Add the outfit contents if there are any.
             if (bytes(outfitContents).length != 0) {
@@ -733,10 +738,12 @@ contract Banny721TokenUriResolver is
     /// @notice The SVG contents for a list of outfit IDs.
     /// @param hook The 721 contract that the product belongs to.
     /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny.
+    /// @param bodyUpc The UPC of the banny body being dressed (used for default eyes selection).
     /// @return contents The SVG contents of the outfits.
     function _outfitContentsFor(
         address hook,
-        uint256[] memory outfitIds
+        uint256[] memory outfitIds,
+        uint256 bodyUpc
     )
         internal
         view
@@ -802,7 +809,7 @@ contract Banny721TokenUriResolver is
             if (category == _EYES_CATEGORY) {
                 hasEyes = true;
             } else if (category > _EYES_CATEGORY && !hasEyes && !hasHead) {
-                if (upc == ALIEN_UPC) contents = string.concat(contents, DEFAULT_ALIEN_EYES);
+                if (bodyUpc == ALIEN_UPC) contents = string.concat(contents, DEFAULT_ALIEN_EYES);
                 else contents = string.concat(contents, DEFAULT_STANDARD_EYES);
 
                 hasEyes = true;
@@ -1214,8 +1221,10 @@ contract Banny721TokenUriResolver is
                 // Get the background's product info.
                 JB721Tier memory backgroundProduct = _productOfTokenId({hook: hook, tokenId: backgroundId});
 
-                // Background must exist
-                if (backgroundProduct.id == 0) revert Banny721TokenUriResolver_UnrecognizedBackground();
+                // Background must exist and must be a background category.
+                if (backgroundProduct.id == 0 || backgroundProduct.category != _BACKGROUND_CATEGORY) {
+                    revert Banny721TokenUriResolver_UnrecognizedBackground();
+                }
 
                 // Store the background for the banny.
                 // slither-disable-next-line reentrancy-no-eth
