@@ -1211,8 +1211,17 @@ contract Banny721TokenUriResolver is
                 address owner = IERC721(hook).ownerOf(backgroundId);
 
                 // Check if the call is being made by the background's owner, or the owner of a banny body using it.
-                if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(userOf(hook, backgroundId))) {
-                    revert Banny721TokenUriResolver_UnauthorizedBackground();
+                if (_msgSender() != owner) {
+                    // Get the banny body currently using this background.
+                    uint256 userId = userOf(hook, backgroundId);
+
+                    // If the background is not currently used, only the background's owner can use it for decoration.
+                    if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
+
+                    // If the background is used, the banny body's owner can also authorize its use.
+                    if (_msgSender() != IERC721(hook).ownerOf(userId)) {
+                        revert Banny721TokenUriResolver_UnauthorizedBackground();
+                    }
                 }
 
                 // Get the background's product info.
