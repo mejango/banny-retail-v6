@@ -32,7 +32,7 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 
 | Dependency | Import | Used For |
 |------------|--------|----------|
-| `@bananapus/721-hook-v5` | `IJB721TiersHook`, `IJB721TiersHookStore`, `IJB721TokenUriResolver`, `JB721Tier`, `JBIpfsDecoder`, `IERC721` (custom ERC721) | Token ownership checks, tier data resolution, IPFS URI decoding, hook store queries. |
+| `@bananapus/721-hook-v6` | `IJB721TiersHook`, `IJB721TiersHookStore`, `IJB721TokenUriResolver`, `JB721Tier`, `JBIpfsDecoder`, `IERC721` (custom ERC721) | Token ownership checks, tier data resolution, IPFS URI decoding, hook store queries. |
 | `@openzeppelin/contracts` | `Ownable`, `ReentrancyGuard`, `ERC2771Context`, `IERC721Receiver`, `Strings` | Access control, reentrancy protection, meta-transactions, safe NFT receipt, string utilities. |
 | `lib/base64` | `Base64` | Base64 encoding for on-chain SVG and JSON metadata. |
 
@@ -69,7 +69,7 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 ## Example Integration
 
 ```solidity
-import {IBanny721TokenUriResolver} from "@bannynet/core-v5/src/interfaces/IBanny721TokenUriResolver.sol";
+import {IBanny721TokenUriResolver} from "@bannynet/core-v6/src/interfaces/IBanny721TokenUriResolver.sol";
 
 // Get the composed SVG for a dressed Banny
 string memory svg = resolver.svgOf(
