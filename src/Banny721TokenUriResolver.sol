@@ -883,8 +883,23 @@ contract Banny721TokenUriResolver is
     // ---------------------- external transactions ---------------------- //
     //*********************************************************************//
 
-    /// @notice Dress your banny body with outfits.
-    /// @dev The caller must own the banny body being dressed and all outfits being worn.
+    /// @notice Dress your banny body with outfits and a background.
+    /// @dev Decoration is allowed when ALL of the following hold:
+    ///
+    /// 1. The caller owns the banny body (via `_checkIfSenderIsOwner`).
+    /// 2. The banny body is not currently locked (`outfitLockedUntil` has not yet passed).
+    /// 3. For each outfit supplied:
+    ///    a. The caller is the outfit's current owner, OR
+    ///    b. The outfit is currently worn by another banny body and the caller owns that banny body.
+    ///    (If the outfit is unworn, only (a) applies — the outfit owner must be the caller.)
+    /// 4. For the background supplied (if non-zero):
+    ///    a. The caller is the background's current owner, OR
+    ///    b. The background is currently used by another banny body and the caller owns that banny body.
+    ///    (If the background is unused, only (a) applies — the background owner must be the caller.)
+    /// 5. Outfit categories must be valid (within recognized range) and passed in ascending order.
+    /// 6. Conflicting categories are rejected (e.g., a full head blocks individual face pieces;
+    ///    a full suit blocks separate top/bottom).
+    ///
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
     /// @param backgroundId The ID of the background that'll be associated with the specified banny.
