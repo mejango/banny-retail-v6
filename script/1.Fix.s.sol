@@ -24,7 +24,7 @@ contract Drop1Script is Script, Sphinx {
 
     JB721TiersHook hook;
 
-    bytes32 RESOLVER_SALT = "_BAN_RESOLVER__";
+    bytes32 RESOLVER_SALT = "_BAN_RESOLVERV6__";
     address OPERATOR;
     address TRUSTED_FORWARDER;
 
