@@ -16,7 +16,7 @@ interface IBanny721TokenUriResolver {
 
     function svgHashOf(uint256 upc) external view returns (bytes32);
     function svgBaseUri() external view returns (string memory);
-    function outfitLockedUntil(address hook, uint256 tokenId) external view returns (uint256);
+    function outfitLockedUntil(address hook, uint256 upc) external view returns (uint256);
     function DEFAULT_ALIEN_EYES() external view returns (string memory);
     function DEFAULT_MOUTH() external view returns (string memory);
     function DEFAULT_NECKLACE() external view returns (string memory);
