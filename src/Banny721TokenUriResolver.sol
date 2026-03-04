@@ -883,8 +883,23 @@ contract Banny721TokenUriResolver is
     // ---------------------- external transactions ---------------------- //
     //*********************************************************************//
 
-    /// @notice Dress your banny body with outfits.
-    /// @dev The caller must own the banny body being dressed and all outfits being worn.
+    /// @notice Dress your banny body with outfits and a background.
+    /// @dev Decoration is allowed when ALL of the following hold:
+    ///
+    /// 1. The caller owns the banny body (via `_checkIfSenderIsOwner`).
+    /// 2. The banny body is not currently locked (`outfitLockedUntil` has not yet passed).
+    /// 3. For each outfit supplied:
+    ///    a. The caller is the outfit's current owner, OR
+    ///    b. The outfit is currently worn by another banny body and the caller owns that banny body.
+    ///    (If the outfit is unworn, only (a) applies — the outfit owner must be the caller.)
+    /// 4. For the background supplied (if non-zero):
+    ///    a. The caller is the background's current owner, OR
+    ///    b. The background is currently used by another banny body and the caller owns that banny body.
+    ///    (If the background is unused, only (a) applies — the background owner must be the caller.)
+    /// 5. Outfit categories must be valid (within recognized range) and passed in ascending order.
+    /// 6. Conflicting categories are rejected (e.g., a full head blocks individual face pieces;
+    ///    a full suit blocks separate top/bottom).
+    ///
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
     /// @param backgroundId The ID of the background that'll be associated with the specified banny.
@@ -1084,8 +1099,17 @@ contract Banny721TokenUriResolver is
 
             // Check if the call is being made either by the outfit's owner or the owner of the banny body currently
             // wearing it.
-            if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(wearerOf(hook, outfitId))) {
-                revert Banny721TokenUriResolver_UnauthorizedOutfit();
+            if (_msgSender() != owner) {
+                // Get the banny body currently wearing this outfit.
+                uint256 wearerId = wearerOf(hook, outfitId);
+
+                // If the outfit is not currently worn, only the outfit's owner can use it for decoration.
+                if (wearerId == 0) revert Banny721TokenUriResolver_UnauthorizedOutfit();
+
+                // If the outfit is worn, the banny body's owner can also authorize its use.
+                if (_msgSender() != IERC721(hook).ownerOf(wearerId)) {
+                    revert Banny721TokenUriResolver_UnauthorizedOutfit();
+                }
             }
 
             // Get the outfit's product info.
@@ -1202,8 +1226,17 @@ contract Banny721TokenUriResolver is
                 address owner = IERC721(hook).ownerOf(backgroundId);
 
                 // Check if the call is being made by the background's owner, or the owner of a banny body using it.
-                if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(userOf(hook, backgroundId))) {
-                    revert Banny721TokenUriResolver_UnauthorizedBackground();
+                if (_msgSender() != owner) {
+                    // Get the banny body currently using this background.
+                    uint256 userId = userOf(hook, backgroundId);
+
+                    // If the background is not currently used, only the background's owner can use it for decoration.
+                    if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
+
+                    // If the background is used, the banny body's owner can also authorize its use.
+                    if (_msgSender() != IERC721(hook).ownerOf(userId)) {
+                        revert Banny721TokenUriResolver_UnauthorizedBackground();
+                    }
                 }
 
                 // Get the background's product info.
