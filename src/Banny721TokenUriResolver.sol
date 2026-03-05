@@ -203,21 +203,20 @@ contract Banny721TokenUriResolver is
             if (product.category == _BACKGROUND_CATEGORY) {
                 uint256 bannyBodyId = userOf({hook: hook, backgroundId: tokenId});
                 extraMetadata = string.concat('"usedByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             } else {
                 uint256 bannyBodyId = wearerOf({hook: hook, outfitId: tokenId});
                 extraMetadata = string.concat('"wornByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             }
         } else {
             // Compose the contents.
             contents = svgOf({
-                hook: hook,
-                tokenId: tokenId,
-                shouldDressBannyBody: true,
-                shouldIncludeBackgroundOnBannyBody: true
+                hook: hook, tokenId: tokenId, shouldDressBannyBody: true, shouldIncludeBackgroundOnBannyBody: true
             });
 
             // Get a reference to each asset ID currently attached to the banny body.
@@ -278,7 +277,9 @@ contract Banny721TokenUriResolver is
                 product.category > _SPECIAL_BODY_CATEGORY ? IJB721TiersHook(hook).baseURI() : svgBaseUri;
 
             // Fallback to returning an IPFS hash if present.
-            return JBIpfsDecoder.decode({baseUri: baseUri, hexString: _storeOf(hook).encodedTierIPFSUriOf({hook: hook, tokenId: tokenId})});
+            return JBIpfsDecoder.decode({
+                baseUri: baseUri, hexString: _storeOf(hook).encodedTierIPFSUriOf({hook: hook, tokenId: tokenId})
+            });
         }
 
         // Get a reference to the pricing context.
@@ -881,7 +882,9 @@ contract Banny721TokenUriResolver is
 
         return string.concat(
             '<image href="',
-            JBIpfsDecoder.decode({baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIPFSUriOf({hook: hook, tierId: upc})}),
+            JBIpfsDecoder.decode({
+                baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIPFSUriOf({hook: hook, tierId: upc})
+            }),
             '" width="400" height="400"/>'
         );
     }
@@ -930,11 +933,7 @@ contract Banny721TokenUriResolver is
         }
 
         emit DecorateBanny({
-            hook: hook,
-            bannyBodyId: bannyBodyId,
-            backgroundId: backgroundId,
-            outfitIds: outfitIds,
-            caller: _msgSender()
+            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: _msgSender()
         });
 
         // Add the background.
@@ -1137,10 +1136,10 @@ contract Banny721TokenUriResolver is
             } else if (outfitProductCategory == _SUIT_CATEGORY) {
                 hasSuit = true;
             } else if (
-                (
-                    outfitProductCategory == _EYES_CATEGORY || outfitProductCategory == _GLASSES_CATEGORY || outfitProductCategory == _MOUTH_CATEGORY
-                        || outfitProductCategory == _HEADTOP_CATEGORY
-                ) && hasHead
+                (outfitProductCategory == _EYES_CATEGORY
+                        || outfitProductCategory == _GLASSES_CATEGORY
+                        || outfitProductCategory == _MOUTH_CATEGORY
+                        || outfitProductCategory == _HEADTOP_CATEGORY) && hasHead
             ) {
                 revert Banny721TokenUriResolver_HeadAlreadyAdded();
             } else if (

@@ -33,6 +33,7 @@ contract AirdropOutfitsScript is Script, Sphinx {
     // Each tier ID takes 1 word, plus overhead for array length, boolean, and metadata structure
     // Using 100 as a safe batch size to stay well under the limit
     uint256 private constant BATCH_SIZE = 100;
+
     function configureSphinx() public override {
         sphinxConfig.projectName = "banny-core";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
@@ -41,7 +42,7 @@ contract AirdropOutfitsScript is Script, Sphinx {
 
     function run() public sphinx {
         uint256 chainId = block.chainid;
-        
+
         if (chainId == 1) {
             // Ethereum Mainnet
             _runEthereum();
@@ -51,14 +52,14 @@ contract AirdropOutfitsScript is Script, Sphinx {
         } else if (chainId == 8453) {
             // Base
             _runBase();
-        } else if (chainId == 42161) {
+        } else if (chainId == 42_161) {
             // Arbitrum
             _runArbitrum();
         } else {
             revert("Unsupported chain");
         }
     }
-    
+
     function _runEthereum() internal {
         address hookAddress = 0xb4Ec363c2E7DB0cECA9AA1759338d7d1b49d1750;
         address resolverAddress = 0x47c011146A4498a70E0bF2E4585acF9CaDE85954;
@@ -67,16 +68,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         address terminalAddress = 0x2dB6d704058E552DeFE415753465df8dF0361846;
         address v4ResolverFallback = 0xfF80c37a57016EFf3d19fb286e9C740eC4537Dd3;
         _processMigration(
-            hookAddress,
-            resolverAddress,
-            v4HookAddress,
-            v4ResolverAddress,
-            terminalAddress,
-            v4ResolverFallback,
-            1
+            hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, terminalAddress, v4ResolverFallback, 1
         );
     }
-    
+
     function _runOptimism() internal {
         address hookAddress = 0xb4Ec363c2E7DB0cECA9AA1759338d7d1b49d1750;
         address resolverAddress = 0x47c011146A4498a70E0bF2E4585acF9CaDE85954;
@@ -85,16 +80,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         address terminalAddress = 0x2dB6d704058E552DeFE415753465df8dF0361846;
         address v4ResolverFallback = 0xfF80c37a57016EFf3d19fb286e9C740eC4537Dd3;
         _processMigration(
-            hookAddress,
-            resolverAddress,
-            v4HookAddress,
-            v4ResolverAddress,
-            terminalAddress,
-            v4ResolverFallback,
-            10
+            hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, terminalAddress, v4ResolverFallback, 10
         );
     }
-    
+
     function _runBase() internal {
         address hookAddress = 0xb4Ec363c2E7DB0cECA9AA1759338d7d1b49d1750;
         address resolverAddress = 0x47c011146A4498a70E0bF2E4585acF9CaDE85954;
@@ -103,16 +92,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         address terminalAddress = 0x2dB6d704058E552DeFE415753465df8dF0361846;
         address v4ResolverFallback = 0xfF80c37a57016EFf3d19fb286e9C740eC4537Dd3;
         _processMigration(
-            hookAddress,
-            resolverAddress,
-            v4HookAddress,
-            v4ResolverAddress,
-            terminalAddress,
-            v4ResolverFallback,
-            8453
+            hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, terminalAddress, v4ResolverFallback, 8453
         );
     }
-    
+
     function _runArbitrum() internal {
         address hookAddress = 0xb4Ec363c2E7DB0cECA9AA1759338d7d1b49d1750;
         address resolverAddress = 0x47c011146A4498a70E0bF2E4585acF9CaDE85954;
@@ -121,37 +104,41 @@ contract AirdropOutfitsScript is Script, Sphinx {
         address terminalAddress = 0x2dB6d704058E552DeFE415753465df8dF0361846;
         address v4ResolverFallback = 0xfF80c37a57016EFf3d19fb286e9C740eC4537Dd3;
         _processMigration(
-            hookAddress,
-            resolverAddress,
-            v4HookAddress,
-            v4ResolverAddress,
-            terminalAddress,
-            v4ResolverFallback,
-            42161
+            hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, terminalAddress, v4ResolverFallback, 42_161
         );
     }
-    
-    function _processMigration(address hookAddress, address resolverAddress, address v4HookAddress, address v4ResolverAddress, address terminalAddress, address v4ResolverFallback, uint256 chainId) internal {
+
+    function _processMigration(
+        address hookAddress,
+        address resolverAddress,
+        address v4HookAddress,
+        address v4ResolverAddress,
+        address terminalAddress,
+        address v4ResolverFallback,
+        uint256 chainId
+    )
+        internal
+    {
         // Validate addresses
         require(hookAddress != address(0), "Hook address not set");
         require(resolverAddress != address(0), "Resolver address not set");
         require(v4HookAddress != address(0), "V4 Hook address not set");
         require(v4ResolverAddress != address(0), "V4 Resolver address not set");
         require(terminalAddress != address(0), "Terminal address not set");
-        
+
         IJBTerminal terminal = IJBTerminal(terminalAddress);
         JB721TiersHook hook = JB721TiersHook(hookAddress);
-        
+
         // Get project ID from hook
         uint256 projectId = hook.PROJECT_ID();
-        
+
         // Deploy the appropriate chain-specific migration contract with transfer data
         if (chainId == 1) {
             // Ethereum - 6 chunks (plus optional unused assets chunks 7 and 8)
-            
+
             // Deploy and execute contract 1
             uint16[] memory tierIds1 = new uint16[](60);
-            
+
             // Add 1 instances of tier ID 1
             for (uint256 i = 0; i < 1; i++) {
                 tierIds1[0 + i] = 1;
@@ -255,22 +242,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners1 = _getEthereumTransferOwners1();
             MigrationContractEthereum1 migrationContract1 = new MigrationContractEthereum1(transferOwners1);
             console.log("Ethereum migration contract 1 deployed at:", address(migrationContract1));
-            
+
             // Mint chunk 1 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds1,
-                address(migrationContract1)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds1, address(migrationContract1));
             console.log("Minted", tierIds1.length, "tokens to contract 1");
-            
-            migrationContract1.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract1.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 2
             uint16[] memory tierIds2 = new uint16[](36);
-            
+
             // Add 13 instances of tier ID 3
             for (uint256 i = 0; i < 13; i++) {
                 tierIds2[0 + i] = 3;
@@ -338,22 +321,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners2 = _getEthereumTransferOwners2();
             MigrationContractEthereum2 migrationContract2 = new MigrationContractEthereum2(transferOwners2);
             console.log("Ethereum migration contract 2 deployed at:", address(migrationContract2));
-            
+
             // Mint chunk 2 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds2,
-                address(migrationContract2)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds2, address(migrationContract2));
             console.log("Minted", tierIds2.length, "tokens to contract 2");
-            
-            migrationContract2.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract2.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 3
             uint16[] memory tierIds3 = new uint16[](42);
-            
+
             // Add 20 instances of tier ID 4
             for (uint256 i = 0; i < 20; i++) {
                 tierIds3[0 + i] = 4;
@@ -421,22 +400,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners3 = _getEthereumTransferOwners3();
             MigrationContractEthereum3 migrationContract3 = new MigrationContractEthereum3(transferOwners3);
             console.log("Ethereum migration contract 3 deployed at:", address(migrationContract3));
-            
+
             // Mint chunk 3 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds3,
-                address(migrationContract3)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds3, address(migrationContract3));
             console.log("Minted", tierIds3.length, "tokens to contract 3");
-            
-            migrationContract3.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract3.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 4
             uint16[] memory tierIds4 = new uint16[](42);
-            
+
             // Add 20 instances of tier ID 4
             for (uint256 i = 0; i < 20; i++) {
                 tierIds4[0 + i] = 4;
@@ -496,22 +471,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners4 = _getEthereumTransferOwners4();
             MigrationContractEthereum4 migrationContract4 = new MigrationContractEthereum4(transferOwners4);
             console.log("Ethereum migration contract 4 deployed at:", address(migrationContract4));
-            
+
             // Mint chunk 4 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds4,
-                address(migrationContract4)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds4, address(migrationContract4));
             console.log("Minted", tierIds4.length, "tokens to contract 4");
-            
-            migrationContract4.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract4.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 5
             uint16[] memory tierIds5 = new uint16[](44);
-            
+
             // Add 20 instances of tier ID 4
             for (uint256 i = 0; i < 20; i++) {
                 tierIds5[0 + i] = 4;
@@ -599,22 +570,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners5 = _getEthereumTransferOwners5();
             MigrationContractEthereum5 migrationContract5 = new MigrationContractEthereum5(transferOwners5);
             console.log("Ethereum migration contract 5 deployed at:", address(migrationContract5));
-            
+
             // Mint chunk 5 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds5,
-                address(migrationContract5)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds5, address(migrationContract5));
             console.log("Minted", tierIds5.length, "tokens to contract 5");
-            
-            migrationContract5.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract5.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 6
             uint16[] memory tierIds6 = new uint16[](31);
-            
+
             // Add 18 instances of tier ID 4
             for (uint256 i = 0; i < 18; i++) {
                 tierIds6[0 + i] = 4;
@@ -654,22 +621,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners6 = _getEthereumTransferOwners6();
             MigrationContractEthereum6 migrationContract6 = new MigrationContractEthereum6(transferOwners6);
             console.log("Ethereum migration contract 6 deployed at:", address(migrationContract6));
-            
+
             // Mint chunk 6 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds6,
-                address(migrationContract6)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds6, address(migrationContract6));
             console.log("Minted", tierIds6.length, "tokens to contract 6");
-            
-            migrationContract6.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract6.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 7 (unused outfits/backgrounds - part 1)
             uint16[] memory tierIds7 = new uint16[](140);
-            
+
             // Add 2 instances of tier ID 5
             for (uint256 i = 0; i < 2; i++) {
                 tierIds7[0 + i] = 5;
@@ -789,22 +752,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners7 = _getEthereumTransferOwners7();
             MigrationContractEthereum7 migrationContract7 = new MigrationContractEthereum7(transferOwners7);
             console.log("Ethereum migration contract 7 deployed at:", address(migrationContract7));
-            
+
             // Mint chunk 7 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds7,
-                address(migrationContract7)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds7, address(migrationContract7));
             console.log("Minted", tierIds7.length, "tokens to contract 7");
-            
-            migrationContract7.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract7.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 8 (unused outfits/backgrounds - part 2)
             uint16[] memory tierIds8 = new uint16[](140);
-            
+
             // Add 140 instances of tier ID 49
             for (uint256 i = 0; i < 140; i++) {
                 tierIds8[0 + i] = 49;
@@ -812,23 +771,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners8 = _getEthereumTransferOwners8();
             MigrationContractEthereum8 migrationContract8 = new MigrationContractEthereum8(transferOwners8);
             console.log("Ethereum migration contract 8 deployed at:", address(migrationContract8));
-            
+
             // Mint chunk 8 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds8,
-                address(migrationContract8)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds8, address(migrationContract8));
             console.log("Minted", tierIds8.length, "tokens to contract 8");
-            
-            migrationContract8.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract8.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
         } else if (chainId == 10) {
             // Optimism tier IDs
             uint16[] memory allTierIds = new uint16[](11);
-            
+
             // Add 2 instances of tier ID 3
             for (uint256 i = 0; i < 2; i++) {
                 allTierIds[0 + i] = 3;
@@ -864,24 +818,20 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners = _getOptimismTransferOwners();
             MigrationContractOptimism migrationContract = new MigrationContractOptimism(transferOwners);
             console.log("Optimism migration contract deployed at:", address(migrationContract));
-            
+
             // Mint all assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                allTierIds,
-                address(migrationContract)
-            );
+            _mintViaPay(terminal, hook, projectId, allTierIds, address(migrationContract));
             console.log("Minted", allTierIds.length, "tokens to contract");
-            
-            migrationContract.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
+
+            migrationContract.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
         } else if (chainId == 8453) {
             // Base - 4 chunks (plus optional unused assets chunk)
-            
+
             // Deploy and execute contract 1
             uint16[] memory tierIds1 = new uint16[](62);
-            
+
             // Add 3 instances of tier ID 2
             for (uint256 i = 0; i < 3; i++) {
                 tierIds1[0 + i] = 2;
@@ -969,22 +919,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners1 = _getBaseTransferOwners1();
             MigrationContractBase1 migrationContract1 = new MigrationContractBase1(transferOwners1);
             console.log("Base migration contract 1 deployed at:", address(migrationContract1));
-            
+
             // Mint chunk 1 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds1,
-                address(migrationContract1)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds1, address(migrationContract1));
             console.log("Minted", tierIds1.length, "tokens to contract 1");
-            
-            migrationContract1.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract1.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 2
             uint16[] memory tierIds2 = new uint16[](27);
-            
+
             // Add 27 instances of tier ID 4
             for (uint256 i = 0; i < 27; i++) {
                 tierIds2[0 + i] = 4;
@@ -992,22 +938,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners2 = _getBaseTransferOwners2();
             MigrationContractBase2 migrationContract2 = new MigrationContractBase2(transferOwners2);
             console.log("Base migration contract 2 deployed at:", address(migrationContract2));
-            
+
             // Mint chunk 2 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds2,
-                address(migrationContract2)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds2, address(migrationContract2));
             console.log("Minted", tierIds2.length, "tokens to contract 2");
-            
-            migrationContract2.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract2.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 3
             uint16[] memory tierIds3 = new uint16[](40);
-            
+
             // Add 27 instances of tier ID 4
             for (uint256 i = 0; i < 27; i++) {
                 tierIds3[0 + i] = 4;
@@ -1051,22 +993,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners3 = _getBaseTransferOwners3();
             MigrationContractBase3 migrationContract3 = new MigrationContractBase3(transferOwners3);
             console.log("Base migration contract 3 deployed at:", address(migrationContract3));
-            
+
             // Mint chunk 3 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds3,
-                address(migrationContract3)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds3, address(migrationContract3));
             console.log("Minted", tierIds3.length, "tokens to contract 3");
-            
-            migrationContract3.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract3.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 4
             uint16[] memory tierIds4 = new uint16[](46);
-            
+
             // Add 26 instances of tier ID 4
             for (uint256 i = 0; i < 26; i++) {
                 tierIds4[0 + i] = 4;
@@ -1134,22 +1072,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners4 = _getBaseTransferOwners4();
             MigrationContractBase4 migrationContract4 = new MigrationContractBase4(transferOwners4);
             console.log("Base migration contract 4 deployed at:", address(migrationContract4));
-            
+
             // Mint chunk 4 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds4,
-                address(migrationContract4)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds4, address(migrationContract4));
             console.log("Minted", tierIds4.length, "tokens to contract 4");
-            
-            migrationContract4.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract4.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 5 (unused outfits/backgrounds)
             uint16[] memory tierIds5 = new uint16[](53);
-            
+
             // Add 2 instances of tier ID 5
             for (uint256 i = 0; i < 2; i++) {
                 tierIds5[0 + i] = 5;
@@ -1253,25 +1187,20 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners5 = _getBaseTransferOwners5();
             MigrationContractBase5 migrationContract5 = new MigrationContractBase5(transferOwners5);
             console.log("Base migration contract 5 deployed at:", address(migrationContract5));
-            
+
             // Mint chunk 5 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds5,
-                address(migrationContract5)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds5, address(migrationContract5));
             console.log("Minted", tierIds5.length, "tokens to contract 5");
-            
-            migrationContract5.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
-        } else if (chainId == 42161) {
+
+            migrationContract5.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+        } else if (chainId == 42_161) {
             // Arbitrum - 3 chunks (plus optional unused assets chunk)
-            
+
             // Deploy and execute contract 1
             uint16[] memory tierIds1 = new uint16[](9);
-            
+
             // Add 2 instances of tier ID 3
             for (uint256 i = 0; i < 2; i++) {
                 tierIds1[0 + i] = 3;
@@ -1303,22 +1232,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners1 = _getArbitrumTransferOwners1();
             MigrationContractArbitrum1 migrationContract1 = new MigrationContractArbitrum1(transferOwners1);
             console.log("Arbitrum migration contract 1 deployed at:", address(migrationContract1));
-            
+
             // Mint chunk 1 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds1,
-                address(migrationContract1)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds1, address(migrationContract1));
             console.log("Minted", tierIds1.length, "tokens to contract 1");
-            
-            migrationContract1.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract1.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 2
             uint16[] memory tierIds2 = new uint16[](12);
-            
+
             // Add 4 instances of tier ID 4
             for (uint256 i = 0; i < 4; i++) {
                 tierIds2[0 + i] = 4;
@@ -1358,22 +1283,18 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners2 = _getArbitrumTransferOwners2();
             MigrationContractArbitrum2 migrationContract2 = new MigrationContractArbitrum2(transferOwners2);
             console.log("Arbitrum migration contract 2 deployed at:", address(migrationContract2));
-            
+
             // Mint chunk 2 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds2,
-                address(migrationContract2)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds2, address(migrationContract2));
             console.log("Minted", tierIds2.length, "tokens to contract 2");
-            
-            migrationContract2.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract2.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
+
             // Deploy and execute contract 3
             uint16[] memory tierIds3 = new uint16[](8);
-            
+
             // Add 3 instances of tier ID 4
             for (uint256 i = 0; i < 3; i++) {
                 tierIds3[0 + i] = 4;
@@ -1401,57 +1322,54 @@ contract AirdropOutfitsScript is Script, Sphinx {
             address[] memory transferOwners3 = _getArbitrumTransferOwners3();
             MigrationContractArbitrum3 migrationContract3 = new MigrationContractArbitrum3(transferOwners3);
             console.log("Arbitrum migration contract 3 deployed at:", address(migrationContract3));
-            
+
             // Mint chunk 3 assets to the contract address via pay()
-            _mintViaPay(
-                terminal,
-                hook,
-                projectId,
-                tierIds3,
-                address(migrationContract3)
-            );
+            _mintViaPay(terminal, hook, projectId, tierIds3, address(migrationContract3));
             console.log("Minted", tierIds3.length, "tokens to contract 3");
-            
-            migrationContract3.executeMigration(hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback);
-            
+
+            migrationContract3.executeMigration(
+                hookAddress, resolverAddress, v4HookAddress, v4ResolverAddress, v4ResolverFallback
+            );
         } else {
             revert("Unsupported chain for contract deployment");
         }
     }
-    
+
     function _mintViaPay(
         IJBTerminal terminal,
         JB721TiersHook hook,
         uint256 projectId,
         uint16[] memory tierIds,
         address beneficiary
-    ) internal {
+    )
+        internal
+    {
         uint256 totalTierIds = tierIds.length;
-        
+
         // Process tier IDs in batches
         for (uint256 i = 0; i < totalTierIds; i += BATCH_SIZE) {
             uint256 batchSize = i + BATCH_SIZE > totalTierIds ? totalTierIds - i : BATCH_SIZE;
             uint16[] memory batchTierIds = new uint16[](batchSize);
-            
+
             // Copy tier IDs for this batch
             for (uint256 j = 0; j < batchSize; j++) {
                 batchTierIds[j] = tierIds[i + j];
             }
-            
+
             // Build the metadata using the tiers to mint and the overspending flag
             bytes[] memory data = new bytes[](1);
             data[0] = abi.encode(false, batchTierIds);
-            
+
             // Get the hook ID
             bytes4[] memory ids = new bytes4[](1);
             ids[0] = JBMetadataResolver.getId("pay", hook.METADATA_ID_TARGET());
-            
+
             // Generate the metadata
             bytes memory hookMetadata = JBMetadataResolver.createMetadata(ids, data);
-            
+
             // Calculate the amount needed for this batch
             uint256 batchAmount = _calculateTotalPriceForTiers(batchTierIds);
-            
+
             // Pay the terminal to mint the NFTs for this batch
             terminal.pay{value: batchAmount}({
                 projectId: projectId,
@@ -1464,57 +1382,57 @@ contract AirdropOutfitsScript is Script, Sphinx {
             });
         }
     }
-    
+
     function _getPriceForUPC(uint16 upc) internal pure returns (uint256) {
         // Price map: UPC -> price in wei
         // This is generated from raw.json prices
 
-        if (upc == 1) return 1000000000000000000;
-        if (upc == 2) return 100000000000000000;
-        if (upc == 3) return 10000000000000000;
-        if (upc == 4) return 100000000000000;
-        if (upc == 5) return 10000000000000000;
-        if (upc == 6) return 10000000000000000;
-        if (upc == 7) return 10000000000000000;
-        if (upc == 10) return 1000000000000000;
-        if (upc == 11) return 10000000000000000;
-        if (upc == 13) return 10000000000000000;
-        if (upc == 14) return 10000000000000000;
-        if (upc == 15) return 10000000000000000;
-        if (upc == 16) return 100000000000000000;
-        if (upc == 17) return 10000000000000000;
-        if (upc == 18) return 10000000000000000;
-        if (upc == 19) return 1000000000000000;
-        if (upc == 20) return 10000000000000000;
-        if (upc == 21) return 100000000000000000;
-        if (upc == 23) return 10000000000000000;
-        if (upc == 24) return 150000000000000000;
-        if (upc == 25) return 1000000000000000;
-        if (upc == 26) return 10000000000000000;
-        if (upc == 27) return 100000000000000000;
-        if (upc == 28) return 1000000000000000;
-        if (upc == 29) return 100000000000000000;
-        if (upc == 31) return 1000000000000000;
-        if (upc == 32) return 10000000000000000;
-        if (upc == 33) return 15000000000000000;
-        if (upc == 34) return 10000000000000000;
-        if (upc == 35) return 10000000000000000;
-        if (upc == 37) return 10000000000000000;
-        if (upc == 38) return 10000000000000000;
-        if (upc == 39) return 10000000000000000;
-        if (upc == 40) return 10000000000000000;
-        if (upc == 41) return 10000000000000000;
-        if (upc == 42) return 1000000000000000;
-        if (upc == 43) return 1000000000000000;
-        if (upc == 44) return 1787000000000000;
-        if (upc == 45) return 100000000000000000;
-        if (upc == 46) return 100000000000000000;
-        if (upc == 47) return 1000000000000000;
-        if (upc == 48) return 100000000000000000;
-        if (upc == 49) return 1000000000000000;
+        if (upc == 1) return 1_000_000_000_000_000_000;
+        if (upc == 2) return 100_000_000_000_000_000;
+        if (upc == 3) return 10_000_000_000_000_000;
+        if (upc == 4) return 100_000_000_000_000;
+        if (upc == 5) return 10_000_000_000_000_000;
+        if (upc == 6) return 10_000_000_000_000_000;
+        if (upc == 7) return 10_000_000_000_000_000;
+        if (upc == 10) return 1_000_000_000_000_000;
+        if (upc == 11) return 10_000_000_000_000_000;
+        if (upc == 13) return 10_000_000_000_000_000;
+        if (upc == 14) return 10_000_000_000_000_000;
+        if (upc == 15) return 10_000_000_000_000_000;
+        if (upc == 16) return 100_000_000_000_000_000;
+        if (upc == 17) return 10_000_000_000_000_000;
+        if (upc == 18) return 10_000_000_000_000_000;
+        if (upc == 19) return 1_000_000_000_000_000;
+        if (upc == 20) return 10_000_000_000_000_000;
+        if (upc == 21) return 100_000_000_000_000_000;
+        if (upc == 23) return 10_000_000_000_000_000;
+        if (upc == 24) return 150_000_000_000_000_000;
+        if (upc == 25) return 1_000_000_000_000_000;
+        if (upc == 26) return 10_000_000_000_000_000;
+        if (upc == 27) return 100_000_000_000_000_000;
+        if (upc == 28) return 1_000_000_000_000_000;
+        if (upc == 29) return 100_000_000_000_000_000;
+        if (upc == 31) return 1_000_000_000_000_000;
+        if (upc == 32) return 10_000_000_000_000_000;
+        if (upc == 33) return 15_000_000_000_000_000;
+        if (upc == 34) return 10_000_000_000_000_000;
+        if (upc == 35) return 10_000_000_000_000_000;
+        if (upc == 37) return 10_000_000_000_000_000;
+        if (upc == 38) return 10_000_000_000_000_000;
+        if (upc == 39) return 10_000_000_000_000_000;
+        if (upc == 40) return 10_000_000_000_000_000;
+        if (upc == 41) return 10_000_000_000_000_000;
+        if (upc == 42) return 1_000_000_000_000_000;
+        if (upc == 43) return 1_000_000_000_000_000;
+        if (upc == 44) return 1_787_000_000_000_000;
+        if (upc == 45) return 100_000_000_000_000_000;
+        if (upc == 46) return 100_000_000_000_000_000;
+        if (upc == 47) return 1_000_000_000_000_000;
+        if (upc == 48) return 100_000_000_000_000_000;
+        if (upc == 49) return 1_000_000_000_000_000;
         return 0;
     }
-    
+
     function _calculateTotalPriceForTiers(uint16[] memory tierIds) internal pure returns (uint256) {
         uint256 total = 0;
         for (uint256 i = 0; i < tierIds.length; i++) {
@@ -1522,9 +1440,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         }
         return total;
     }
+
     function _getEthereumTransferOwners1() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](20);
-        
+
         transferOwners[0] = 0xaECD6D9172d602b93dBA3981991268b44af8096e;
         transferOwners[1] = 0xA2Fa6144168751D116336B58C5288feaF8bb12C1;
         transferOwners[2] = 0x63A2368F4B509438ca90186cb1C15156713D5834;
@@ -1547,10 +1466,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[19] = 0x6a099Bb96DDF3963d5AddCAbDC0221914cF80b1F;
         return transferOwners;
     }
-    
+
     function _getEthereumTransferOwners2() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](20);
-        
+
         transferOwners[0] = 0x87084347AeBADc626e8569E0D386928dade2ba09;
         transferOwners[1] = 0x79d1E7F1A6E0Bbb3278a9d2B782e3A8983444cb6;
         transferOwners[2] = 0x546B4A7A30b3193Badf70E1d43D8142928F3db0b;
@@ -1573,10 +1492,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[19] = 0xe7879a2D05dBA966Fcca34EE9C3F99eEe7eDEFd1;
         return transferOwners;
     }
-    
+
     function _getEthereumTransferOwners3() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](20);
-        
+
         transferOwners[0] = 0x0447AD1BdC0fFA06f7029c8E63F4De21E65255d2;
         transferOwners[1] = 0x5706d5aD7A68bf8692bD341234bE44ca7Bf2f654;
         transferOwners[2] = 0x679d87D8640e66778c3419D164998E720D7495f6;
@@ -1599,10 +1518,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[19] = 0x7bE8c264c9DCebA3A35990c78d5C4220D8724B6e;
         return transferOwners;
     }
-    
+
     function _getEthereumTransferOwners4() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](20);
-        
+
         transferOwners[0] = 0x7bE8c264c9DCebA3A35990c78d5C4220D8724B6e;
         transferOwners[1] = 0x7bE8c264c9DCebA3A35990c78d5C4220D8724B6e;
         transferOwners[2] = 0x7bE8c264c9DCebA3A35990c78d5C4220D8724B6e;
@@ -1625,10 +1544,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[19] = 0x95E9A0c113AA9931a4230f91AdE08A491D3f8d54;
         return transferOwners;
     }
-    
+
     function _getEthereumTransferOwners5() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](20);
-        
+
         transferOwners[0] = 0xf32dd1Bd55bD14d929218499a2E7D106F72f79c7;
         transferOwners[1] = 0xaECD6D9172d602b93dBA3981991268b44af8096e;
         transferOwners[2] = 0xe21A272c4D22eD40678a0168b4acd006bca8A482;
@@ -1651,10 +1570,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[19] = 0x823b92d6a4b2AED4b15675c7917c9f922ea8ADAD;
         return transferOwners;
     }
-    
+
     function _getEthereumTransferOwners6() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](18);
-        
+
         transferOwners[0] = 0x823b92d6a4b2AED4b15675c7917c9f922ea8ADAD;
         transferOwners[1] = 0x823b92d6a4b2AED4b15675c7917c9f922ea8ADAD;
         transferOwners[2] = 0x823b92d6a4b2AED4b15675c7917c9f922ea8ADAD;
@@ -1675,10 +1594,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[17] = 0x5138a42C3D5065debE950deBDa10C1f38150a908;
         return transferOwners;
     }
-    
+
     function _getEthereumTransferOwners7() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](140);
-        
+
         transferOwners[0] = 0x1Ae766cc5947e1E4C3538EE1F3f47063D2B40E79;
         transferOwners[1] = 0x823b92d6a4b2AED4b15675c7917c9f922ea8ADAD;
         transferOwners[2] = 0xa9d20b435A85fAAa002f32d66F7D21564130E9cf;
@@ -1821,10 +1740,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[139] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
         return transferOwners;
     }
-    
+
     function _getEthereumTransferOwners8() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](140);
-        
+
         transferOwners[0] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
         transferOwners[1] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
         transferOwners[2] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
@@ -1967,10 +1886,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[139] = 0x823b92d6a4b2AED4b15675c7917c9f922ea8ADAD;
         return transferOwners;
     }
-    
+
     function _getOptimismTransferOwners() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](6);
-        
+
         transferOwners[0] = 0x25910143C255828F623786f46fe9A8941B7983bB;
         transferOwners[1] = 0x292ff025168D2B51f0Ef49f164D281c36761BA2b;
         transferOwners[2] = 0xA7a5A2745f10D5C23d75a6fd228A408cEDe1CAE5;
@@ -1979,10 +1898,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[5] = 0xA2Fa6144168751D116336B58C5288feaF8bb12C1;
         return transferOwners;
     }
-    
+
     function _getBaseTransferOwners1() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](27);
-        
+
         transferOwners[0] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         transferOwners[1] = 0x565B93a15d38aCD79c120b15432D21E21eD274d6;
         transferOwners[2] = 0xFd37f4625CA5816157D55a5b3F7Dd8DD5F8a0C2F;
@@ -2012,10 +1931,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[26] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         return transferOwners;
     }
-    
+
     function _getBaseTransferOwners2() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](27);
-        
+
         transferOwners[0] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         transferOwners[1] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         transferOwners[2] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
@@ -2045,10 +1964,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[26] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         return transferOwners;
     }
-    
+
     function _getBaseTransferOwners3() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](27);
-        
+
         transferOwners[0] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         transferOwners[1] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         transferOwners[2] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
@@ -2078,10 +1997,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[26] = 0x2830e21792019CE670fBc548AacB004b08c7f71f;
         return transferOwners;
     }
-    
+
     function _getBaseTransferOwners4() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](26);
-        
+
         transferOwners[0] = 0x2830e21792019CE670fBc548AacB004b08c7f71f;
         transferOwners[1] = 0x46f3cC6a1c00A5cD8864d2B92f128196CAE07D15;
         transferOwners[2] = 0x8e2B25dF2484000B9127b2D2F8E92079dcEE3E48;
@@ -2110,10 +2029,10 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[25] = 0xd2e44E40B5FB960A8A74dD7B9D6b7f14B805b50d;
         return transferOwners;
     }
-    
+
     function _getBaseTransferOwners5() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](53);
-        
+
         transferOwners[0] = 0x8b80755C441d355405CA7571443Bb9247B77Ec16;
         transferOwners[1] = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
         transferOwners[2] = 0x328809A567b87b6123462c3062e8438BBB75c1c5;
@@ -2169,39 +2088,39 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[52] = 0x8b80755C441d355405CA7571443Bb9247B77Ec16;
         return transferOwners;
     }
-    
+
     function _getArbitrumTransferOwners1() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](4);
-        
+
         transferOwners[0] = 0x2aa64E6d80390F5C017F0313cB908051BE2FD35e;
         transferOwners[1] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
         transferOwners[2] = 0x1C51517d8277C9aD6d701Fb5394ceC0C18219eDb;
         transferOwners[3] = 0xfD282d9f4d06C4BDc6a41af1Ae920A0AD70D18a3;
         return transferOwners;
     }
-    
+
     function _getArbitrumTransferOwners2() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](4);
-        
+
         transferOwners[0] = 0x08B3e694caA2F1fcF8eF71095CED1326f3454B89;
         transferOwners[1] = 0x9fDf876a50EA8f95017dCFC7709356887025B5BB;
         transferOwners[2] = 0x187089B33E5812310Ed32A57F53B3fAD0383a19D;
         transferOwners[3] = 0xc6404f24DB2f573F07F3A60758765caad198c0c3;
         return transferOwners;
     }
-    
+
     function _getArbitrumTransferOwners3() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](3);
-        
+
         transferOwners[0] = 0xB2d3900807094D4Fe47405871B0C8AdB58E10D42;
         transferOwners[1] = 0x57a482EA32c7F75A9C0734206f5BD4f9BCb38e12;
         transferOwners[2] = 0x57a482EA32c7F75A9C0734206f5BD4f9BCb38e12;
         return transferOwners;
     }
-    
+
     function _getArbitrumTransferOwners4() internal pure returns (address[] memory) {
         address[] memory transferOwners = new address[](176);
-        
+
         transferOwners[0] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
         transferOwners[1] = 0x1C51517d8277C9aD6d701Fb5394ceC0C18219eDb;
         transferOwners[2] = 0x57a482EA32c7F75A9C0734206f5BD4f9BCb38e12;
@@ -2380,5 +2299,4 @@ contract AirdropOutfitsScript is Script, Sphinx {
         transferOwners[175] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
         return transferOwners;
     }
-    
 }
