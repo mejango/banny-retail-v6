@@ -278,7 +278,7 @@ contract Banny721TokenUriResolver is
                 product.category > _SPECIAL_BODY_CATEGORY ? IJB721TiersHook(hook).baseURI() : svgBaseUri;
 
             // Fallback to returning an IPFS hash if present.
-            return JBIpfsDecoder.decode(baseUri, _storeOf(hook).encodedTierIPFSUriOf({hook: hook, tokenId: tokenId}));
+            return JBIpfsDecoder.decode({baseUri: baseUri, hexString: _storeOf(hook).encodedTierIPFSUriOf({hook: hook, tokenId: tokenId})});
         }
 
         // Get a reference to the pricing context.
@@ -881,7 +881,7 @@ contract Banny721TokenUriResolver is
 
         return string.concat(
             '<image href="',
-            JBIpfsDecoder.decode(svgBaseUri, _storeOf(hook).encodedIPFSUriOf({hook: hook, tierId: upc})),
+            JBIpfsDecoder.decode({baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIPFSUriOf({hook: hook, tierId: upc})}),
             '" width="400" height="400"/>'
         );
     }
@@ -1108,7 +1108,7 @@ contract Banny721TokenUriResolver is
             // wearing it.
             if (_msgSender() != owner) {
                 // Get the banny body currently wearing this outfit.
-                uint256 wearerId = wearerOf(hook, outfitId);
+                uint256 wearerId = wearerOf({hook: hook, outfitId: outfitId});
 
                 // If the outfit is not currently worn, only the outfit's owner can use it for decoration.
                 if (wearerId == 0) revert Banny721TokenUriResolver_UnauthorizedOutfit();
@@ -1240,7 +1240,7 @@ contract Banny721TokenUriResolver is
                 // Check if the call is being made by the background's owner, or the owner of a banny body using it.
                 if (_msgSender() != owner) {
                     // Get the banny body currently using this background.
-                    uint256 userId = userOf(hook, backgroundId);
+                    uint256 userId = userOf({hook: hook, backgroundId: backgroundId});
 
                     // If the background is not currently used, only the background's owner can use it for decoration.
                     if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
