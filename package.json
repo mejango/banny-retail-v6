@@ -1,10 +1,10 @@
 {
-    "name": "@bananapus/banny-retail-v6",
+    "name": "@bannynet/core-v6",
     "version": "0.0.1",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/Bananapus/banny-retail-v6"
+        "url": "git+https://github.com/mejango/banny-retail-v6"
     },
     "engines": {
         "node": ">=20.0.0"
