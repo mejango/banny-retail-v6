@@ -107,13 +107,13 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
 
     /// @notice The outfits currently attached to each banny body.
-    /// @dev Nakes Banny's will only be shown with outfits currently owned by the owner of the banny body.
+    /// @dev Naked Banny's will only be shown with outfits currently owned by the owner of the banny body.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the outfits.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
 
     /// @notice The background currently attached to each banny body.
-    /// @dev Nakes Banny's will only be shown with a background currently owned by the owner of the banny body.
+    /// @dev Naked Banny's will only be shown with a background currently owned by the owner of the banny body.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the background.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256)) internal _attachedBackgroundIdOf;
@@ -643,7 +643,7 @@ contract Banny721TokenUriResolver is
         // Append a separator.
         name = string.concat(name, ": ");
 
-        // Get a reference to the categorie's name.
+        // Get a reference to the category's name.
         string memory categoryName = _categoryNameOf(product.category);
 
         // If there's a category name, append it.
@@ -690,13 +690,13 @@ contract Banny721TokenUriResolver is
         );
     }
 
-    /// @notice Returns the calldata, prefered to use over `msg.data`
+    /// @notice Returns the calldata, preferred to use over `msg.data`
     /// @return calldata the `msg.data` of this call
     function _msgData() internal view override(ERC2771Context, Context) returns (bytes calldata) {
         return ERC2771Context._msgData();
     }
 
-    /// @notice Returns the sender, prefered to use over `msg.sender`
+    /// @notice Returns the sender, preferred to use over `msg.sender`
     /// @return sender the sender address of this call.
     function _msgSender() internal view override(ERC2771Context, Context) returns (address sender) {
         return ERC2771Context._msgSender();
@@ -874,7 +874,7 @@ contract Banny721TokenUriResolver is
     /// @param hook The 721 contract that the product belongs to.
     /// @param upc The universal product code of the product that the SVG contents represent.
     function _svgOf(address hook, uint256 upc) internal view returns (string memory) {
-        // Keep a reference to the stored scg contents.
+        // Keep a reference to the stored svg contents.
         string memory svgContents = _svgContentOf[upc];
 
         if (bytes(svgContents).length != 0) return svgContents;
@@ -964,7 +964,7 @@ contract Banny721TokenUriResolver is
         outfitLockedUntil[hook][bannyBodyId] = newLockUntil;
     }
 
-    /// @dev Make sure tokens can be receieved if the transaction was initiated by this contract.
+    /// @dev Make sure tokens can be received if the transaction was initiated by this contract.
     /// @param operator The address that initiated the transaction.
     /// @param from The address that initiated the transfer.
     /// @param tokenId The ID of the token being transferred.
@@ -1043,11 +1043,11 @@ contract Banny721TokenUriResolver is
     /// @notice Allows the owner of this contract to upload the hash of an svg file for a universal product code.
     /// @dev This allows anyone to lazily upload the correct svg file.
     /// @param upcs The universal product codes of the products having SVG hashes stored.
-    /// @param svgHashs The svg hashes being stored, not including the parent <svg></svg> element.
-    function setSvgHashsOf(uint256[] memory upcs, bytes32[] memory svgHashs) external override onlyOwner {
+    /// @param svgHashes The svg hashes being stored, not including the parent <svg></svg> element.
+    function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
-            bytes32 svgHash = svgHashs[i];
+            bytes32 svgHash = svgHashes[i];
 
             // Make sure there isn't already contents for the specified universal product code.
             if (svgHashOf[upc] != bytes32(0)) revert Banny721TokenUriResolver_HashAlreadyStored();
@@ -1224,7 +1224,7 @@ contract Banny721TokenUriResolver is
         // Keep a reference to the user of the previous background.
         uint256 userOfPreviousBackground = userOf({hook: hook, backgroundId: previousBackgroundId});
 
-        // If the background is changing, add the lateset background and transfer the old one back to the owner.
+        // If the background is changing, add the latest background and transfer the old one back to the owner.
         if (backgroundId != previousBackgroundId || userOfPreviousBackground != bannyBodyId) {
             // If there's a previous background worn by this banny, transfer it back to the owner.
             if (userOfPreviousBackground == bannyBodyId) {
@@ -1279,7 +1279,7 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Transfer a token from one address to another.
-    /// @param hook The 721 contract of the token being transfered.
+    /// @param hook The 721 contract of the token being transferred.
     /// @param from The address to transfer the token from.
     /// @param to The address to transfer the token to.
     /// @param assetId The ID of the token to transfer.
