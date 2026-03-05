@@ -96,13 +96,7 @@ interface IBanny721TokenUriResolver {
     /// @param hook The hook address of the collection.
     /// @param tokenId The token ID to look up.
     /// @return The product name, the category name, and the display name.
-    function namesOf(
-        address hook,
-        uint256 tokenId
-    )
-        external
-        view
-        returns (string memory, string memory, string memory);
+    function namesOf(address hook, uint256 tokenId) external view returns (string memory, string memory, string memory);
 
     /// @notice Dress a banny body with a background and outfits.
     /// @param hook The hook address of the collection.

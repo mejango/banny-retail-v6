@@ -114,13 +114,7 @@ contract BannyAttacks is Test {
 
         vm.prank(deployer);
         resolver = new Banny721TokenUriResolver(
-            "<path/>",
-            "<necklace/>",
-            "<mouth/>",
-            "<eyes/>",
-            "<alieneyes/>",
-            deployer,
-            address(0)
+            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", deployer, address(0)
         );
 
         // Set up tier data.
@@ -246,8 +240,8 @@ contract BannyAttacks is Test {
     function test_categoryConflict_headAndEyes_reverts() public {
         // Try to equip both head and eyes at once.
         uint256[] memory outfits = new uint256[](2);
-        outfits[0] = HEAD;  // category 4
-        outfits[1] = EYES;  // category 5
+        outfits[0] = HEAD; // category 4
+        outfits[1] = EYES; // category 5
 
         vm.prank(alice);
         vm.expectRevert();
@@ -260,7 +254,7 @@ contract BannyAttacks is Test {
     /// @notice Suit (category 9) should conflict with Suit Bottom (category 10).
     function test_categoryConflict_suitAndParts_reverts() public {
         uint256[] memory outfits = new uint256[](2);
-        outfits[0] = SUIT;        // category 9
+        outfits[0] = SUIT; // category 9
         outfits[1] = SUIT_BOTTOM; // category 10
 
         vm.prank(alice);
@@ -291,7 +285,7 @@ contract BannyAttacks is Test {
     ///         should revert.
     function test_outOfOrderCategories_reverts() public {
         uint256[] memory outfits = new uint256[](2);
-        outfits[0] = MOUTH;    // category 7
+        outfits[0] = MOUTH; // category 7
         outfits[1] = NECKLACE; // category 3 — out of order!
 
         vm.prank(alice);

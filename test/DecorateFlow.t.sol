@@ -122,13 +122,7 @@ contract DecorateFlowTests is Test {
 
         vm.prank(deployer);
         resolver = new Banny721TokenUriResolver(
-            "<path/>",
-            "<necklace/>",
-            "<mouth/>",
-            "<eyes/>",
-            "<alieneyes/>",
-            deployer,
-            address(0)
+            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", deployer, address(0)
         );
 
         // Set up tier data for all tokens.
@@ -394,13 +388,13 @@ contract DecorateFlowTests is Test {
     function test_dress_multipleOutfits_ordered() public {
         // backside(2), necklace(3), eyes(5), mouth(7), legs(8), suit_bottom(10), suit_top(11)
         uint256[] memory outfits = new uint256[](7);
-        outfits[0] = BACKSIDE;     // cat 2
-        outfits[1] = NECKLACE_1;   // cat 3
-        outfits[2] = EYES;         // cat 5
-        outfits[3] = MOUTH;        // cat 7
-        outfits[4] = LEGS;         // cat 8
-        outfits[5] = SUIT_BOTTOM;  // cat 10
-        outfits[6] = SUIT_TOP;     // cat 11
+        outfits[0] = BACKSIDE; // cat 2
+        outfits[1] = NECKLACE_1; // cat 3
+        outfits[2] = EYES; // cat 5
+        outfits[3] = MOUTH; // cat 7
+        outfits[4] = LEGS; // cat 8
+        outfits[5] = SUIT_BOTTOM; // cat 10
+        outfits[6] = SUIT_TOP; // cat 11
 
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
@@ -444,8 +438,8 @@ contract DecorateFlowTests is Test {
     /// @notice Dress with both background and outfits in one call.
     function test_dress_backgroundAndOutfits() public {
         uint256[] memory outfits = new uint256[](2);
-        outfits[0] = NECKLACE_1;  // cat 3
-        outfits[1] = EYES;        // cat 5
+        outfits[0] = NECKLACE_1; // cat 3
+        outfits[1] = EYES; // cat 5
 
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_A, BACKGROUND_1, outfits);
@@ -546,8 +540,8 @@ contract DecorateFlowTests is Test {
 
         // Re-dress: keep only necklace and mouth (eyes removed).
         uint256[] memory keepOutfits = new uint256[](2);
-        keepOutfits[0] = NECKLACE_1;  // cat 3 — keep
-        keepOutfits[1] = MOUTH;       // cat 7 — keep
+        keepOutfits[0] = NECKLACE_1; // cat 3 — keep
+        keepOutfits[1] = MOUTH; // cat 7 — keep
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, keepOutfits);
 
@@ -835,15 +829,15 @@ contract DecorateFlowTests is Test {
     function test_lifecycle_dressReplaceUndress() public {
         // Step 1: Dress with necklace 1 + mouth.
         uint256[] memory outfits1 = new uint256[](2);
-        outfits1[0] = NECKLACE_1;  // cat 3
-        outfits1[1] = MOUTH;       // cat 7
+        outfits1[0] = NECKLACE_1; // cat 3
+        outfits1[1] = MOUTH; // cat 7
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits1);
 
         // Step 2: Replace necklace with necklace 2 (keep mouth).
         uint256[] memory outfits2 = new uint256[](2);
-        outfits2[0] = NECKLACE_2;  // cat 3 (replaces necklace 1)
-        outfits2[1] = MOUTH;       // cat 7 (kept)
+        outfits2[0] = NECKLACE_2; // cat 3 (replaces necklace 1)
+        outfits2[1] = MOUTH; // cat 7 (kept)
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits2);
 
@@ -940,8 +934,8 @@ contract DecorateFlowTests is Test {
     /// @notice Head + glasses conflict.
     function test_conflict_headAndGlasses() public {
         uint256[] memory outfits = new uint256[](2);
-        outfits[0] = HEAD;     // cat 4
-        outfits[1] = GLASSES;  // cat 6
+        outfits[0] = HEAD; // cat 4
+        outfits[1] = GLASSES; // cat 6
 
         vm.prank(alice);
         vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
@@ -951,8 +945,8 @@ contract DecorateFlowTests is Test {
     /// @notice Head + headtop conflict.
     function test_conflict_headAndHeadtop() public {
         uint256[] memory outfits = new uint256[](2);
-        outfits[0] = HEAD;     // cat 4
-        outfits[1] = HEADTOP;  // cat 12
+        outfits[0] = HEAD; // cat 4
+        outfits[1] = HEADTOP; // cat 12
 
         vm.prank(alice);
         vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
@@ -962,8 +956,8 @@ contract DecorateFlowTests is Test {
     /// @notice Suit bottom + suit top (no full suit) is valid.
     function test_noConflict_suitBottomAndTop() public {
         uint256[] memory outfits = new uint256[](2);
-        outfits[0] = SUIT_BOTTOM;  // cat 10
-        outfits[1] = SUIT_TOP;     // cat 11
+        outfits[0] = SUIT_BOTTOM; // cat 10
+        outfits[1] = SUIT_TOP; // cat 11
 
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
@@ -975,9 +969,9 @@ contract DecorateFlowTests is Test {
     /// @notice Eyes + mouth + glasses (no head) is valid.
     function test_noConflict_eyesMouthGlasses() public {
         uint256[] memory outfits = new uint256[](3);
-        outfits[0] = EYES;     // cat 5
-        outfits[1] = GLASSES;  // cat 6
-        outfits[2] = MOUTH;    // cat 7
+        outfits[0] = EYES; // cat 5
+        outfits[1] = GLASSES; // cat 6
+        outfits[2] = MOUTH; // cat 7
 
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);

@@ -36,7 +36,6 @@ contract Drop1Script is Script, Sphinx {
     }
 
     function run() public {
-
         // Get the operator address.
         OPERATOR = safeAddress();
 
@@ -230,7 +229,7 @@ contract Drop1Script is Script, Sphinx {
         // Constitution
         names[39] = "Constitution";
         svgHashes[39] = bytes32(0xaf0826d8eac1e57789077f43e6f979488da6f619f72f9f0ff50a52ebcca3bfa3);
-        // DJ Deck 
+        // DJ Deck
         names[40] = "DJ Deck";
         svgHashes[40] = bytes32(0x2c9538556986d134ddec2831e768233f587b242e887df9bb359b3aefffa3c5a6);
         // Gas can
@@ -268,7 +267,7 @@ contract Drop1Script is Script, Sphinx {
         resolver.setProductNames(productIds, names);
         resolver.setSvgBaseUri("https://bannyverse.infura-ipfs.io/ipfs/");
     }
-    
+
     function _isDeployed(
         bytes32 salt,
         bytes memory creationCode,
