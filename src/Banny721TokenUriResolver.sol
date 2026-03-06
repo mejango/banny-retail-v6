@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {IERC721} from "@bananapus/721-hook-v5/src/abstract/ERC721.sol";
-import {IJB721TiersHook} from "@bananapus/721-hook-v5/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v5/src/interfaces/IJB721TiersHookStore.sol";
-import {IJB721TokenUriResolver} from "@bananapus/721-hook-v5/src/interfaces/IJB721TokenUriResolver.sol";
-import {JB721Tier} from "@bananapus/721-hook-v5/src/structs/JB721Tier.sol";
-import {JBIpfsDecoder} from "@bananapus/721-hook-v5/src/libraries/JBIpfsDecoder.sol";
+import {IERC721} from "@bananapus/721-hook-v6/src/abstract/ERC721.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
+import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
+import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
+import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
+import {JBIpfsDecoder} from "@bananapus/721-hook-v6/src/libraries/JBIpfsDecoder.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
@@ -203,21 +203,20 @@ contract Banny721TokenUriResolver is
             if (product.category == _BACKGROUND_CATEGORY) {
                 uint256 bannyBodyId = userOf({hook: hook, backgroundId: tokenId});
                 extraMetadata = string.concat('"usedByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             } else {
                 uint256 bannyBodyId = wearerOf({hook: hook, outfitId: tokenId});
                 extraMetadata = string.concat('"wornByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             }
         } else {
             // Compose the contents.
             contents = svgOf({
-                hook: hook,
-                tokenId: tokenId,
-                shouldDressBannyBody: true,
-                shouldIncludeBackgroundOnBannyBody: true
+                hook: hook, tokenId: tokenId, shouldDressBannyBody: true, shouldIncludeBackgroundOnBannyBody: true
             });
 
             // Get a reference to each asset ID currently attached to the banny body.
@@ -908,11 +907,7 @@ contract Banny721TokenUriResolver is
         }
 
         emit DecorateBanny({
-            hook: hook,
-            bannyBodyId: bannyBodyId,
-            backgroundId: backgroundId,
-            outfitIds: outfitIds,
-            caller: _msgSender()
+            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: _msgSender()
         });
 
         // Add the background.
@@ -1106,10 +1101,10 @@ contract Banny721TokenUriResolver is
             } else if (outfitProductCategory == _SUIT_CATEGORY) {
                 hasSuit = true;
             } else if (
-                (
-                    outfitProductCategory == _EYES_CATEGORY || outfitProductCategory == _GLASSES_CATEGORY || outfitProductCategory == _MOUTH_CATEGORY
-                        || outfitProductCategory == _HEADTOP_CATEGORY
-                ) && hasHead
+                (outfitProductCategory == _EYES_CATEGORY
+                        || outfitProductCategory == _GLASSES_CATEGORY
+                        || outfitProductCategory == _MOUTH_CATEGORY
+                        || outfitProductCategory == _HEADTOP_CATEGORY) && hasHead
             ) {
                 revert Banny721TokenUriResolver_HeadAlreadyAdded();
             } else if (

@@ -1,10 +1,10 @@
 {
-    "name": "@bannynet/core-v5",
-    "version": "0.0.3",
+    "name": "@bannynet/core-v6",
+    "version": "0.0.1",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/mejango/bannyverse-core-v5"
+        "url": "git+https://github.com/mejango/banny-retail-v6"
     },
     "engines": {
         "node": ">=20.0.0"
@@ -19,32 +19,17 @@
         "deploy:mainnets:drop:1": "source ./.env && npx sphinx propose ./script/Drop1.s.sol --networks mainnets",
         "deploy:testnets:airdrop": "source ./.env && npx sphinx propose ./script/AirdropOutfits.s.sol --networks testnets",
         "deploy:mainnets:airdrop": "source ./.env && npx sphinx propose ./script/AirdropOutfits.s.sol --networks mainnets",
-        "deploy:testnets:airdrop:batch1": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch1.s.sol --networks testnets",
-        "deploy:mainnets:airdrop:batch1": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch1.s.sol --networks mainnets",
-        "deploy:testnets:airdrop:batch2": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch2.s.sol --networks testnets",
-        "deploy:mainnets:airdrop:batch2": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch2.s.sol --networks mainnets",
-        "deploy:testnets:airdrop:batch3": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch3.s.sol --networks testnets",
-        "deploy:mainnets:airdrop:batch3": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch3.s.sol --networks mainnets",
-        "deploy:testnets:airdrop:batch4": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch4.s.sol --networks testnets",
-        "deploy:mainnets:airdrop:batch4": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch4.s.sol --networks mainnets",
-        "deploy:testnets:airdrop:batch5": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch5.s.sol --networks testnets",
-        "deploy:mainnets:airdrop:batch5": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch5.s.sol --networks mainnets",
-        "deploy:testnets:airdrop:batch6": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch6.s.sol --networks testnets",
-        "deploy:mainnets:airdrop:batch6": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch6.s.sol --networks mainnets",
-        "deploy:testnets:airdrop:batch7": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch7.s.sol --networks testnets",
-        "deploy:mainnets:airdrop:batch7": "source ./.env && npx sphinx propose ./script/AirdropOutfitsBatch7.s.sol --networks mainnets",
         "deploy:testnets:fix:1": "source ./.env && npx sphinx propose ./script/1.Fix.s.sol --networks testnets",
         "deploy:mainnets:fix:1": "source ./.env && npx sphinx propose ./script/1.Fix.s.sol --networks mainnets",
-        "artifacts": "source ./.env && npx sphinx artifacts --org-id 'ea165b21-7cdc-4d7b-be59-ecdd4c26bee4' --project-name 'banny-core-v5'"
+        "artifacts": "source ./.env && npx sphinx artifacts --org-id 'ea165b21-7cdc-4d7b-be59-ecdd4c26bee4' --project-name 'banny-core-v6'"
     },
     "dependencies": {
-        "@bananapus/721-hook-v5": "^0.0.3",
-        "@bananapus/buyback-hook-v5": "^0.0.2",
-        "@bananapus/core-v5": "^0.0.4",
-        "@bananapus/suckers-v5": "^0.0.2",
-        "@bananapus/swap-terminal-v5": "^0.0.3",
+        "@bananapus/721-hook-v6": "^0.0.3",
+        "@bananapus/core-v6": "^0.0.4",
+        "@bananapus/suckers-v6": "^0.0.2",
+        "@bananapus/swap-terminal-v6": "^0.0.2",
         "@openzeppelin/contracts": "^5.2.0",
-        "@rev-net/core-v5": "^0.0.2",
+        "@rev-net/core-v6": "^0.0.2",
         "keccak": "^3.0.4"
     },
     "devDependencies": {

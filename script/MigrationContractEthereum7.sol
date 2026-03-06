@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
+import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
 import {MigrationHelper} from "./helpers/MigrationHelper.sol";
 
@@ -11,336 +11,336 @@ import {MigrationHelper} from "./helpers/MigrationHelper.sol";
 /// and then transferred directly to their owners.
 contract MigrationContractEthereum7 {
     address[] private transferOwners;
-    
+
     constructor(address[] memory _transferOwners) {
         transferOwners = _transferOwners;
     }
-    
+
     function executeMigration(
         address hookAddress,
         address resolverAddress,
         address v4HookAddress,
         address v4ResolverAddress,
         address fallbackV4ResolverAddress
-    ) external {
-        
+    )
+        external
+    {
         // Validate addresses
         require(hookAddress != address(0), "Hook address not set");
         require(resolverAddress != address(0), "Resolver address not set");
         require(v4HookAddress != address(0), "V4 Hook address not set");
         require(v4ResolverAddress != address(0), "V4 Resolver address not set");
         require(fallbackV4ResolverAddress != address(0), "V4 fallback resolver address not set");
-        
+
         JB721TiersHook hook = JB721TiersHook(hookAddress);
         IERC721 v4Hook = IERC721(v4HookAddress);
-        
+
         // Ethereum migration - Standalone outfits and backgrounds (140 items)
         // These are assets that are NOT being worn/used by any banny
-        
+
         // Assets are already minted to this contract by the deployer
         // V5 token IDs are calculated based on mint order (continuing from previous chunks)
         // V4 token IDs are the original token IDs from V4
-        
+
         // Generate token IDs - store both V5 minted token IDs and original V4 token IDs
         uint256[] memory v5TokenIds = new uint256[](transferOwners.length);
         uint256[] memory v4TokenIds = new uint256[](transferOwners.length);
-                v5TokenIds[0] = 5000000007; // Minted V5 Token ID
-        v4TokenIds[0] = 5000000003; // Original V4 Token ID
-        v5TokenIds[1] = 5000000008; // Minted V5 Token ID
-        v4TokenIds[1] = 5000000007; // Original V4 Token ID
-        v5TokenIds[2] = 6000000009; // Minted V5 Token ID
-        v4TokenIds[2] = 6000000005; // Original V4 Token ID
-        v5TokenIds[3] = 6000000010; // Minted V5 Token ID
-        v4TokenIds[3] = 6000000006; // Original V4 Token ID
-        v5TokenIds[4] = 6000000011; // Minted V5 Token ID
-        v4TokenIds[4] = 6000000007; // Original V4 Token ID
-        v5TokenIds[5] = 6000000012; // Minted V5 Token ID
-        v4TokenIds[5] = 6000000008; // Original V4 Token ID
-        v5TokenIds[6] = 6000000013; // Minted V5 Token ID
-        v4TokenIds[6] = 6000000009; // Original V4 Token ID
-        v5TokenIds[7] = 10000000007; // Minted V5 Token ID
-        v4TokenIds[7] = 10000000004; // Original V4 Token ID
-        v5TokenIds[8] = 10000000008; // Minted V5 Token ID
-        v4TokenIds[8] = 10000000008; // Original V4 Token ID
-        v5TokenIds[9] = 10000000009; // Minted V5 Token ID
-        v4TokenIds[9] = 10000000009; // Original V4 Token ID
-        v5TokenIds[10] = 10000000010; // Minted V5 Token ID
-        v4TokenIds[10] = 10000000010; // Original V4 Token ID
-        v5TokenIds[11] = 10000000011; // Minted V5 Token ID
-        v4TokenIds[11] = 10000000011; // Original V4 Token ID
-        v5TokenIds[12] = 10000000012; // Minted V5 Token ID
-        v4TokenIds[12] = 10000000013; // Original V4 Token ID
-        v5TokenIds[13] = 10000000013; // Minted V5 Token ID
-        v4TokenIds[13] = 10000000014; // Original V4 Token ID
-        v5TokenIds[14] = 11000000001; // Minted V5 Token ID
-        v4TokenIds[14] = 11000000001; // Original V4 Token ID
-        v5TokenIds[15] = 13000000003; // Minted V5 Token ID
-        v4TokenIds[15] = 13000000002; // Original V4 Token ID
-        v5TokenIds[16] = 13000000004; // Minted V5 Token ID
-        v4TokenIds[16] = 13000000004; // Original V4 Token ID
-        v5TokenIds[17] = 14000000004; // Minted V5 Token ID
-        v4TokenIds[17] = 14000000002; // Original V4 Token ID
-        v5TokenIds[18] = 14000000005; // Minted V5 Token ID
-        v4TokenIds[18] = 14000000004; // Original V4 Token ID
-        v5TokenIds[19] = 14000000006; // Minted V5 Token ID
-        v4TokenIds[19] = 14000000006; // Original V4 Token ID
-        v5TokenIds[20] = 17000000003; // Minted V5 Token ID
-        v4TokenIds[20] = 17000000003; // Original V4 Token ID
-        v5TokenIds[21] = 17000000004; // Minted V5 Token ID
-        v4TokenIds[21] = 17000000004; // Original V4 Token ID
-        v5TokenIds[22] = 17000000005; // Minted V5 Token ID
-        v4TokenIds[22] = 17000000005; // Original V4 Token ID
-        v5TokenIds[23] = 19000000016; // Minted V5 Token ID
-        v4TokenIds[23] = 19000000001; // Original V4 Token ID
-        v5TokenIds[24] = 19000000017; // Minted V5 Token ID
-        v4TokenIds[24] = 19000000003; // Original V4 Token ID
-        v5TokenIds[25] = 19000000018; // Minted V5 Token ID
-        v4TokenIds[25] = 19000000006; // Original V4 Token ID
-        v5TokenIds[26] = 19000000019; // Minted V5 Token ID
-        v4TokenIds[26] = 19000000007; // Original V4 Token ID
-        v5TokenIds[27] = 19000000020; // Minted V5 Token ID
-        v4TokenIds[27] = 19000000010; // Original V4 Token ID
-        v5TokenIds[28] = 19000000021; // Minted V5 Token ID
-        v4TokenIds[28] = 19000000014; // Original V4 Token ID
-        v5TokenIds[29] = 19000000022; // Minted V5 Token ID
-        v4TokenIds[29] = 19000000022; // Original V4 Token ID
-        v5TokenIds[30] = 20000000003; // Minted V5 Token ID
-        v4TokenIds[30] = 20000000002; // Original V4 Token ID
-        v5TokenIds[31] = 20000000004; // Minted V5 Token ID
-        v4TokenIds[31] = 20000000003; // Original V4 Token ID
-        v5TokenIds[32] = 20000000005; // Minted V5 Token ID
-        v4TokenIds[32] = 20000000004; // Original V4 Token ID
-        v5TokenIds[33] = 20000000006; // Minted V5 Token ID
-        v4TokenIds[33] = 20000000005; // Original V4 Token ID
-        v5TokenIds[34] = 20000000007; // Minted V5 Token ID
-        v4TokenIds[34] = 20000000006; // Original V4 Token ID
-        v5TokenIds[35] = 20000000008; // Minted V5 Token ID
-        v4TokenIds[35] = 20000000007; // Original V4 Token ID
-        v5TokenIds[36] = 21000000002; // Minted V5 Token ID
-        v4TokenIds[36] = 21000000002; // Original V4 Token ID
-        v5TokenIds[37] = 23000000007; // Minted V5 Token ID
-        v4TokenIds[37] = 23000000006; // Original V4 Token ID
-        v5TokenIds[38] = 23000000008; // Minted V5 Token ID
-        v4TokenIds[38] = 23000000008; // Original V4 Token ID
-        v5TokenIds[39] = 25000000010; // Minted V5 Token ID
-        v4TokenIds[39] = 25000000001; // Original V4 Token ID
-        v5TokenIds[40] = 25000000011; // Minted V5 Token ID
-        v4TokenIds[40] = 25000000004; // Original V4 Token ID
-        v5TokenIds[41] = 25000000012; // Minted V5 Token ID
-        v4TokenIds[41] = 25000000012; // Original V4 Token ID
-        v5TokenIds[42] = 26000000006; // Minted V5 Token ID
-        v4TokenIds[42] = 26000000006; // Original V4 Token ID
-        v5TokenIds[43] = 26000000007; // Minted V5 Token ID
-        v4TokenIds[43] = 26000000007; // Original V4 Token ID
-        v5TokenIds[44] = 28000000003; // Minted V5 Token ID
-        v4TokenIds[44] = 28000000001; // Original V4 Token ID
-        v5TokenIds[45] = 28000000004; // Minted V5 Token ID
-        v4TokenIds[45] = 28000000003; // Original V4 Token ID
-        v5TokenIds[46] = 28000000005; // Minted V5 Token ID
-        v4TokenIds[46] = 28000000004; // Original V4 Token ID
-        v5TokenIds[47] = 28000000006; // Minted V5 Token ID
-        v4TokenIds[47] = 28000000005; // Original V4 Token ID
-        v5TokenIds[48] = 28000000007; // Minted V5 Token ID
-        v4TokenIds[48] = 28000000006; // Original V4 Token ID
-        v5TokenIds[49] = 28000000008; // Minted V5 Token ID
-        v4TokenIds[49] = 28000000007; // Original V4 Token ID
-        v5TokenIds[50] = 28000000009; // Minted V5 Token ID
-        v4TokenIds[50] = 28000000009; // Original V4 Token ID
-        v5TokenIds[51] = 29000000003; // Minted V5 Token ID
-        v4TokenIds[51] = 29000000001; // Original V4 Token ID
-        v5TokenIds[52] = 31000000009; // Minted V5 Token ID
-        v4TokenIds[52] = 31000000001; // Original V4 Token ID
-        v5TokenIds[53] = 31000000010; // Minted V5 Token ID
-        v4TokenIds[53] = 31000000004; // Original V4 Token ID
-        v5TokenIds[54] = 31000000011; // Minted V5 Token ID
-        v4TokenIds[54] = 31000000005; // Original V4 Token ID
-        v5TokenIds[55] = 31000000012; // Minted V5 Token ID
-        v4TokenIds[55] = 31000000008; // Original V4 Token ID
-        v5TokenIds[56] = 31000000013; // Minted V5 Token ID
-        v4TokenIds[56] = 31000000012; // Original V4 Token ID
-        v5TokenIds[57] = 32000000004; // Minted V5 Token ID
-        v4TokenIds[57] = 32000000004; // Original V4 Token ID
-        v5TokenIds[58] = 32000000005; // Minted V5 Token ID
-        v4TokenIds[58] = 32000000005; // Original V4 Token ID
-        v5TokenIds[59] = 33000000002; // Minted V5 Token ID
-        v4TokenIds[59] = 33000000002; // Original V4 Token ID
-        v5TokenIds[60] = 35000000007; // Minted V5 Token ID
-        v4TokenIds[60] = 35000000005; // Original V4 Token ID
-        v5TokenIds[61] = 35000000008; // Minted V5 Token ID
-        v4TokenIds[61] = 35000000008; // Original V4 Token ID
-        v5TokenIds[62] = 35000000009; // Minted V5 Token ID
-        v4TokenIds[62] = 35000000009; // Original V4 Token ID
-        v5TokenIds[63] = 37000000003; // Minted V5 Token ID
-        v4TokenIds[63] = 37000000002; // Original V4 Token ID
-        v5TokenIds[64] = 37000000004; // Minted V5 Token ID
-        v4TokenIds[64] = 37000000004; // Original V4 Token ID
-        v5TokenIds[65] = 39000000004; // Minted V5 Token ID
-        v4TokenIds[65] = 39000000004; // Original V4 Token ID
-        v5TokenIds[66] = 40000000002; // Minted V5 Token ID
-        v4TokenIds[66] = 40000000002; // Original V4 Token ID
-        v5TokenIds[67] = 40000000003; // Minted V5 Token ID
-        v4TokenIds[67] = 40000000003; // Original V4 Token ID
-        v5TokenIds[68] = 41000000005; // Minted V5 Token ID
-        v4TokenIds[68] = 41000000005; // Original V4 Token ID
-        v5TokenIds[69] = 42000000004; // Minted V5 Token ID
-        v4TokenIds[69] = 42000000001; // Original V4 Token ID
-        v5TokenIds[70] = 42000000005; // Minted V5 Token ID
-        v4TokenIds[70] = 42000000003; // Original V4 Token ID
-        v5TokenIds[71] = 42000000006; // Minted V5 Token ID
-        v4TokenIds[71] = 42000000005; // Original V4 Token ID
-        v5TokenIds[72] = 42000000007; // Minted V5 Token ID
-        v4TokenIds[72] = 42000000006; // Original V4 Token ID
-        v5TokenIds[73] = 42000000008; // Minted V5 Token ID
-        v4TokenIds[73] = 42000000008; // Original V4 Token ID
-        v5TokenIds[74] = 42000000009; // Minted V5 Token ID
-        v4TokenIds[74] = 42000000009; // Original V4 Token ID
-        v5TokenIds[75] = 42000000010; // Minted V5 Token ID
-        v4TokenIds[75] = 42000000010; // Original V4 Token ID
-        v5TokenIds[76] = 42000000011; // Minted V5 Token ID
-        v4TokenIds[76] = 42000000011; // Original V4 Token ID
-        v5TokenIds[77] = 42000000012; // Minted V5 Token ID
-        v4TokenIds[77] = 42000000012; // Original V4 Token ID
-        v5TokenIds[78] = 42000000013; // Minted V5 Token ID
-        v4TokenIds[78] = 42000000013; // Original V4 Token ID
-        v5TokenIds[79] = 42000000014; // Minted V5 Token ID
-        v4TokenIds[79] = 42000000014; // Original V4 Token ID
-        v5TokenIds[80] = 42000000015; // Minted V5 Token ID
-        v4TokenIds[80] = 42000000015; // Original V4 Token ID
-        v5TokenIds[81] = 42000000016; // Minted V5 Token ID
-        v4TokenIds[81] = 42000000016; // Original V4 Token ID
-        v5TokenIds[82] = 42000000017; // Minted V5 Token ID
-        v4TokenIds[82] = 42000000017; // Original V4 Token ID
-        v5TokenIds[83] = 42000000018; // Minted V5 Token ID
-        v4TokenIds[83] = 42000000018; // Original V4 Token ID
-        v5TokenIds[84] = 42000000019; // Minted V5 Token ID
-        v4TokenIds[84] = 42000000019; // Original V4 Token ID
-        v5TokenIds[85] = 43000000008; // Minted V5 Token ID
-        v4TokenIds[85] = 43000000001; // Original V4 Token ID
-        v5TokenIds[86] = 43000000009; // Minted V5 Token ID
-        v4TokenIds[86] = 43000000002; // Original V4 Token ID
-        v5TokenIds[87] = 43000000010; // Minted V5 Token ID
-        v4TokenIds[87] = 43000000004; // Original V4 Token ID
-        v5TokenIds[88] = 43000000011; // Minted V5 Token ID
-        v4TokenIds[88] = 43000000009; // Original V4 Token ID
-        v5TokenIds[89] = 43000000012; // Minted V5 Token ID
-        v4TokenIds[89] = 43000000010; // Original V4 Token ID
-        v5TokenIds[90] = 43000000013; // Minted V5 Token ID
-        v4TokenIds[90] = 43000000011; // Original V4 Token ID
-        v5TokenIds[91] = 43000000014; // Minted V5 Token ID
-        v4TokenIds[91] = 43000000012; // Original V4 Token ID
-        v5TokenIds[92] = 43000000015; // Minted V5 Token ID
-        v4TokenIds[92] = 43000000013; // Original V4 Token ID
-        v5TokenIds[93] = 43000000016; // Minted V5 Token ID
-        v4TokenIds[93] = 43000000014; // Original V4 Token ID
-        v5TokenIds[94] = 43000000017; // Minted V5 Token ID
-        v4TokenIds[94] = 43000000015; // Original V4 Token ID
-        v5TokenIds[95] = 43000000018; // Minted V5 Token ID
-        v4TokenIds[95] = 43000000016; // Original V4 Token ID
-        v5TokenIds[96] = 44000000006; // Minted V5 Token ID
-        v4TokenIds[96] = 44000000002; // Original V4 Token ID
-        v5TokenIds[97] = 44000000007; // Minted V5 Token ID
-        v4TokenIds[97] = 44000000005; // Original V4 Token ID
-        v5TokenIds[98] = 44000000008; // Minted V5 Token ID
-        v4TokenIds[98] = 44000000006; // Original V4 Token ID
-        v5TokenIds[99] = 44000000009; // Minted V5 Token ID
-        v4TokenIds[99] = 44000000007; // Original V4 Token ID
-        v5TokenIds[100] = 44000000010; // Minted V5 Token ID
-        v4TokenIds[100] = 44000000010; // Original V4 Token ID
-        v5TokenIds[101] = 44000000011; // Minted V5 Token ID
-        v4TokenIds[101] = 44000000011; // Original V4 Token ID
-        v5TokenIds[102] = 44000000012; // Minted V5 Token ID
-        v4TokenIds[102] = 44000000012; // Original V4 Token ID
-        v5TokenIds[103] = 44000000013; // Minted V5 Token ID
-        v4TokenIds[103] = 44000000013; // Original V4 Token ID
-        v5TokenIds[104] = 44000000014; // Minted V5 Token ID
-        v4TokenIds[104] = 44000000014; // Original V4 Token ID
-        v5TokenIds[105] = 44000000015; // Minted V5 Token ID
-        v4TokenIds[105] = 44000000015; // Original V4 Token ID
-        v5TokenIds[106] = 44000000016; // Minted V5 Token ID
-        v4TokenIds[106] = 44000000016; // Original V4 Token ID
-        v5TokenIds[107] = 44000000017; // Minted V5 Token ID
-        v4TokenIds[107] = 44000000017; // Original V4 Token ID
-        v5TokenIds[108] = 44000000018; // Minted V5 Token ID
-        v4TokenIds[108] = 44000000018; // Original V4 Token ID
-        v5TokenIds[109] = 44000000019; // Minted V5 Token ID
-        v4TokenIds[109] = 44000000019; // Original V4 Token ID
-        v5TokenIds[110] = 44000000020; // Minted V5 Token ID
-        v4TokenIds[110] = 44000000020; // Original V4 Token ID
-        v5TokenIds[111] = 44000000021; // Minted V5 Token ID
-        v4TokenIds[111] = 44000000021; // Original V4 Token ID
-        v5TokenIds[112] = 44000000022; // Minted V5 Token ID
-        v4TokenIds[112] = 44000000022; // Original V4 Token ID
-        v5TokenIds[113] = 44000000023; // Minted V5 Token ID
-        v4TokenIds[113] = 44000000023; // Original V4 Token ID
-        v5TokenIds[114] = 44000000024; // Minted V5 Token ID
-        v4TokenIds[114] = 44000000024; // Original V4 Token ID
-        v5TokenIds[115] = 44000000025; // Minted V5 Token ID
-        v4TokenIds[115] = 44000000025; // Original V4 Token ID
-        v5TokenIds[116] = 44000000026; // Minted V5 Token ID
-        v4TokenIds[116] = 44000000026; // Original V4 Token ID
-        v5TokenIds[117] = 44000000027; // Minted V5 Token ID
-        v4TokenIds[117] = 44000000027; // Original V4 Token ID
-        v5TokenIds[118] = 44000000028; // Minted V5 Token ID
-        v4TokenIds[118] = 44000000028; // Original V4 Token ID
-        v5TokenIds[119] = 44000000029; // Minted V5 Token ID
-        v4TokenIds[119] = 44000000029; // Original V4 Token ID
-        v5TokenIds[120] = 44000000030; // Minted V5 Token ID
-        v4TokenIds[120] = 44000000030; // Original V4 Token ID
-        v5TokenIds[121] = 44000000031; // Minted V5 Token ID
-        v4TokenIds[121] = 44000000031; // Original V4 Token ID
-        v5TokenIds[122] = 44000000032; // Minted V5 Token ID
-        v4TokenIds[122] = 44000000032; // Original V4 Token ID
-        v5TokenIds[123] = 44000000033; // Minted V5 Token ID
-        v4TokenIds[123] = 44000000033; // Original V4 Token ID
-        v5TokenIds[124] = 44000000034; // Minted V5 Token ID
-        v4TokenIds[124] = 44000000034; // Original V4 Token ID
-        v5TokenIds[125] = 47000000003; // Minted V5 Token ID
-        v4TokenIds[125] = 47000000001; // Original V4 Token ID
-        v5TokenIds[126] = 47000000004; // Minted V5 Token ID
-        v4TokenIds[126] = 47000000002; // Original V4 Token ID
-        v5TokenIds[127] = 47000000005; // Minted V5 Token ID
-        v4TokenIds[127] = 47000000004; // Original V4 Token ID
-        v5TokenIds[128] = 47000000006; // Minted V5 Token ID
-        v4TokenIds[128] = 47000000006; // Original V4 Token ID
-        v5TokenIds[129] = 47000000007; // Minted V5 Token ID
-        v4TokenIds[129] = 47000000007; // Original V4 Token ID
-        v5TokenIds[130] = 47000000008; // Minted V5 Token ID
-        v4TokenIds[130] = 47000000008; // Original V4 Token ID
-        v5TokenIds[131] = 47000000009; // Minted V5 Token ID
-        v4TokenIds[131] = 47000000009; // Original V4 Token ID
-        v5TokenIds[132] = 47000000010; // Minted V5 Token ID
-        v4TokenIds[132] = 47000000010; // Original V4 Token ID
-        v5TokenIds[133] = 47000000011; // Minted V5 Token ID
-        v4TokenIds[133] = 47000000011; // Original V4 Token ID
-        v5TokenIds[134] = 47000000012; // Minted V5 Token ID
-        v4TokenIds[134] = 47000000012; // Original V4 Token ID
-        v5TokenIds[135] = 47000000013; // Minted V5 Token ID
-        v4TokenIds[135] = 47000000013; // Original V4 Token ID
-        v5TokenIds[136] = 47000000014; // Minted V5 Token ID
-        v4TokenIds[136] = 47000000014; // Original V4 Token ID
-        v5TokenIds[137] = 48000000006; // Minted V5 Token ID
-        v4TokenIds[137] = 48000000004; // Original V4 Token ID
-        v5TokenIds[138] = 49000000004; // Minted V5 Token ID
-        v4TokenIds[138] = 49000000003; // Original V4 Token ID
-        v5TokenIds[139] = 49000000005; // Minted V5 Token ID
-        v4TokenIds[139] = 49000000005; // Original V4 Token ID
+        v5TokenIds[0] = 5_000_000_007; // Minted V5 Token ID
+        v4TokenIds[0] = 5_000_000_003; // Original V4 Token ID
+        v5TokenIds[1] = 5_000_000_008; // Minted V5 Token ID
+        v4TokenIds[1] = 5_000_000_007; // Original V4 Token ID
+        v5TokenIds[2] = 6_000_000_009; // Minted V5 Token ID
+        v4TokenIds[2] = 6_000_000_005; // Original V4 Token ID
+        v5TokenIds[3] = 6_000_000_010; // Minted V5 Token ID
+        v4TokenIds[3] = 6_000_000_006; // Original V4 Token ID
+        v5TokenIds[4] = 6_000_000_011; // Minted V5 Token ID
+        v4TokenIds[4] = 6_000_000_007; // Original V4 Token ID
+        v5TokenIds[5] = 6_000_000_012; // Minted V5 Token ID
+        v4TokenIds[5] = 6_000_000_008; // Original V4 Token ID
+        v5TokenIds[6] = 6_000_000_013; // Minted V5 Token ID
+        v4TokenIds[6] = 6_000_000_009; // Original V4 Token ID
+        v5TokenIds[7] = 10_000_000_007; // Minted V5 Token ID
+        v4TokenIds[7] = 10_000_000_004; // Original V4 Token ID
+        v5TokenIds[8] = 10_000_000_008; // Minted V5 Token ID
+        v4TokenIds[8] = 10_000_000_008; // Original V4 Token ID
+        v5TokenIds[9] = 10_000_000_009; // Minted V5 Token ID
+        v4TokenIds[9] = 10_000_000_009; // Original V4 Token ID
+        v5TokenIds[10] = 10_000_000_010; // Minted V5 Token ID
+        v4TokenIds[10] = 10_000_000_010; // Original V4 Token ID
+        v5TokenIds[11] = 10_000_000_011; // Minted V5 Token ID
+        v4TokenIds[11] = 10_000_000_011; // Original V4 Token ID
+        v5TokenIds[12] = 10_000_000_012; // Minted V5 Token ID
+        v4TokenIds[12] = 10_000_000_013; // Original V4 Token ID
+        v5TokenIds[13] = 10_000_000_013; // Minted V5 Token ID
+        v4TokenIds[13] = 10_000_000_014; // Original V4 Token ID
+        v5TokenIds[14] = 11_000_000_001; // Minted V5 Token ID
+        v4TokenIds[14] = 11_000_000_001; // Original V4 Token ID
+        v5TokenIds[15] = 13_000_000_003; // Minted V5 Token ID
+        v4TokenIds[15] = 13_000_000_002; // Original V4 Token ID
+        v5TokenIds[16] = 13_000_000_004; // Minted V5 Token ID
+        v4TokenIds[16] = 13_000_000_004; // Original V4 Token ID
+        v5TokenIds[17] = 14_000_000_004; // Minted V5 Token ID
+        v4TokenIds[17] = 14_000_000_002; // Original V4 Token ID
+        v5TokenIds[18] = 14_000_000_005; // Minted V5 Token ID
+        v4TokenIds[18] = 14_000_000_004; // Original V4 Token ID
+        v5TokenIds[19] = 14_000_000_006; // Minted V5 Token ID
+        v4TokenIds[19] = 14_000_000_006; // Original V4 Token ID
+        v5TokenIds[20] = 17_000_000_003; // Minted V5 Token ID
+        v4TokenIds[20] = 17_000_000_003; // Original V4 Token ID
+        v5TokenIds[21] = 17_000_000_004; // Minted V5 Token ID
+        v4TokenIds[21] = 17_000_000_004; // Original V4 Token ID
+        v5TokenIds[22] = 17_000_000_005; // Minted V5 Token ID
+        v4TokenIds[22] = 17_000_000_005; // Original V4 Token ID
+        v5TokenIds[23] = 19_000_000_016; // Minted V5 Token ID
+        v4TokenIds[23] = 19_000_000_001; // Original V4 Token ID
+        v5TokenIds[24] = 19_000_000_017; // Minted V5 Token ID
+        v4TokenIds[24] = 19_000_000_003; // Original V4 Token ID
+        v5TokenIds[25] = 19_000_000_018; // Minted V5 Token ID
+        v4TokenIds[25] = 19_000_000_006; // Original V4 Token ID
+        v5TokenIds[26] = 19_000_000_019; // Minted V5 Token ID
+        v4TokenIds[26] = 19_000_000_007; // Original V4 Token ID
+        v5TokenIds[27] = 19_000_000_020; // Minted V5 Token ID
+        v4TokenIds[27] = 19_000_000_010; // Original V4 Token ID
+        v5TokenIds[28] = 19_000_000_021; // Minted V5 Token ID
+        v4TokenIds[28] = 19_000_000_014; // Original V4 Token ID
+        v5TokenIds[29] = 19_000_000_022; // Minted V5 Token ID
+        v4TokenIds[29] = 19_000_000_022; // Original V4 Token ID
+        v5TokenIds[30] = 20_000_000_003; // Minted V5 Token ID
+        v4TokenIds[30] = 20_000_000_002; // Original V4 Token ID
+        v5TokenIds[31] = 20_000_000_004; // Minted V5 Token ID
+        v4TokenIds[31] = 20_000_000_003; // Original V4 Token ID
+        v5TokenIds[32] = 20_000_000_005; // Minted V5 Token ID
+        v4TokenIds[32] = 20_000_000_004; // Original V4 Token ID
+        v5TokenIds[33] = 20_000_000_006; // Minted V5 Token ID
+        v4TokenIds[33] = 20_000_000_005; // Original V4 Token ID
+        v5TokenIds[34] = 20_000_000_007; // Minted V5 Token ID
+        v4TokenIds[34] = 20_000_000_006; // Original V4 Token ID
+        v5TokenIds[35] = 20_000_000_008; // Minted V5 Token ID
+        v4TokenIds[35] = 20_000_000_007; // Original V4 Token ID
+        v5TokenIds[36] = 21_000_000_002; // Minted V5 Token ID
+        v4TokenIds[36] = 21_000_000_002; // Original V4 Token ID
+        v5TokenIds[37] = 23_000_000_007; // Minted V5 Token ID
+        v4TokenIds[37] = 23_000_000_006; // Original V4 Token ID
+        v5TokenIds[38] = 23_000_000_008; // Minted V5 Token ID
+        v4TokenIds[38] = 23_000_000_008; // Original V4 Token ID
+        v5TokenIds[39] = 25_000_000_010; // Minted V5 Token ID
+        v4TokenIds[39] = 25_000_000_001; // Original V4 Token ID
+        v5TokenIds[40] = 25_000_000_011; // Minted V5 Token ID
+        v4TokenIds[40] = 25_000_000_004; // Original V4 Token ID
+        v5TokenIds[41] = 25_000_000_012; // Minted V5 Token ID
+        v4TokenIds[41] = 25_000_000_012; // Original V4 Token ID
+        v5TokenIds[42] = 26_000_000_006; // Minted V5 Token ID
+        v4TokenIds[42] = 26_000_000_006; // Original V4 Token ID
+        v5TokenIds[43] = 26_000_000_007; // Minted V5 Token ID
+        v4TokenIds[43] = 26_000_000_007; // Original V4 Token ID
+        v5TokenIds[44] = 28_000_000_003; // Minted V5 Token ID
+        v4TokenIds[44] = 28_000_000_001; // Original V4 Token ID
+        v5TokenIds[45] = 28_000_000_004; // Minted V5 Token ID
+        v4TokenIds[45] = 28_000_000_003; // Original V4 Token ID
+        v5TokenIds[46] = 28_000_000_005; // Minted V5 Token ID
+        v4TokenIds[46] = 28_000_000_004; // Original V4 Token ID
+        v5TokenIds[47] = 28_000_000_006; // Minted V5 Token ID
+        v4TokenIds[47] = 28_000_000_005; // Original V4 Token ID
+        v5TokenIds[48] = 28_000_000_007; // Minted V5 Token ID
+        v4TokenIds[48] = 28_000_000_006; // Original V4 Token ID
+        v5TokenIds[49] = 28_000_000_008; // Minted V5 Token ID
+        v4TokenIds[49] = 28_000_000_007; // Original V4 Token ID
+        v5TokenIds[50] = 28_000_000_009; // Minted V5 Token ID
+        v4TokenIds[50] = 28_000_000_009; // Original V4 Token ID
+        v5TokenIds[51] = 29_000_000_003; // Minted V5 Token ID
+        v4TokenIds[51] = 29_000_000_001; // Original V4 Token ID
+        v5TokenIds[52] = 31_000_000_009; // Minted V5 Token ID
+        v4TokenIds[52] = 31_000_000_001; // Original V4 Token ID
+        v5TokenIds[53] = 31_000_000_010; // Minted V5 Token ID
+        v4TokenIds[53] = 31_000_000_004; // Original V4 Token ID
+        v5TokenIds[54] = 31_000_000_011; // Minted V5 Token ID
+        v4TokenIds[54] = 31_000_000_005; // Original V4 Token ID
+        v5TokenIds[55] = 31_000_000_012; // Minted V5 Token ID
+        v4TokenIds[55] = 31_000_000_008; // Original V4 Token ID
+        v5TokenIds[56] = 31_000_000_013; // Minted V5 Token ID
+        v4TokenIds[56] = 31_000_000_012; // Original V4 Token ID
+        v5TokenIds[57] = 32_000_000_004; // Minted V5 Token ID
+        v4TokenIds[57] = 32_000_000_004; // Original V4 Token ID
+        v5TokenIds[58] = 32_000_000_005; // Minted V5 Token ID
+        v4TokenIds[58] = 32_000_000_005; // Original V4 Token ID
+        v5TokenIds[59] = 33_000_000_002; // Minted V5 Token ID
+        v4TokenIds[59] = 33_000_000_002; // Original V4 Token ID
+        v5TokenIds[60] = 35_000_000_007; // Minted V5 Token ID
+        v4TokenIds[60] = 35_000_000_005; // Original V4 Token ID
+        v5TokenIds[61] = 35_000_000_008; // Minted V5 Token ID
+        v4TokenIds[61] = 35_000_000_008; // Original V4 Token ID
+        v5TokenIds[62] = 35_000_000_009; // Minted V5 Token ID
+        v4TokenIds[62] = 35_000_000_009; // Original V4 Token ID
+        v5TokenIds[63] = 37_000_000_003; // Minted V5 Token ID
+        v4TokenIds[63] = 37_000_000_002; // Original V4 Token ID
+        v5TokenIds[64] = 37_000_000_004; // Minted V5 Token ID
+        v4TokenIds[64] = 37_000_000_004; // Original V4 Token ID
+        v5TokenIds[65] = 39_000_000_004; // Minted V5 Token ID
+        v4TokenIds[65] = 39_000_000_004; // Original V4 Token ID
+        v5TokenIds[66] = 40_000_000_002; // Minted V5 Token ID
+        v4TokenIds[66] = 40_000_000_002; // Original V4 Token ID
+        v5TokenIds[67] = 40_000_000_003; // Minted V5 Token ID
+        v4TokenIds[67] = 40_000_000_003; // Original V4 Token ID
+        v5TokenIds[68] = 41_000_000_005; // Minted V5 Token ID
+        v4TokenIds[68] = 41_000_000_005; // Original V4 Token ID
+        v5TokenIds[69] = 42_000_000_004; // Minted V5 Token ID
+        v4TokenIds[69] = 42_000_000_001; // Original V4 Token ID
+        v5TokenIds[70] = 42_000_000_005; // Minted V5 Token ID
+        v4TokenIds[70] = 42_000_000_003; // Original V4 Token ID
+        v5TokenIds[71] = 42_000_000_006; // Minted V5 Token ID
+        v4TokenIds[71] = 42_000_000_005; // Original V4 Token ID
+        v5TokenIds[72] = 42_000_000_007; // Minted V5 Token ID
+        v4TokenIds[72] = 42_000_000_006; // Original V4 Token ID
+        v5TokenIds[73] = 42_000_000_008; // Minted V5 Token ID
+        v4TokenIds[73] = 42_000_000_008; // Original V4 Token ID
+        v5TokenIds[74] = 42_000_000_009; // Minted V5 Token ID
+        v4TokenIds[74] = 42_000_000_009; // Original V4 Token ID
+        v5TokenIds[75] = 42_000_000_010; // Minted V5 Token ID
+        v4TokenIds[75] = 42_000_000_010; // Original V4 Token ID
+        v5TokenIds[76] = 42_000_000_011; // Minted V5 Token ID
+        v4TokenIds[76] = 42_000_000_011; // Original V4 Token ID
+        v5TokenIds[77] = 42_000_000_012; // Minted V5 Token ID
+        v4TokenIds[77] = 42_000_000_012; // Original V4 Token ID
+        v5TokenIds[78] = 42_000_000_013; // Minted V5 Token ID
+        v4TokenIds[78] = 42_000_000_013; // Original V4 Token ID
+        v5TokenIds[79] = 42_000_000_014; // Minted V5 Token ID
+        v4TokenIds[79] = 42_000_000_014; // Original V4 Token ID
+        v5TokenIds[80] = 42_000_000_015; // Minted V5 Token ID
+        v4TokenIds[80] = 42_000_000_015; // Original V4 Token ID
+        v5TokenIds[81] = 42_000_000_016; // Minted V5 Token ID
+        v4TokenIds[81] = 42_000_000_016; // Original V4 Token ID
+        v5TokenIds[82] = 42_000_000_017; // Minted V5 Token ID
+        v4TokenIds[82] = 42_000_000_017; // Original V4 Token ID
+        v5TokenIds[83] = 42_000_000_018; // Minted V5 Token ID
+        v4TokenIds[83] = 42_000_000_018; // Original V4 Token ID
+        v5TokenIds[84] = 42_000_000_019; // Minted V5 Token ID
+        v4TokenIds[84] = 42_000_000_019; // Original V4 Token ID
+        v5TokenIds[85] = 43_000_000_008; // Minted V5 Token ID
+        v4TokenIds[85] = 43_000_000_001; // Original V4 Token ID
+        v5TokenIds[86] = 43_000_000_009; // Minted V5 Token ID
+        v4TokenIds[86] = 43_000_000_002; // Original V4 Token ID
+        v5TokenIds[87] = 43_000_000_010; // Minted V5 Token ID
+        v4TokenIds[87] = 43_000_000_004; // Original V4 Token ID
+        v5TokenIds[88] = 43_000_000_011; // Minted V5 Token ID
+        v4TokenIds[88] = 43_000_000_009; // Original V4 Token ID
+        v5TokenIds[89] = 43_000_000_012; // Minted V5 Token ID
+        v4TokenIds[89] = 43_000_000_010; // Original V4 Token ID
+        v5TokenIds[90] = 43_000_000_013; // Minted V5 Token ID
+        v4TokenIds[90] = 43_000_000_011; // Original V4 Token ID
+        v5TokenIds[91] = 43_000_000_014; // Minted V5 Token ID
+        v4TokenIds[91] = 43_000_000_012; // Original V4 Token ID
+        v5TokenIds[92] = 43_000_000_015; // Minted V5 Token ID
+        v4TokenIds[92] = 43_000_000_013; // Original V4 Token ID
+        v5TokenIds[93] = 43_000_000_016; // Minted V5 Token ID
+        v4TokenIds[93] = 43_000_000_014; // Original V4 Token ID
+        v5TokenIds[94] = 43_000_000_017; // Minted V5 Token ID
+        v4TokenIds[94] = 43_000_000_015; // Original V4 Token ID
+        v5TokenIds[95] = 43_000_000_018; // Minted V5 Token ID
+        v4TokenIds[95] = 43_000_000_016; // Original V4 Token ID
+        v5TokenIds[96] = 44_000_000_006; // Minted V5 Token ID
+        v4TokenIds[96] = 44_000_000_002; // Original V4 Token ID
+        v5TokenIds[97] = 44_000_000_007; // Minted V5 Token ID
+        v4TokenIds[97] = 44_000_000_005; // Original V4 Token ID
+        v5TokenIds[98] = 44_000_000_008; // Minted V5 Token ID
+        v4TokenIds[98] = 44_000_000_006; // Original V4 Token ID
+        v5TokenIds[99] = 44_000_000_009; // Minted V5 Token ID
+        v4TokenIds[99] = 44_000_000_007; // Original V4 Token ID
+        v5TokenIds[100] = 44_000_000_010; // Minted V5 Token ID
+        v4TokenIds[100] = 44_000_000_010; // Original V4 Token ID
+        v5TokenIds[101] = 44_000_000_011; // Minted V5 Token ID
+        v4TokenIds[101] = 44_000_000_011; // Original V4 Token ID
+        v5TokenIds[102] = 44_000_000_012; // Minted V5 Token ID
+        v4TokenIds[102] = 44_000_000_012; // Original V4 Token ID
+        v5TokenIds[103] = 44_000_000_013; // Minted V5 Token ID
+        v4TokenIds[103] = 44_000_000_013; // Original V4 Token ID
+        v5TokenIds[104] = 44_000_000_014; // Minted V5 Token ID
+        v4TokenIds[104] = 44_000_000_014; // Original V4 Token ID
+        v5TokenIds[105] = 44_000_000_015; // Minted V5 Token ID
+        v4TokenIds[105] = 44_000_000_015; // Original V4 Token ID
+        v5TokenIds[106] = 44_000_000_016; // Minted V5 Token ID
+        v4TokenIds[106] = 44_000_000_016; // Original V4 Token ID
+        v5TokenIds[107] = 44_000_000_017; // Minted V5 Token ID
+        v4TokenIds[107] = 44_000_000_017; // Original V4 Token ID
+        v5TokenIds[108] = 44_000_000_018; // Minted V5 Token ID
+        v4TokenIds[108] = 44_000_000_018; // Original V4 Token ID
+        v5TokenIds[109] = 44_000_000_019; // Minted V5 Token ID
+        v4TokenIds[109] = 44_000_000_019; // Original V4 Token ID
+        v5TokenIds[110] = 44_000_000_020; // Minted V5 Token ID
+        v4TokenIds[110] = 44_000_000_020; // Original V4 Token ID
+        v5TokenIds[111] = 44_000_000_021; // Minted V5 Token ID
+        v4TokenIds[111] = 44_000_000_021; // Original V4 Token ID
+        v5TokenIds[112] = 44_000_000_022; // Minted V5 Token ID
+        v4TokenIds[112] = 44_000_000_022; // Original V4 Token ID
+        v5TokenIds[113] = 44_000_000_023; // Minted V5 Token ID
+        v4TokenIds[113] = 44_000_000_023; // Original V4 Token ID
+        v5TokenIds[114] = 44_000_000_024; // Minted V5 Token ID
+        v4TokenIds[114] = 44_000_000_024; // Original V4 Token ID
+        v5TokenIds[115] = 44_000_000_025; // Minted V5 Token ID
+        v4TokenIds[115] = 44_000_000_025; // Original V4 Token ID
+        v5TokenIds[116] = 44_000_000_026; // Minted V5 Token ID
+        v4TokenIds[116] = 44_000_000_026; // Original V4 Token ID
+        v5TokenIds[117] = 44_000_000_027; // Minted V5 Token ID
+        v4TokenIds[117] = 44_000_000_027; // Original V4 Token ID
+        v5TokenIds[118] = 44_000_000_028; // Minted V5 Token ID
+        v4TokenIds[118] = 44_000_000_028; // Original V4 Token ID
+        v5TokenIds[119] = 44_000_000_029; // Minted V5 Token ID
+        v4TokenIds[119] = 44_000_000_029; // Original V4 Token ID
+        v5TokenIds[120] = 44_000_000_030; // Minted V5 Token ID
+        v4TokenIds[120] = 44_000_000_030; // Original V4 Token ID
+        v5TokenIds[121] = 44_000_000_031; // Minted V5 Token ID
+        v4TokenIds[121] = 44_000_000_031; // Original V4 Token ID
+        v5TokenIds[122] = 44_000_000_032; // Minted V5 Token ID
+        v4TokenIds[122] = 44_000_000_032; // Original V4 Token ID
+        v5TokenIds[123] = 44_000_000_033; // Minted V5 Token ID
+        v4TokenIds[123] = 44_000_000_033; // Original V4 Token ID
+        v5TokenIds[124] = 44_000_000_034; // Minted V5 Token ID
+        v4TokenIds[124] = 44_000_000_034; // Original V4 Token ID
+        v5TokenIds[125] = 47_000_000_003; // Minted V5 Token ID
+        v4TokenIds[125] = 47_000_000_001; // Original V4 Token ID
+        v5TokenIds[126] = 47_000_000_004; // Minted V5 Token ID
+        v4TokenIds[126] = 47_000_000_002; // Original V4 Token ID
+        v5TokenIds[127] = 47_000_000_005; // Minted V5 Token ID
+        v4TokenIds[127] = 47_000_000_004; // Original V4 Token ID
+        v5TokenIds[128] = 47_000_000_006; // Minted V5 Token ID
+        v4TokenIds[128] = 47_000_000_006; // Original V4 Token ID
+        v5TokenIds[129] = 47_000_000_007; // Minted V5 Token ID
+        v4TokenIds[129] = 47_000_000_007; // Original V4 Token ID
+        v5TokenIds[130] = 47_000_000_008; // Minted V5 Token ID
+        v4TokenIds[130] = 47_000_000_008; // Original V4 Token ID
+        v5TokenIds[131] = 47_000_000_009; // Minted V5 Token ID
+        v4TokenIds[131] = 47_000_000_009; // Original V4 Token ID
+        v5TokenIds[132] = 47_000_000_010; // Minted V5 Token ID
+        v4TokenIds[132] = 47_000_000_010; // Original V4 Token ID
+        v5TokenIds[133] = 47_000_000_011; // Minted V5 Token ID
+        v4TokenIds[133] = 47_000_000_011; // Original V4 Token ID
+        v5TokenIds[134] = 47_000_000_012; // Minted V5 Token ID
+        v4TokenIds[134] = 47_000_000_012; // Original V4 Token ID
+        v5TokenIds[135] = 47_000_000_013; // Minted V5 Token ID
+        v4TokenIds[135] = 47_000_000_013; // Original V4 Token ID
+        v5TokenIds[136] = 47_000_000_014; // Minted V5 Token ID
+        v4TokenIds[136] = 47_000_000_014; // Original V4 Token ID
+        v5TokenIds[137] = 48_000_000_006; // Minted V5 Token ID
+        v4TokenIds[137] = 48_000_000_004; // Original V4 Token ID
+        v5TokenIds[138] = 49_000_000_004; // Minted V5 Token ID
+        v4TokenIds[138] = 49_000_000_003; // Original V4 Token ID
+        v5TokenIds[139] = 49_000_000_005; // Minted V5 Token ID
+        v4TokenIds[139] = 49_000_000_005; // Original V4 Token ID
 
-        
         uint256 successfulTransfers = 0;
-        
+
         for (uint256 i = 0; i < transferOwners.length; i++) {
             uint256 v5TokenId = v5TokenIds[i];
             uint256 v4TokenId = v4TokenIds[i];
-            
+
             // Verify V4 ownership using the original V4 token ID
             address v4Owner = v4Hook.ownerOf(v4TokenId);
             address expectedOwner = transferOwners[i];
-            
+
             require(
                 v4Owner != address(v4ResolverAddress),
                 "Token owned by main resolver in V4 - should not be in unused assets contract"
             );
-            
+
             if (v4Owner == address(fallbackV4ResolverAddress)) {
                 require(
                     expectedOwner != address(v4ResolverAddress) && expectedOwner != address(fallbackV4ResolverAddress),
@@ -349,29 +349,22 @@ contract MigrationContractEthereum7 {
             } else {
                 require(v4Owner == expectedOwner, "V4/V5 ownership mismatch for token");
             }
-            
+
             require(hook.ownerOf(v5TokenId) == address(this), "Contract does not own token");
-            
-            IERC721(address(hook)).safeTransferFrom(
-                address(this), 
-                transferOwners[i], 
-                v5TokenId
-            );
+
+            IERC721(address(hook)).safeTransferFrom(address(this), transferOwners[i], v5TokenId);
             successfulTransfers++;
         }
-        
-        require(
-            successfulTransfers == transferOwners.length,
-            "Not all items were transferred"
-        );
-        
+
+        require(successfulTransfers == transferOwners.length, "Not all items were transferred");
+
         require(hook.balanceOf(address(this)) == 0, "Contract still owns tokens after migration");
-        
+
         // Verify tier balances: V5 should never exceed V4 (except for tiers owned by fallback resolver in V4)
-        
+
         // // Collect unique owners
         // address[] memory uniqueOwners = new address[](28);
-        
+
         // uniqueOwners[0] = 0x1Ae766cc5947e1E4C3538EE1F3f47063D2B40E79;
         // uniqueOwners[1] = 0x823b92d6a4b2AED4b15675c7917c9f922ea8ADAD;
         // uniqueOwners[2] = 0xa9d20b435A85fAAa002f32d66F7D21564130E9cf;
@@ -400,10 +393,10 @@ contract MigrationContractEthereum7 {
         // uniqueOwners[25] = 0x1786D033D5CbCC235B673e872c7613c2F83DA583;
         // uniqueOwners[26] = 0x38EED3CCeED88f380E436eb21811250797c453C5;
         // uniqueOwners[27] = 0x7C3F14075F6477fea1aF6cf59f325afDfcD3Ddf7;
-        
+
         // // Collect unique tier IDs
         // uint256[] memory uniqueTierIds = new uint256[](29);
-        
+
         // uniqueTierIds[0] = 5;
         // uniqueTierIds[1] = 6;
         // uniqueTierIds[2] = 10;
@@ -433,7 +426,7 @@ contract MigrationContractEthereum7 {
         // uniqueTierIds[26] = 47;
         // uniqueTierIds[27] = 48;
         // uniqueTierIds[28] = 49;
-        
+
         // // Verify tier balances: V5 should never exceed V4 (except for tiers owned by fallback resolver in V4)
         // MigrationHelper.verifyTierBalances(
         //     hookAddress,
