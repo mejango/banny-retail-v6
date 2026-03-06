@@ -1,35 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import "@bananapus/721-hook-v5/script/helpers/Hook721DeploymentLib.sol";
-import "@bananapus/core-v5/script/helpers/CoreDeploymentLib.sol";
-import "@bananapus/suckers-v5/script/helpers/SuckerDeploymentLib.sol";
-import "@bananapus/swap-terminal-v5/script/helpers/SwapTerminalDeploymentLib.sol";
-import "@rev-net/core-v5/script/helpers/RevnetCoreDeploymentLib.sol";
+import "@bananapus/721-hook-v6/script/helpers/Hook721DeploymentLib.sol";
+import "@bananapus/core-v6/script/helpers/CoreDeploymentLib.sol";
+import "@bananapus/suckers-v6/script/helpers/SuckerDeploymentLib.sol";
+import "@bananapus/swap-terminal-v6/script/helpers/SwapTerminalDeploymentLib.sol";
+import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 
-import {IJB721TokenUriResolver} from "@bananapus/721-hook-v5/src/interfaces/IJB721TokenUriResolver.sol";
-import {JB721InitTiersConfig} from "@bananapus/721-hook-v5/src/structs/JB721InitTiersConfig.sol";
-import {JB721TierConfig} from "@bananapus/721-hook-v5/src/structs/JB721TierConfig.sol";
-import {JB721TiersHookFlags} from "@bananapus/721-hook-v5/src/structs/JB721TiersHookFlags.sol";
-import {JBDeploy721TiersHookConfig} from "@bananapus/721-hook-v5/src/structs/JBDeploy721TiersHookConfig.sol";
-import {IJBPrices} from "@bananapus/core-v5/src/interfaces/IJBPrices.sol";
-import {IJBSplitHook} from "@bananapus/core-v5/src/interfaces/IJBSplitHook.sol";
-import {JBConstants} from "@bananapus/core-v5/src/libraries/JBConstants.sol";
-import {JBCurrencyIds} from "@bananapus/core-v5/src/libraries/JBCurrencyIds.sol";
-import {JBAccountingContext} from "@bananapus/core-v5/src/structs/JBAccountingContext.sol";
-import {JBSplit} from "@bananapus/core-v5/src/structs/JBSplit.sol";
-import {JBTerminalConfig} from "@bananapus/core-v5/src/structs/JBTerminalConfig.sol";
-import {JBTokenMapping} from "@bananapus/suckers-v5/src/structs/JBTokenMapping.sol";
-import {REVAutoIssuance} from "@rev-net/core-v5/src/structs/REVAutoIssuance.sol";
-import {REVConfig} from "@rev-net/core-v5/src/structs/REVConfig.sol";
-import {REVCroptopAllowedPost} from "@rev-net/core-v5/src/structs/REVCroptopAllowedPost.sol";
-import {REVDeploy721TiersHookConfig} from "@rev-net/core-v5/src/structs/REVDeploy721TiersHookConfig.sol";
-import {REVDescription} from "@rev-net/core-v5/src/structs/REVDescription.sol";
-import {REVLoanSource} from "@rev-net/core-v5/src/structs/REVLoanSource.sol";
-import {REVStageConfig} from "@rev-net/core-v5/src/structs/REVStageConfig.sol";
-import {REVSuckerDeploymentConfig} from "@rev-net/core-v5/src/structs/REVSuckerDeploymentConfig.sol";
-import {JBSuckerDeployerConfig} from "@bananapus/suckers-v5/src/structs/JBSuckerDeployerConfig.sol";
-import {IJBTerminal} from "@bananapus/core-v5/src/interfaces/IJBTerminal.sol";
+import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
+import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
+import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
+import {JB721TiersHookFlags} from "@bananapus/721-hook-v6/src/structs/JB721TiersHookFlags.sol";
+import {JBDeploy721TiersHookConfig} from "@bananapus/721-hook-v6/src/structs/JBDeploy721TiersHookConfig.sol";
+import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
+import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
+import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
+import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
+import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
+import {JBTerminalConfig} from "@bananapus/core-v6/src/structs/JBTerminalConfig.sol";
+import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.sol";
+import {REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVAutoIssuance.sol";
+import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
+import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllowedPost.sol";
+import {REVDeploy721TiersHookConfig} from "@rev-net/core-v6/src/structs/REVDeploy721TiersHookConfig.sol";
+import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
+import {REVStageConfig} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
+import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
+import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
+import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 
 import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
@@ -203,22 +202,12 @@ contract DeployScript is Script, Sphinx {
             extraMetadata: 4 // Allow adding suckers.
         });
 
-        REVConfig memory revnetConfiguration;
-        {
-            // Thr projects loan configuration.
-            REVLoanSource[] memory _loanSources = new REVLoanSource[](1);
-            _loanSources[0] = REVLoanSource({token: JBConstants.NATIVE_TOKEN, terminal: core.terminal});
-
-            // The project's revnet configuration
-            revnetConfiguration = REVConfig({
-                description: REVDescription(NAME, SYMBOL, PROJECT_URI, ERC20_SALT),
-                baseCurrency: ETH_CURRENCY,
-                splitOperator: OPERATOR,
-                stageConfigurations: stageConfigurations,
-                loanSources: _loanSources,
-                loans: address(revnet.loans)
-            });
-        }
+        REVConfig memory revnetConfiguration = REVConfig({
+            description: REVDescription(NAME, SYMBOL, PROJECT_URI, ERC20_SALT),
+            baseCurrency: ETH_CURRENCY,
+            splitOperator: OPERATOR,
+            stageConfigurations: stageConfigurations
+        });
 
         // The project's NFT tiers.
         JB721TierConfig[] memory tiers = new JB721TierConfig[](4);

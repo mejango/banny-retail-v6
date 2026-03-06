@@ -1052,7 +1052,7 @@ contract Drop1Script is Script, Sphinx {
             );
 
             bytes memory setSvgHashData =
-                abi.encodeCall(Banny721TokenUriResolver.setSvgHashsOf, (productIds, svgHashes));
+                abi.encodeCall(Banny721TokenUriResolver.setSvgHashesOf, (productIds, svgHashes));
 
             vm.writeFile(
                 string.concat("./", vm.toString(block.chainid), "-setSvgHashOf.hex.txt"), vm.toString(setSvgHashData)
@@ -1066,7 +1066,7 @@ contract Drop1Script is Script, Sphinx {
             );
         } else {
             hook.adjustTiers(products, new uint256[](0));
-            bannyverse.resolver.setSvgHashsOf(productIds, svgHashes);
+            bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
             bannyverse.resolver.setProductNames(productIds, names);
             bannyverse.resolver.setSvgBaseUri("https://bannyverse.infura-ipfs.io/ipfs/");
         }
