@@ -226,10 +226,10 @@ contract TestBanny721TokenUriResolver is Test {
     }
 
     //*********************************************************************//
-    // --- Owner-Only: setSvgHashsOf ------------------------------------- //
+    // --- Owner-Only: setSvgHashesOf ------------------------------------- //
     //*********************************************************************//
 
-    function test_setSvgHashsOf() public {
+    function test_setSvgHashesOf() public {
         uint256[] memory upcs = new uint256[](1);
         upcs[0] = 100;
 
@@ -237,27 +237,27 @@ contract TestBanny721TokenUriResolver is Test {
         hashes[0] = keccak256("test-svg-content");
 
         vm.prank(deployer);
-        resolver.setSvgHashsOf(upcs, hashes);
+        resolver.setSvgHashesOf(upcs, hashes);
 
         assertEq(resolver.svgHashOf(100), keccak256("test-svg-content"));
     }
 
-    function test_setSvgHashsOf_revertsIfAlreadyStored() public {
+    function test_setSvgHashesOf_revertsIfAlreadyStored() public {
         uint256[] memory upcs = new uint256[](1);
         upcs[0] = 100;
         bytes32[] memory hashes = new bytes32[](1);
         hashes[0] = keccak256("test");
 
         vm.startPrank(deployer);
-        resolver.setSvgHashsOf(upcs, hashes);
+        resolver.setSvgHashesOf(upcs, hashes);
 
         // Second attempt should revert.
         vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HashAlreadyStored.selector);
-        resolver.setSvgHashsOf(upcs, hashes);
+        resolver.setSvgHashesOf(upcs, hashes);
         vm.stopPrank();
     }
 
-    function test_setSvgHashsOf_revertsIfNotOwner() public {
+    function test_setSvgHashesOf_revertsIfNotOwner() public {
         uint256[] memory upcs = new uint256[](1);
         upcs[0] = 100;
         bytes32[] memory hashes = new bytes32[](1);
@@ -265,7 +265,7 @@ contract TestBanny721TokenUriResolver is Test {
 
         vm.prank(alice);
         vm.expectRevert();
-        resolver.setSvgHashsOf(upcs, hashes);
+        resolver.setSvgHashesOf(upcs, hashes);
     }
 
     //*********************************************************************//
@@ -282,7 +282,7 @@ contract TestBanny721TokenUriResolver is Test {
         hashes[0] = keccak256(abi.encodePacked(content));
 
         vm.prank(deployer);
-        resolver.setSvgHashsOf(upcs, hashes);
+        resolver.setSvgHashesOf(upcs, hashes);
 
         // Anyone can store content if hash matches.
         string[] memory contents = new string[](1);
@@ -309,7 +309,7 @@ contract TestBanny721TokenUriResolver is Test {
         hashes[0] = keccak256(abi.encodePacked("correct-content"));
 
         vm.prank(deployer);
-        resolver.setSvgHashsOf(upcs, hashes);
+        resolver.setSvgHashesOf(upcs, hashes);
 
         string[] memory contents = new string[](1);
         contents[0] = "wrong-content";
@@ -326,7 +326,7 @@ contract TestBanny721TokenUriResolver is Test {
         hashes[0] = keccak256(abi.encodePacked(content));
 
         vm.prank(deployer);
-        resolver.setSvgHashsOf(upcs, hashes);
+        resolver.setSvgHashesOf(upcs, hashes);
 
         string[] memory contents = new string[](1);
         contents[0] = content;
