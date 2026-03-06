@@ -1028,7 +1028,7 @@ contract Drop1Script is Script, Sphinx {
             reserveFrequency: 15,
             reserveBeneficiary: address(0),
             encodedIPFSUri: bytes32(0x1d1484b4b37a882e59ab5a01c1a32528e703e15156b9bb9b5372b61fec84c0df),
-            category: 15,
+            category: 16,
             discountPercent: 0,
             cannotIncreaseDiscountPercent: false,
             allowOwnerMint: false,
