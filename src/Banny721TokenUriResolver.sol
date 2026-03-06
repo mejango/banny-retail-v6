@@ -92,6 +92,12 @@ contract Banny721TokenUriResolver is
     /// @notice The base of the domain hosting the SVG files that can be lazily uploaded to the contract.
     string public override svgBaseUri;
 
+    /// @notice The description used in token metadata.
+    string public override description;
+
+    /// @notice The external URL used in token metadata.
+    string public override externalUrl;
+
     /// @notice The banny body and outfit SVG hash files.
     /// @custom:param upc The universal product code that the SVG hash represent.
     mapping(uint256 upc => bytes32) public override svgHashOf;
@@ -164,6 +170,8 @@ contract Banny721TokenUriResolver is
         DEFAULT_MOUTH = defaultMouth;
         DEFAULT_STANDARD_EYES = defaultStandardEyes;
         DEFAULT_ALIEN_EYES = defaultAlienEyes;
+        description = "A piece of Banny Retail.";
+        externalUrl = "https://eth.sucks";
     }
 
     //*********************************************************************//
@@ -297,43 +305,28 @@ contract Banny721TokenUriResolver is
             '"}]'
         );
 
-        return string.concat(
-            "data:application/json;base64,",
-            Base64.encode(
-                abi.encodePacked(
-                    '{"name":"',
-                    _fullNameOf({tokenId: tokenId, product: product}),
-                    '", "productName": "',
-                    _productNameOf(product.id),
-                    '", "categoryName": "',
-                    _categoryNameOf(product.category),
-                    '", "tokenId": ',
-                    tokenId.toString(),
-                    ', "upc": ',
-                    uint256(product.id).toString(),
-                    ', "category": ',
-                    uint256(product.category).toString(),
-                    ', "supply": ',
-                    uint256(product.initialSupply).toString(),
-                    ', "remaining": ',
-                    uint256(product.remainingSupply).toString(),
-                    ', "price": ',
-                    uint256(product.price).toString(),
-                    ', "decimals": ',
-                    decimals.toString(),
-                    ', "currency": ',
-                    currency.toString(),
-                    ', "discount": ',
-                    uint256(product.discountPercent).toString(),
-                    ", ",
-                    extraMetadata, // Keeps extraMetadata as it was
-                    attributes, // Includes all attributes
-                    ', "description":"A piece of Banny Retail.","external_url":"https://retail.banny.eth.sucks","image":"data:image/svg+xml;base64,',
-                    Base64.encode(abi.encodePacked(contents)),
-                    '"}'
-                )
-            )
+        // Build the pricing metadata separately to avoid stack too deep.
+        string memory pricingMetadata = string.concat(
+            ', "supply": ',
+            uint256(product.initialSupply).toString(),
+            ', "remaining": ',
+            uint256(product.remainingSupply).toString(),
+            ', "price": ',
+            uint256(product.price).toString(),
+            ', "decimals": ',
+            decimals.toString(),
+            ', "currency": ',
+            currency.toString(),
+            ', "discount": ',
+            uint256(product.discountPercent).toString()
         );
+
+        return _encodeTokenUri({
+            tokenId: tokenId,
+            product: product,
+            extraMetadata: string.concat(pricingMetadata, ", ", extraMetadata, attributes),
+            imageContents: Base64.encode(abi.encodePacked(contents))
+        });
     }
 
     //*********************************************************************//
@@ -604,6 +597,50 @@ contract Banny721TokenUriResolver is
         }
 
         revert Banny721TokenUriResolver_UnrecognizedProduct();
+    }
+
+    /// @notice Encode the token URI JSON with base64.
+    function _encodeTokenUri(
+        uint256 tokenId,
+        JB721Tier memory product,
+        string memory extraMetadata,
+        string memory imageContents
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        return string.concat(
+            "data:application/json;base64,",
+            Base64.encode(
+                abi.encodePacked(
+                    abi.encodePacked(
+                        '{"name":"',
+                        _fullNameOf({tokenId: tokenId, product: product}),
+                        '", "productName": "',
+                        _productNameOf(product.id),
+                        '", "categoryName": "',
+                        _categoryNameOf(product.category),
+                        '", "tokenId": ',
+                        tokenId.toString(),
+                        ', "upc": ',
+                        uint256(product.id).toString(),
+                        ', "category": ',
+                        uint256(product.category).toString()
+                    ),
+                    extraMetadata,
+                    abi.encodePacked(
+                        ', "description":"',
+                        description,
+                        '","external_url":"',
+                        externalUrl,
+                        '","image":"data:image/svg+xml;base64,',
+                        imageContents,
+                        '"}'
+                    )
+                )
+            )
+        );
     }
 
     /// @notice The full name of each product, including category and inventory.
@@ -1003,6 +1040,16 @@ contract Banny721TokenUriResolver is
         }
     }
 
+    /// @notice Allows the owner of this contract to set the token metadata description and external URL.
+    /// @param newDescription The description to use in token metadata.
+    /// @param newExternalUrl The external URL to use in token metadata.
+    function setMetadata(string calldata newDescription, string calldata newExternalUrl) external override onlyOwner {
+        description = newDescription;
+        externalUrl = newExternalUrl;
+
+        emit SetMetadata({description: newDescription, externalUrl: newExternalUrl, caller: msg.sender});
+    }
+
     /// @notice Allows the owner of this contract to specify the base of the domain hosting the SVG files.
     /// @param baseUri The base URI of the SVG files.
     function setSvgBaseUri(string calldata baseUri) external override onlyOwner {
@@ -1100,12 +1147,9 @@ contract Banny721TokenUriResolver is
             // Set the outfit ID being iterated on.
             uint256 outfitId = outfitIds[i];
 
-            // Keep a reference to the outfit's owner.
-            address owner = IERC721(hook).ownerOf(outfitId);
-
             // Check if the call is being made either by the outfit's owner or the owner of the banny body currently
             // wearing it.
-            if (_msgSender() != owner) {
+            if (_msgSender() != IERC721(hook).ownerOf(outfitId)) {
                 // Get the banny body currently wearing this outfit.
                 uint256 wearerId = wearerOf({hook: hook, outfitId: outfitId});
 
@@ -1179,7 +1223,7 @@ contract Banny721TokenUriResolver is
 
                 // Transfer the outfit to this contract.
                 // slither-disable-next-line reentrancy-no-eth
-                if (owner != address(this)) {
+                if (IERC721(hook).ownerOf(outfitId) != address(this)) {
                     _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: outfitId});
                 }
             }
