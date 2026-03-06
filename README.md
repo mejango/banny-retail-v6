@@ -1,60 +1,53 @@
-# Banny Looks
+# banny-retail-v5
+
+On-chain composable avatar system for Juicebox 721 collections -- manages Banny character bodies, backgrounds, and outfit NFTs with layered SVG rendering.
+
+## Architecture
+
+| Contract | Description |
+|----------|-------------|
+| `Banny721TokenUriResolver` | The sole contract. Implements `IJB721TokenUriResolver` to serve fully on-chain SVG token URIs for any Juicebox 721 hook. Manages a composable asset system where Banny body NFTs can be dressed with outfit NFTs and placed on background NFTs, all rendered as layered SVGs with base64-encoded JSON metadata. Owner can register SVG content and hashes for product IDs (UPCs). |
+
+### Asset Categories
+
+| Category ID | Name | Role |
+|-------------|------|------|
+| 0 | Body | The base Banny character. Owns outfits and backgrounds. |
+| 1 | Background | Scene behind the Banny. One per body. |
+| 2 | Backside | Layer behind the body. |
+| 3 | Necklace | Accessory layer (default provided). |
+| 4 | Head | Head accessory. One per body. |
+| 5 | Eyes | Eye style (defaults: standard, alien). |
+| 6 | Glasses | Eyewear layer. |
+| 7 | Mouth | Mouth expression (default provided). |
+| 8 | Legs | Lower body clothing. |
+| 9 | Suit | Full body suit (one-piece). |
+| 10 | Suit Bottom | Lower suit piece. |
+| 11 | Suit Top | Upper suit piece. |
+| 12 | Headtop | Top-of-head accessory. |
+| 13 | Hand | Held item layer. |
+| 14-17 | Special variants | Special suit, legs, head, and body overlays. |
 
 ## Install
 
-For `npm` projects (recommended):
-
 ```bash
-npm install @bannyverse/core
+npm install @bannynet/core-v5
 ```
-
-For `forge` projects (not recommended):
-
-```bash
-forge install mejango/banny-contract
-```
-
-Add `@bananapus/721-hook/=lib/nana-721-hook/` to `remappings.txt`. You'll also need to install `nana-721-hook`'s dependencies and add similar remappings for them.
 
 ## Develop
 
-`nana-721-hook` uses [npm](https://www.npmjs.com/) for package management and the [Foundry](https://github.com/foundry-rs/foundry) development toolchain for builds, tests, and deployments. To get set up, [install Node.js](https://nodejs.org/en/download) and install [Foundry](https://github.com/foundry-rs/foundry):
+`banny-retail-v5` uses [npm](https://www.npmjs.com/) for package management and [Foundry](https://github.com/foundry-rs/foundry) for builds, tests, and deployments. Requires `via-ir = true` in foundry.toml.
 
 ```bash
 curl -L https://foundry.paradigm.xyz | sh
-```
-
-You can download and install dependencies with:
-
-```bash
 npm install && forge install
 ```
 
-If you run into trouble with `forge install`, try using `git submodule update --init --recursive` to ensure that nested submodules have been properly initialized.
-
-Some useful commands:
-
-| Command               | Description                                         |
-| --------------------- | --------------------------------------------------- |
-| `forge build`         | Compile the contracts and write artifacts to `out`. |
-| `forge fmt`           | Lint.                                               |
-| `forge test`          | Run the tests.                                      |
-| `forge build --sizes` | Get contract sizes.                                 |
-| `forge coverage`      | Generate a test coverage report.                    |
-| `foundryup`           | Update foundry. Run this periodically.              |
-| `forge clean`         | Remove the build artifacts and cache directories.   |
-
-To learn more, visit the [Foundry Book](https://book.getfoundry.sh/) docs.
-
-## Scripts
-
-For convenience, several utility commands are available in `package.json`.
-
-| Command                           | Description                            |
-| --------------------------------- | -------------------------------------- |
-| `npm test`                        | Run local tests.                       |
-| `npm run coverage:lcov`           | Generate an LCOV test coverage report. |
-| `npm run deploy:ethereum-mainnet` | Deploy to Ethereum mainnet             |
-| `npm run deploy:ethereum-sepolia` | Deploy to Ethereum Sepolia testnet     |
-| `npm run deploy:optimism-mainnet` | Deploy to Optimism mainnet             |
-| `npm run deploy:optimism-testnet` | Deploy to Optimism testnet             |
+| Command | Description |
+|---------|-------------|
+| `forge build` | Compile contracts and write artifacts to `out`. |
+| `forge test` | Run the test suite. |
+| `forge fmt` | Lint Solidity files. |
+| `forge build --sizes` | Get contract sizes. |
+| `forge coverage` | Generate a test coverage report. |
+| `forge clean` | Remove build artifacts and cache. |

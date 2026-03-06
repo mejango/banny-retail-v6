@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {IERC721} from "@bananapus/721-hook-v5/src/abstract/ERC721.sol";
-import {IJB721TiersHook} from "@bananapus/721-hook-v5/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v5/src/interfaces/IJB721TiersHookStore.sol";
-import {IJB721TokenUriResolver} from "@bananapus/721-hook-v5/src/interfaces/IJB721TokenUriResolver.sol";
-import {JB721Tier} from "@bananapus/721-hook-v5/src/structs/JB721Tier.sol";
-import {JBIpfsDecoder} from "@bananapus/721-hook-v5/src/libraries/JBIpfsDecoder.sol";
+import {IERC721} from "@bananapus/721-hook-v6/src/abstract/ERC721.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
+import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
+import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
+import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
+import {JBIpfsDecoder} from "@bananapus/721-hook-v6/src/libraries/JBIpfsDecoder.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
@@ -107,13 +107,13 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
 
     /// @notice The outfits currently attached to each banny body.
-    /// @dev Nakes Banny's will only be shown with outfits currently owned by the owner of the banny body.
+    /// @dev Naked Banny's will only be shown with outfits currently owned by the owner of the banny body.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the outfits.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
 
     /// @notice The background currently attached to each banny body.
-    /// @dev Nakes Banny's will only be shown with a background currently owned by the owner of the banny body.
+    /// @dev Naked Banny's will only be shown with a background currently owned by the owner of the banny body.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the background.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256)) internal _attachedBackgroundIdOf;
@@ -203,21 +203,20 @@ contract Banny721TokenUriResolver is
             if (product.category == _BACKGROUND_CATEGORY) {
                 uint256 bannyBodyId = userOf({hook: hook, backgroundId: tokenId});
                 extraMetadata = string.concat('"usedByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             } else {
                 uint256 bannyBodyId = wearerOf({hook: hook, outfitId: tokenId});
                 extraMetadata = string.concat('"wornByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             }
         } else {
             // Compose the contents.
             contents = svgOf({
-                hook: hook,
-                tokenId: tokenId,
-                shouldDressBannyBody: true,
-                shouldIncludeBackgroundOnBannyBody: true
+                hook: hook, tokenId: tokenId, shouldDressBannyBody: true, shouldIncludeBackgroundOnBannyBody: true
             });
 
             // Get a reference to each asset ID currently attached to the banny body.
@@ -278,7 +277,9 @@ contract Banny721TokenUriResolver is
                 product.category > _SPECIAL_BODY_CATEGORY ? IJB721TiersHook(hook).baseURI() : svgBaseUri;
 
             // Fallback to returning an IPFS hash if present.
-            return JBIpfsDecoder.decode(baseUri, _storeOf(hook).encodedTierIPFSUriOf({hook: hook, tokenId: tokenId}));
+            return JBIpfsDecoder.decode({
+                baseUri: baseUri, hexString: _storeOf(hook).encodedTierIPFSUriOf({hook: hook, tokenId: tokenId})
+            });
         }
 
         // Get a reference to the pricing context.
@@ -376,6 +377,11 @@ contract Banny721TokenUriResolver is
             }
         }
 
+        // Resize the array to the actual number of included outfits (remove trailing zeros).
+        assembly {
+            mstore(outfitIds, numberOfIncludedOutfits)
+        }
+
         // Keep a reference to the background currently stored as attached to the banny body.
         uint256 storedBackgroundOf = _attachedBackgroundIdOf[hook][bannyBodyId];
 
@@ -461,7 +467,7 @@ contract Banny721TokenUriResolver is
 
         if (shouldDressBannyBody) {
             // Get the outfit contents.
-            string memory outfitContents = _outfitContentsFor({hook: hook, outfitIds: outfitIds});
+            string memory outfitContents = _outfitContentsFor({hook: hook, outfitIds: outfitIds, bodyUpc: product.id});
 
             // Add the outfit contents if there are any.
             if (bytes(outfitContents).length != 0) {
@@ -638,7 +644,7 @@ contract Banny721TokenUriResolver is
         // Append a separator.
         name = string.concat(name, ": ");
 
-        // Get a reference to the categorie's name.
+        // Get a reference to the category's name.
         string memory categoryName = _categoryNameOf(product.category);
 
         // If there's a category name, append it.
@@ -685,13 +691,13 @@ contract Banny721TokenUriResolver is
         );
     }
 
-    /// @notice Returns the calldata, prefered to use over `msg.data`
+    /// @notice Returns the calldata, preferred to use over `msg.data`
     /// @return calldata the `msg.data` of this call
     function _msgData() internal view override(ERC2771Context, Context) returns (bytes calldata) {
         return ERC2771Context._msgData();
     }
 
-    /// @notice Returns the sender, prefered to use over `msg.sender`
+    /// @notice Returns the sender, preferred to use over `msg.sender`
     /// @return sender the sender address of this call.
     function _msgSender() internal view override(ERC2771Context, Context) returns (address sender) {
         return ERC2771Context._msgSender();
@@ -733,10 +739,12 @@ contract Banny721TokenUriResolver is
     /// @notice The SVG contents for a list of outfit IDs.
     /// @param hook The 721 contract that the product belongs to.
     /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny.
+    /// @param bodyUpc The UPC of the banny body being dressed (used for default eyes selection).
     /// @return contents The SVG contents of the outfits.
     function _outfitContentsFor(
         address hook,
-        uint256[] memory outfitIds
+        uint256[] memory outfitIds,
+        uint256 bodyUpc
     )
         internal
         view
@@ -802,7 +810,7 @@ contract Banny721TokenUriResolver is
             if (category == _EYES_CATEGORY) {
                 hasEyes = true;
             } else if (category > _EYES_CATEGORY && !hasEyes && !hasHead) {
-                if (upc == ALIEN_UPC) contents = string.concat(contents, DEFAULT_ALIEN_EYES);
+                if (bodyUpc == ALIEN_UPC) contents = string.concat(contents, DEFAULT_ALIEN_EYES);
                 else contents = string.concat(contents, DEFAULT_STANDARD_EYES);
 
                 hasEyes = true;
@@ -867,14 +875,16 @@ contract Banny721TokenUriResolver is
     /// @param hook The 721 contract that the product belongs to.
     /// @param upc The universal product code of the product that the SVG contents represent.
     function _svgOf(address hook, uint256 upc) internal view returns (string memory) {
-        // Keep a reference to the stored scg contents.
+        // Keep a reference to the stored svg contents.
         string memory svgContents = _svgContentOf[upc];
 
         if (bytes(svgContents).length != 0) return svgContents;
 
         return string.concat(
             '<image href="',
-            JBIpfsDecoder.decode(svgBaseUri, _storeOf(hook).encodedIPFSUriOf({hook: hook, tierId: upc})),
+            JBIpfsDecoder.decode({
+                baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIPFSUriOf({hook: hook, tierId: upc})
+            }),
             '" width="400" height="400"/>'
         );
     }
@@ -883,8 +893,23 @@ contract Banny721TokenUriResolver is
     // ---------------------- external transactions ---------------------- //
     //*********************************************************************//
 
-    /// @notice Dress your banny body with outfits.
-    /// @dev The caller must own the banny body being dressed and all outfits being worn.
+    /// @notice Dress your banny body with outfits and a background.
+    /// @dev Decoration is allowed when ALL of the following hold:
+    ///
+    /// 1. The caller owns the banny body (via `_checkIfSenderIsOwner`).
+    /// 2. The banny body is not currently locked (`outfitLockedUntil` has not yet passed).
+    /// 3. For each outfit supplied:
+    ///    a. The caller is the outfit's current owner, OR
+    ///    b. The outfit is currently worn by another banny body and the caller owns that banny body.
+    ///    (If the outfit is unworn, only (a) applies — the outfit owner must be the caller.)
+    /// 4. For the background supplied (if non-zero):
+    ///    a. The caller is the background's current owner, OR
+    ///    b. The background is currently used by another banny body and the caller owns that banny body.
+    ///    (If the background is unused, only (a) applies — the background owner must be the caller.)
+    /// 5. Outfit categories must be valid (within recognized range) and passed in ascending order.
+    /// 6. Conflicting categories are rejected (e.g., a full head blocks individual face pieces;
+    ///    a full suit blocks separate top/bottom).
+    ///
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
     /// @param backgroundId The ID of the background that'll be associated with the specified banny.
@@ -908,11 +933,7 @@ contract Banny721TokenUriResolver is
         }
 
         emit DecorateBanny({
-            hook: hook,
-            bannyBodyId: bannyBodyId,
-            backgroundId: backgroundId,
-            outfitIds: outfitIds,
-            caller: _msgSender()
+            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: _msgSender()
         });
 
         // Add the background.
@@ -942,7 +963,7 @@ contract Banny721TokenUriResolver is
         outfitLockedUntil[hook][bannyBodyId] = newLockUntil;
     }
 
-    /// @dev Make sure tokens can be receieved if the transaction was initiated by this contract.
+    /// @dev Make sure tokens can be received if the transaction was initiated by this contract.
     /// @param operator The address that initiated the transaction.
     /// @param from The address that initiated the transfer.
     /// @param tokenId The ID of the token being transferred.
@@ -1021,11 +1042,11 @@ contract Banny721TokenUriResolver is
     /// @notice Allows the owner of this contract to upload the hash of an svg file for a universal product code.
     /// @dev This allows anyone to lazily upload the correct svg file.
     /// @param upcs The universal product codes of the products having SVG hashes stored.
-    /// @param svgHashs The svg hashes being stored, not including the parent <svg></svg> element.
-    function setSvgHashsOf(uint256[] memory upcs, bytes32[] memory svgHashs) external override onlyOwner {
+    /// @param svgHashes The svg hashes being stored, not including the parent <svg></svg> element.
+    function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
-            bytes32 svgHash = svgHashs[i];
+            bytes32 svgHash = svgHashes[i];
 
             // Make sure there isn't already contents for the specified universal product code.
             if (svgHashOf[upc] != bytes32(0)) revert Banny721TokenUriResolver_HashAlreadyStored();
@@ -1084,8 +1105,17 @@ contract Banny721TokenUriResolver is
 
             // Check if the call is being made either by the outfit's owner or the owner of the banny body currently
             // wearing it.
-            if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(wearerOf(hook, outfitId))) {
-                revert Banny721TokenUriResolver_UnauthorizedOutfit();
+            if (_msgSender() != owner) {
+                // Get the banny body currently wearing this outfit.
+                uint256 wearerId = wearerOf({hook: hook, outfitId: outfitId});
+
+                // If the outfit is not currently worn, only the outfit's owner can use it for decoration.
+                if (wearerId == 0) revert Banny721TokenUriResolver_UnauthorizedOutfit();
+
+                // If the outfit is worn, the banny body's owner can also authorize its use.
+                if (_msgSender() != IERC721(hook).ownerOf(wearerId)) {
+                    revert Banny721TokenUriResolver_UnauthorizedOutfit();
+                }
             }
 
             // Get the outfit's product info.
@@ -1106,10 +1136,10 @@ contract Banny721TokenUriResolver is
             } else if (outfitProductCategory == _SUIT_CATEGORY) {
                 hasSuit = true;
             } else if (
-                (
-                    outfitProductCategory == _EYES_CATEGORY || outfitProductCategory == _GLASSES_CATEGORY || outfitProductCategory == _MOUTH_CATEGORY
-                        || outfitProductCategory == _HEADTOP_CATEGORY
-                ) && hasHead
+                (outfitProductCategory == _EYES_CATEGORY
+                        || outfitProductCategory == _GLASSES_CATEGORY
+                        || outfitProductCategory == _MOUTH_CATEGORY
+                        || outfitProductCategory == _HEADTOP_CATEGORY) && hasHead
             ) {
                 revert Banny721TokenUriResolver_HeadAlreadyAdded();
             } else if (
@@ -1120,6 +1150,8 @@ contract Banny721TokenUriResolver is
             }
 
             // Remove all previous assets up to and including the current category being iterated on.
+            // This inner loop advances through `previousOutfitIds` (bounded by outfit category count) and
+            // terminates when it passes the current category or exhausts the array.
             while (previousOutfitProductCategory <= outfitProductCategory && previousOutfitProductCategory != 0) {
                 // Transfer the previous outfit to the owner of the banny if its not being worn.
                 // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
@@ -1157,6 +1189,9 @@ contract Banny721TokenUriResolver is
         }
 
         // Remove and transfer out any remaining assets no longer being worn.
+        // This loop is bounded by `previousOutfitIds.length`, which equals the number of outfits previously
+        // attached to this banny. Since only one outfit per category is allowed, this is bounded by the number of
+        // outfit categories (a small, fixed set).
         while (previousOutfitId != 0) {
             // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
             // decorated.
@@ -1188,7 +1223,7 @@ contract Banny721TokenUriResolver is
         // Keep a reference to the user of the previous background.
         uint256 userOfPreviousBackground = userOf({hook: hook, backgroundId: previousBackgroundId});
 
-        // If the background is changing, add the lateset background and transfer the old one back to the owner.
+        // If the background is changing, add the latest background and transfer the old one back to the owner.
         if (backgroundId != previousBackgroundId || userOfPreviousBackground != bannyBodyId) {
             // If there's a previous background worn by this banny, transfer it back to the owner.
             if (userOfPreviousBackground == bannyBodyId) {
@@ -1202,15 +1237,26 @@ contract Banny721TokenUriResolver is
                 address owner = IERC721(hook).ownerOf(backgroundId);
 
                 // Check if the call is being made by the background's owner, or the owner of a banny body using it.
-                if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(userOf(hook, backgroundId))) {
-                    revert Banny721TokenUriResolver_UnauthorizedBackground();
+                if (_msgSender() != owner) {
+                    // Get the banny body currently using this background.
+                    uint256 userId = userOf({hook: hook, backgroundId: backgroundId});
+
+                    // If the background is not currently used, only the background's owner can use it for decoration.
+                    if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
+
+                    // If the background is used, the banny body's owner can also authorize its use.
+                    if (_msgSender() != IERC721(hook).ownerOf(userId)) {
+                        revert Banny721TokenUriResolver_UnauthorizedBackground();
+                    }
                 }
 
                 // Get the background's product info.
                 JB721Tier memory backgroundProduct = _productOfTokenId({hook: hook, tokenId: backgroundId});
 
-                // Background must exist
-                if (backgroundProduct.id == 0) revert Banny721TokenUriResolver_UnrecognizedBackground();
+                // Background must exist and must be a background category.
+                if (backgroundProduct.id == 0 || backgroundProduct.category != _BACKGROUND_CATEGORY) {
+                    revert Banny721TokenUriResolver_UnrecognizedBackground();
+                }
 
                 // Store the background for the banny.
                 // slither-disable-next-line reentrancy-no-eth
@@ -1232,7 +1278,7 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Transfer a token from one address to another.
-    /// @param hook The 721 contract of the token being transfered.
+    /// @param hook The 721 contract of the token being transferred.
     /// @param from The address to transfer the token from.
     /// @param to The address to transfer the token to.
     /// @param assetId The ID of the token to transfer.

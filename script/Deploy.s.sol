@@ -2,7 +2,6 @@
 pragma solidity 0.8.23;
 
 import "@bananapus/721-hook-v5/script/helpers/Hook721DeploymentLib.sol";
-import "@bananapus/buyback-hook-v5/script/helpers/BuybackDeploymentLib.sol";
 import "@bananapus/core-v5/script/helpers/CoreDeploymentLib.sol";
 import "@bananapus/suckers-v5/script/helpers/SuckerDeploymentLib.sol";
 import "@bananapus/swap-terminal-v5/script/helpers/SwapTerminalDeploymentLib.sol";
@@ -24,8 +23,6 @@ import {JBTokenMapping} from "@bananapus/suckers-v5/src/structs/JBTokenMapping.s
 import {REVAutoIssuance} from "@rev-net/core-v5/src/structs/REVAutoIssuance.sol";
 import {REVConfig} from "@rev-net/core-v5/src/structs/REVConfig.sol";
 import {REVCroptopAllowedPost} from "@rev-net/core-v5/src/structs/REVCroptopAllowedPost.sol";
-import {REVBuybackHookConfig} from "@rev-net/core-v5/src/structs/REVBuybackHookConfig.sol";
-import {REVBuybackPoolConfig} from "@rev-net/core-v5/src/structs/REVBuybackPoolConfig.sol";
 import {REVDeploy721TiersHookConfig} from "@rev-net/core-v5/src/structs/REVDeploy721TiersHookConfig.sol";
 import {REVDescription} from "@rev-net/core-v5/src/structs/REVDescription.sol";
 import {REVLoanSource} from "@rev-net/core-v5/src/structs/REVLoanSource.sol";
@@ -42,7 +39,6 @@ import {Banny721TokenUriResolver} from "./../src/Banny721TokenUriResolver.sol";
 struct BannyverseRevnetConfig {
     REVConfig configuration;
     JBTerminalConfig[] terminalConfigurations;
-    REVBuybackHookConfig buybackHookConfiguration;
     REVSuckerDeploymentConfig suckerDeploymentConfiguration;
     REVDeploy721TiersHookConfig hookConfiguration;
 }
@@ -56,18 +52,16 @@ contract DeployScript is Script, Sphinx {
     RevnetCoreDeployment revnet;
     /// @notice tracks the deployment of the 721 hook contracts for the chain we are deploying to.
     Hook721Deployment hook;
-    /// @notice tracks the deployment of the buyback hook.
-    BuybackDeployment buybackHook;
     /// @notice tracks the deployment of the swap terminal.
     SwapTerminalDeployment swapTerminal;
 
     BannyverseRevnetConfig bannyverseConfig;
 
     uint32 PREMINT_CHAIN_ID = 1;
-    bytes32 ERC20_SALT = "_BAN_ERC20_";
-    bytes32 SUCKER_SALT = "_BAN_SUCKER_";
-    bytes32 HOOK_SALT = "_BAN_HOOK_";
-    bytes32 RESOLVER_SALT = "_BAN_RESOLVER_";
+    bytes32 ERC20_SALT = "_BAN_ERC20V6_";
+    bytes32 SUCKER_SALT = "_BAN_SUCKERV6_";
+    bytes32 HOOK_SALT = "_BAN_HOOKV6_";
+    bytes32 RESOLVER_SALT = "_BAN_RESOLVERV6_";
     string NAME = "Banny Network";
     string SYMBOL = "BAN";
     string PROJECT_URI = "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp";
@@ -95,12 +89,6 @@ contract DeployScript is Script, Sphinx {
         // Get the operator address.
         OPERATOR = safeAddress();
 
-        // Get the deployment addresses for the 721 hook contracts for this chain.
-        buybackHook = BuybackDeploymentLib.getDeployment(
-            vm.envOr(
-                "NANA_BUYBACK_HOOK_DEPLOYMENT_PATH", string("node_modules/@bananapus/buyback-hook-v5/deployments/")
-            )
-        );
         // Get the deployment addresses for the nana CORE for this chain.
         // We want to do this outside of the `sphinx` modifier.
         core = CoreDeploymentLib.getDeployment(
@@ -186,9 +174,7 @@ contract DeployScript is Script, Sphinx {
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
-                chainId: PREMINT_CHAIN_ID,
-                count: uint104(1_000_000 * DECIMAL_MULTIPLIER),
-                beneficiary: OPERATOR
+                chainId: PREMINT_CHAIN_ID, count: uint104(1_000_000 * DECIMAL_MULTIPLIER), beneficiary: OPERATOR
             });
 
             // decrease by a smaller percent more frequently. 30 days, 7%-ish.
@@ -233,16 +219,6 @@ contract DeployScript is Script, Sphinx {
                 loans: address(revnet.loans)
             });
         }
-
-        // The project's buyback hook configuration.
-        REVBuybackPoolConfig[] memory buybackPoolConfigurations = new REVBuybackPoolConfig[](1);
-        buybackPoolConfigurations[0] =
-            REVBuybackPoolConfig({token: JBConstants.NATIVE_TOKEN, fee: 10_000, twapWindow: 2 days});
-        REVBuybackHookConfig memory buybackHookConfiguration = REVBuybackHookConfig({
-            dataHook: buybackHook.registry,
-            hookToConfigure: buybackHook.hook,
-            poolConfigurations: buybackPoolConfigurations
-        });
 
         // The project's NFT tiers.
         JB721TierConfig[] memory tiers = new JB721TierConfig[](4);
@@ -355,20 +331,17 @@ contract DeployScript is Script, Sphinx {
         return BannyverseRevnetConfig({
             configuration: revnetConfiguration,
             terminalConfigurations: terminalConfigurations,
-            buybackHookConfiguration: buybackHookConfiguration,
             suckerDeploymentConfiguration: suckerDeploymentConfiguration,
             hookConfiguration: REVDeploy721TiersHookConfig({
                 baseline721HookConfiguration: JBDeploy721TiersHookConfig({
                     name: "Banny Retail",
                     symbol: "BANNY",
                     baseUri: BASE_URI,
-                    tokenUriResolver: IJB721TokenUriResolver(address(0)), // This will be replaced once we know the address.
+                    tokenUriResolver: IJB721TokenUriResolver(address(0)), // This will be replaced once we know the
+                    // address.
                     contractUri: "https://jbm.infura-ipfs.io/ipfs/Qmd2hgb1E4caEB51VvoC3GvonhwkCoVyXjJ3zqsCxHPTKK",
                     tiersConfig: JB721InitTiersConfig({
-                        tiers: tiers,
-                        currency: ETH_CURRENCY,
-                        decimals: DECIMALS,
-                        prices: core.prices
+                        tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS, prices: core.prices
                     }),
                     reserveBeneficiary: address(0),
                     flags: JB721TiersHookFlags({
@@ -434,15 +407,15 @@ contract DeployScript is Script, Sphinx {
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;
 
         // Deploy the $BANNY Revnet.
-        revnet.basic_deployer.deployWith721sFor({
-            revnetId: 0,
-            configuration: bannyverseConfig.configuration,
-            terminalConfigurations: bannyverseConfig.terminalConfigurations,
-            buybackHookConfiguration: bannyverseConfig.buybackHookConfiguration,
-            suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
-            tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
-            allowedPosts: new REVCroptopAllowedPost[](0)
-        });
+        revnet.basic_deployer
+            .deployWith721sFor({
+                revnetId: 0,
+                configuration: bannyverseConfig.configuration,
+                terminalConfigurations: bannyverseConfig.terminalConfigurations,
+                suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
+                tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
+                allowedPosts: new REVCroptopAllowedPost[](0)
+            });
     }
 
     function _isDeployed(
