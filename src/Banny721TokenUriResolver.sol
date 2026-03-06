@@ -171,7 +171,7 @@ contract Banny721TokenUriResolver is
         DEFAULT_STANDARD_EYES = defaultStandardEyes;
         DEFAULT_ALIEN_EYES = defaultAlienEyes;
         description = "A piece of Banny Retail.";
-        externalUrl = "https://eth.sucks";
+        externalUrl = "https://retail.banny.eth.shop";
     }
 
     //*********************************************************************//
