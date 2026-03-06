@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {JB721TierConfig} from "@bananapus/721-hook-v5/src/structs/JB721TierConfig.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
+import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
+import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
+import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 
 import "./helpers/BannyverseDeploymentLib.sol";
-import "@rev-net/core-v5/script/helpers/RevnetCoreDeploymentLib.sol";
+import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
@@ -22,7 +23,7 @@ contract Drop1Script is Script, Sphinx {
 
     function configureSphinx() public override {
         // TODO: Update to contain revnet devs.
-        sphinxConfig.projectName = "banny-core-v5";
+        sphinxConfig.projectName = "banny-core-v6";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
@@ -32,7 +33,7 @@ contract Drop1Script is Script, Sphinx {
 
         // Get the deployment addresses for the revnet contracts for this chain.
         revnet = RevnetCoreDeploymentLib.getDeployment(
-            vm.envOr("REVNET_CORE_DEPLOYMENT_PATH", string("node_modules/@rev-net/core-v5/deployments/"))
+            vm.envOr("REVNET_CORE_DEPLOYMENT_PATH", string("node_modules/@rev-net/core-v6/deployments/"))
         );
 
         // Get the deployment addresses for the 721 hook contracts for this chain.
@@ -68,7 +69,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Hay field
         names[1] = "Hay Field";
@@ -87,7 +90,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Pew pew
         names[2] = "Pew Pew";
@@ -106,7 +111,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Bandolph staff
         names[3] = "Bandolph Staff";
@@ -125,7 +132,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Block chain
         names[4] = "Block Chain";
@@ -144,7 +153,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Astronaut Head
         names[5] = "Astronaut Head";
@@ -163,7 +174,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Nerd
         names[6] = "Nerd Glasses";
@@ -182,7 +195,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Banny vision pro
         names[7] = "Banny Vision Pro";
@@ -201,7 +216,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: true,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Cyberpunk glasses
         names[8] = "Cyberpunk Glasses";
@@ -220,7 +237,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Investor shades
         names[9] = "Investor Shades";
@@ -239,7 +258,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Proff glasses
         names[10] = "Proff Glasses";
@@ -258,7 +279,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Gap tooth
         names[11] = "Gap Teeth";
@@ -277,7 +300,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Dorthy shoes
         names[12] = "Dorthy Shoes";
@@ -296,7 +321,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Astronaut boots
         names[13] = "Astronaut Boots";
@@ -315,7 +342,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Flops
         names[14] = "Flops";
@@ -334,7 +363,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Astronaut Body
         names[15] = "Astronaut Suit";
@@ -353,7 +384,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Sweatsuit
         names[16] = "Sweatsuit";
@@ -372,7 +405,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Dorthy dress
         names[17] = "Dorthy Dress";
@@ -391,7 +426,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Geisha body
         names[18] = "Geisha Gown";
@@ -410,7 +447,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Baggies
         names[19] = "Baggies";
@@ -429,7 +468,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Jonny utah shirt
         names[20] = "Jonny Utah Shirt";
@@ -448,7 +489,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Doc coat
         names[21] = "Doc Coat";
@@ -467,7 +510,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Goat jersey
         names[22] = "Goat Jersey";
@@ -486,7 +531,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Irie tshirt
         names[23] = "Irie Shirt";
@@ -505,7 +552,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Punk jacket
         names[24] = "Punk Jacket";
@@ -524,7 +573,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Zipper jacket
         names[25] = "Zipper Jacket";
@@ -543,7 +594,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Zucco tshirt
         names[26] = "Zucco Tshirt";
@@ -562,7 +615,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Ice Cube
         names[27] = "Ice Cube";
@@ -581,7 +636,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Club beanie
         names[28] = "Club Beanie";
@@ -600,7 +657,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Dorthy hair
         names[29] = "Dorthy Hair";
@@ -619,7 +678,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Farmer hat
         names[30] = "Farmer Hat";
@@ -638,7 +699,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Geisha hair
         names[31] = "Geisha Hair";
@@ -657,7 +720,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Headphones
         names[32] = "Headphones";
@@ -676,7 +741,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Natty dread
         names[33] = "Natty Dred";
@@ -695,7 +762,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Peachhair
         names[34] = "Peach Hair";
@@ -714,7 +783,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Proff hair
         names[35] = "Proff Hair";
@@ -733,7 +804,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Catana
         names[36] = "Catana";
@@ -752,7 +825,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Chefs knife
         names[37] = "Chefs Knife";
@@ -771,7 +846,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Cheap beer
         names[38] = "Cheap Beer";
@@ -790,7 +867,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Constitution
         names[39] = "Constitution";
@@ -809,7 +888,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // DJ booth
         names[40] = "DJ Deck";
@@ -828,7 +909,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Gas can
         names[41] = "Gas Can";
@@ -847,7 +930,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Lightsaber
         names[42] = "Lightsaber";
@@ -866,7 +951,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Potion
         names[43] = "Potion";
@@ -885,7 +972,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Dagger
         names[44] = "Dagger";
@@ -904,7 +993,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Duct Tape
         names[45] = "Duct Tape";
@@ -923,7 +1014,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         // Mouthstraw
         names[46] = "Wheat Straw";
@@ -942,7 +1035,9 @@ contract Drop1Script is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false
+            cannotBeRemoved: false,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
 
         uint256[] memory productIds = new uint256[](47);

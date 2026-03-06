@@ -80,7 +80,7 @@ contract DeployScript is Script, Sphinx {
     uint104 BAN_ARB_AUTO_ISSUANCE_ = 2_825_980_000_000_000_000_000;
 
     function configureSphinx() public override {
-        sphinxConfig.projectName = "banny-core-v5";
+        sphinxConfig.projectName = "banny-core-v6";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
@@ -92,24 +92,24 @@ contract DeployScript is Script, Sphinx {
         // Get the deployment addresses for the nana CORE for this chain.
         // We want to do this outside of the `sphinx` modifier.
         core = CoreDeploymentLib.getDeployment(
-            vm.envOr("NANA_CORE_DEPLOYMENT_PATH", string("node_modules/@bananapus/core-v5/deployments/"))
+            vm.envOr("NANA_CORE_DEPLOYMENT_PATH", string("node_modules/@bananapus/core-v6/deployments/"))
         );
         // Get the deployment addresses for the 721 hook contracts for this chain.
         hook = Hook721DeploymentLib.getDeployment(
-            vm.envOr("NANA_721_DEPLOYMENT_PATH", string("node_modules/@bananapus/721-hook-v5/deployments/"))
+            vm.envOr("NANA_721_DEPLOYMENT_PATH", string("node_modules/@bananapus/721-hook-v6/deployments/"))
         );
         // Get the deployment addresses for the 721 hook contracts for this chain.
         revnet = RevnetCoreDeploymentLib.getDeployment(
-            vm.envOr("REVNET_CORE_DEPLOYMENT_PATH", string("node_modules/@rev-net/core-v5/deployments/"))
+            vm.envOr("REVNET_CORE_DEPLOYMENT_PATH", string("node_modules/@rev-net/core-v6/deployments/"))
         );
         // Get the deployment addresses for the suckers contracts for this chain.
         suckers = SuckerDeploymentLib.getDeployment(
-            vm.envOr("NANA_SUCKERS_DEPLOYMENT_PATH", string("node_modules/@bananapus/suckers-v5/deployments/"))
+            vm.envOr("NANA_SUCKERS_DEPLOYMENT_PATH", string("node_modules/@bananapus/suckers-v6/deployments/"))
         );
         // Get the deployment addresses for the 721 hook contracts for this chain.
         swapTerminal = SwapTerminalDeploymentLib.getDeployment(
             vm.envOr(
-                "NANA_SWAP_TERMINAL_DEPLOYMENT_PATH", string("node_modules/@bananapus/swap-terminal-v5/deployments/")
+                "NANA_SWAP_TERMINAL_DEPLOYMENT_PATH", string("node_modules/@bananapus/swap-terminal-v6/deployments/")
             )
         );
 
@@ -134,7 +134,7 @@ contract DeployScript is Script, Sphinx {
             JBTerminalConfig({terminal: core.terminal, accountingContextsToAccept: accountingContextsToAccept});
 
         terminalConfigurations[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(swapTerminal.registry)),
+            terminal: IJBTerminal(address(swapTerminal.native_registry)),
             accountingContextsToAccept: new JBAccountingContext[](0)
         });
 
@@ -237,7 +237,9 @@ contract DeployScript is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         tiers[1] = JB721TierConfig({
             price: uint104(1 * (10 ** (DECIMALS - 1))),
@@ -253,7 +255,9 @@ contract DeployScript is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         tiers[2] = JB721TierConfig({
             price: uint104(1 * (10 ** (DECIMALS - 2))),
@@ -269,7 +273,9 @@ contract DeployScript is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
         tiers[3] = JB721TierConfig({
             price: uint104(1 * (10 ** (DECIMALS - 4))),
@@ -285,15 +291,17 @@ contract DeployScript is Script, Sphinx {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
         });
 
         // Organize the instructions for how this project will connect to other chains.
         JBTokenMapping[] memory tokenMappings = new JBTokenMapping[](1);
         tokenMappings[0] = JBTokenMapping({
             localToken: JBConstants.NATIVE_TOKEN,
-            remoteToken: JBConstants.NATIVE_TOKEN,
             minGas: 200_000,
+            remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
             minBridgeAmount: 0.01 ether
         });
 

@@ -2,8 +2,8 @@
 pragma solidity 0.8.23;
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v5/src/interfaces/IJB721TiersHookStore.sol";
+import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
+import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
 
 library MigrationHelper {
     /// @notice Get the UPC (tier ID) from a token ID

@@ -2,10 +2,10 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import {IERC721} from "@bananapus/721-hook-v5/src/abstract/ERC721.sol";
-import {IJB721TiersHook} from "@bananapus/721-hook-v5/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v5/src/interfaces/IJB721TiersHookStore.sol";
-import {JB721Tier} from "@bananapus/721-hook-v5/src/structs/JB721Tier.sol";
+import {IERC721} from "@bananapus/721-hook-v6/src/abstract/ERC721.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
+import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
+import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
@@ -166,6 +166,7 @@ contract BannyAttacks is Test {
                 transfersPausable: false,
                 cannotBeRemoved: false,
                 cannotIncreaseDiscountPercent: false,
+                splitPercent: 0,
                 resolvedUri: ""
             })
         );
