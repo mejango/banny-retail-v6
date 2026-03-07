@@ -1051,9 +1051,9 @@ contract Banny721TokenUriResolver is
         override
         onlyOwner
     {
-        svgDescription = description;
-        svgExternalUrl = url;
-        svgBaseUri = baseUri;
+        if (bytes(description).length != 0) svgDescription = description;
+        if (bytes(url).length != 0) svgExternalUrl = url;
+        if (bytes(baseUri).length != 0) svgBaseUri = baseUri;
 
         emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: msg.sender});
     }
