@@ -11,9 +11,8 @@ interface IBanny721TokenUriResolver {
         uint256[] outfitIds,
         address caller
     );
-    event SetMetadata(string description, string externalUrl, address caller);
+    event SetMetadata(string description, string externalUrl, string baseUri, address caller);
     event SetProductName(uint256 indexed upc, string name, address caller);
-    event SetSvgBaseUri(string baseUri, address caller);
     event SetSvgContent(uint256 indexed upc, string svgContent, address caller);
     event SetSvgHash(uint256 indexed upc, bytes32 indexed svgHash, address caller);
 
@@ -28,11 +27,11 @@ interface IBanny721TokenUriResolver {
 
     /// @notice The description used in token metadata.
     /// @return The description string.
-    function description() external view returns (string memory);
+    function svgDescription() external view returns (string memory);
 
     /// @notice The external URL used in token metadata.
     /// @return The external URL string.
-    function externalUrl() external view returns (string memory);
+    function svgExternalUrl() external view returns (string memory);
 
     /// @notice The timestamp until which a banny body's outfit is locked and cannot be changed.
     /// @param hook The hook address of the collection.
@@ -140,12 +139,10 @@ interface IBanny721TokenUriResolver {
     /// @param names The names to assign to each product.
     function setProductNames(uint256[] memory upcs, string[] memory names) external;
 
-    /// @notice Set the token metadata description and external URL. Only the contract owner can call this.
-    /// @param newDescription The new description.
-    /// @param newExternalUrl The new external URL.
-    function setMetadata(string calldata newDescription, string calldata newExternalUrl) external;
-
-    /// @notice Set the base URI used for lazily resolving SVG content from IPFS. Only the contract owner can call this.
+    /// @notice Set the token metadata description, external URL, and SVG base URI. Only the contract owner can call
+    /// this.
+    /// @param description The new description.
+    /// @param url The new external URL.
     /// @param baseUri The new base URI.
-    function setSvgBaseUri(string calldata baseUri) external;
+    function setMetadata(string calldata description, string calldata url, string calldata baseUri) external;
 }
