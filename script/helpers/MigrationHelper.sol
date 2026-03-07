@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
