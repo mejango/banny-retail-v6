@@ -1023,7 +1023,7 @@ ${generatePriceMap(items)}
     }
 
     const script = `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
@@ -1572,7 +1572,7 @@ function generateContractVersion(items, tierIds = null) {
     // Generate a contract-based version that deploys a migration contract
     // and makes a single call to it
     return `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
@@ -2339,7 +2339,7 @@ function generateChunkContract(chain, chainItems, chunk, chunkIndex, totalChunks
     });
 
     let contract = `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
@@ -2723,7 +2723,7 @@ function generateSingleChainContract(chain, chainItems) {
     });
 
     let contract = `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
@@ -3142,7 +3142,7 @@ function generateUnusedAssetsContract(chain, chainItems, upcStartingUnitNumbers 
     }));
     
     let contract = `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
@@ -3287,7 +3287,7 @@ function generateUnusedAssetsContractFromItems(chain, unusedItems, upcStartingUn
     }));
     
     let contract = `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";

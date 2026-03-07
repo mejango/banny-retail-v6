@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.26;
 
 import "forge-std/Test.sol";
 import {IERC721} from "@bananapus/721-hook-v6/src/abstract/ERC721.sol";
