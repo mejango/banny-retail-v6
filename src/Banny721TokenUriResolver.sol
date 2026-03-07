@@ -170,8 +170,6 @@ contract Banny721TokenUriResolver is
         DEFAULT_MOUTH = defaultMouth;
         DEFAULT_STANDARD_EYES = defaultStandardEyes;
         DEFAULT_ALIEN_EYES = defaultAlienEyes;
-        svgDescription = "A piece of Banny Retail.";
-        svgExternalUrl = "https://retail.banny.eth.shop";
     }
 
     //*********************************************************************//
