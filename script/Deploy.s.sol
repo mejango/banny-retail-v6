@@ -401,6 +401,11 @@ contract DeployScript is Script, Sphinx {
                 : Banny721TokenUriResolver(_resolver);
         }
 
+        // Set the resolver's metadata.
+        resolver.setMetadata(
+            "A piece of Banny Retail.", "https://retail.banny.eth.shop", "https://bannyverse.infura-ipfs.io/ipfs/"
+        );
+
         // Update our config with its address.
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;
 

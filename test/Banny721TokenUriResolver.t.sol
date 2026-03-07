@@ -179,19 +179,39 @@ contract TestBanny721TokenUriResolver is Test {
     }
 
     //*********************************************************************//
-    // --- Owner-Only: setSvgBaseUri ------------------------------------- //
+    // --- Owner-Only: setMetadata --------------------------------------- //
     //*********************************************************************//
 
-    function test_setSvgBaseUri() public {
+    function test_setMetadata() public {
         vm.prank(deployer);
-        resolver.setSvgBaseUri("https://svg.example.com/");
+        resolver.setMetadata("New description", "https://new.url", "https://svg.example.com/");
+        assertEq(resolver.svgDescription(), "New description");
+        assertEq(resolver.svgExternalUrl(), "https://new.url");
         assertEq(resolver.svgBaseUri(), "https://svg.example.com/");
     }
 
-    function test_setSvgBaseUri_revertsIfNotOwner() public {
+    function test_setMetadata_skipsEmptyStrings() public {
+        vm.startPrank(deployer);
+        resolver.setMetadata("Initial desc", "https://initial.url", "https://initial.base/");
+
+        // Passing empty strings should leave existing values unchanged.
+        resolver.setMetadata("", "", "");
+        assertEq(resolver.svgDescription(), "Initial desc");
+        assertEq(resolver.svgExternalUrl(), "https://initial.url");
+        assertEq(resolver.svgBaseUri(), "https://initial.base/");
+
+        // Passing one non-empty value should only update that field.
+        resolver.setMetadata("Updated desc", "", "");
+        assertEq(resolver.svgDescription(), "Updated desc");
+        assertEq(resolver.svgExternalUrl(), "https://initial.url");
+        assertEq(resolver.svgBaseUri(), "https://initial.base/");
+        vm.stopPrank();
+    }
+
+    function test_setMetadata_revertsIfNotOwner() public {
         vm.prank(alice);
         vm.expectRevert();
-        resolver.setSvgBaseUri("https://evil.com/");
+        resolver.setMetadata("evil", "https://evil.com/", "https://evil.svg/");
     }
 
     //*********************************************************************//

@@ -1068,7 +1068,6 @@ contract Drop1Script is Script, Sphinx {
             hook.adjustTiers(products, new uint256[](0));
             bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
             bannyverse.resolver.setProductNames(productIds, names);
-            bannyverse.resolver.setSvgBaseUri("https://bannyverse.infura-ipfs.io/ipfs/");
         }
     }
 }

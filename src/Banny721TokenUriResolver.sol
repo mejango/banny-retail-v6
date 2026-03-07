@@ -93,10 +93,10 @@ contract Banny721TokenUriResolver is
     string public override svgBaseUri;
 
     /// @notice The description used in token metadata.
-    string public override description;
+    string public override svgDescription;
 
     /// @notice The external URL used in token metadata.
-    string public override externalUrl;
+    string public override svgExternalUrl;
 
     /// @notice The banny body and outfit SVG hash files.
     /// @custom:param upc The universal product code that the SVG hash represent.
@@ -170,8 +170,6 @@ contract Banny721TokenUriResolver is
         DEFAULT_MOUTH = defaultMouth;
         DEFAULT_STANDARD_EYES = defaultStandardEyes;
         DEFAULT_ALIEN_EYES = defaultAlienEyes;
-        description = "A piece of Banny Retail.";
-        externalUrl = "https://retail.banny.eth.shop";
     }
 
     //*********************************************************************//
@@ -631,9 +629,9 @@ contract Banny721TokenUriResolver is
                     extraMetadata,
                     abi.encodePacked(
                         ', "description":"',
-                        description,
+                        svgDescription,
                         '","external_url":"',
-                        externalUrl,
+                        svgExternalUrl,
                         '","image":"data:image/svg+xml;base64,',
                         imageContents,
                         '"}'
@@ -1040,23 +1038,24 @@ contract Banny721TokenUriResolver is
         }
     }
 
-    /// @notice Allows the owner of this contract to set the token metadata description and external URL.
-    /// @param newDescription The description to use in token metadata.
-    /// @param newExternalUrl The external URL to use in token metadata.
-    function setMetadata(string calldata newDescription, string calldata newExternalUrl) external override onlyOwner {
-        description = newDescription;
-        externalUrl = newExternalUrl;
-
-        emit SetMetadata({description: newDescription, externalUrl: newExternalUrl, caller: msg.sender});
-    }
-
-    /// @notice Allows the owner of this contract to specify the base of the domain hosting the SVG files.
+    /// @notice Allows the owner of this contract to set the token metadata description, external URL, and SVG base URI.
+    /// @param description The description to use in token metadata.
+    /// @param url The external URL to use in token metadata.
     /// @param baseUri The base URI of the SVG files.
-    function setSvgBaseUri(string calldata baseUri) external override onlyOwner {
-        // Store the base URI.
-        svgBaseUri = baseUri;
+    function setMetadata(
+        string calldata description,
+        string calldata url,
+        string calldata baseUri
+    )
+        external
+        override
+        onlyOwner
+    {
+        if (bytes(description).length != 0) svgDescription = description;
+        if (bytes(url).length != 0) svgExternalUrl = url;
+        if (bytes(baseUri).length != 0) svgBaseUri = baseUri;
 
-        emit SetSvgBaseUri({baseUri: baseUri, caller: msg.sender});
+        emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: msg.sender});
     }
 
     /// @notice The owner of this contract can store SVG files for product IDs.
