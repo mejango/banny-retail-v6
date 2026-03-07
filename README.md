@@ -1,4 +1,4 @@
-# banny-retail
+# Banny Retail
 
 On-chain composable avatar system for Juicebox 721 collections -- manages Banny character bodies, backgrounds, and outfit NFTs with layered SVG rendering. Bodies can be dressed with outfits and placed on backgrounds, all composed into fully on-chain SVG images with base64-encoded JSON metadata.
 

@@ -1,4 +1,4 @@
-# banny-retail
+# Banny Retail
 
 ## Purpose
 
