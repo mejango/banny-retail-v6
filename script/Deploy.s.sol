@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 import "@bananapus/721-hook-v6/script/helpers/Hook721DeploymentLib.sol";
 import "@bananapus/core-v6/script/helpers/CoreDeploymentLib.sol";
 import "@bananapus/suckers-v6/script/helpers/SuckerDeploymentLib.sol";
-import "@bananapus/swap-terminal-v6/script/helpers/SwapTerminalDeploymentLib.sol";
+import "@bananapus/router-terminal-v6/script/helpers/RouterTerminalDeploymentLib.sol";
 import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
@@ -51,8 +51,8 @@ contract DeployScript is Script, Sphinx {
     RevnetCoreDeployment revnet;
     /// @notice tracks the deployment of the 721 hook contracts for the chain we are deploying to.
     Hook721Deployment hook;
-    /// @notice tracks the deployment of the swap terminal.
-    SwapTerminalDeployment swapTerminal;
+    /// @notice tracks the deployment of the router terminal.
+    RouterTerminalDeployment routerTerminal;
 
     BannyverseRevnetConfig bannyverseConfig;
 
@@ -106,9 +106,10 @@ contract DeployScript is Script, Sphinx {
             vm.envOr("NANA_SUCKERS_DEPLOYMENT_PATH", string("node_modules/@bananapus/suckers-v6/deployments/"))
         );
         // Get the deployment addresses for the 721 hook contracts for this chain.
-        swapTerminal = SwapTerminalDeploymentLib.getDeployment(
+        routerTerminal = RouterTerminalDeploymentLib.getDeployment(
             vm.envOr(
-                "NANA_SWAP_TERMINAL_DEPLOYMENT_PATH", string("node_modules/@bananapus/swap-terminal-v6/deployments/")
+                "NANA_ROUTER_TERMINAL_DEPLOYMENT_PATH",
+                string("node_modules/@bananapus/router-terminal-v6/deployments/")
             )
         );
 
@@ -133,7 +134,7 @@ contract DeployScript is Script, Sphinx {
             JBTerminalConfig({terminal: core.terminal, accountingContextsToAccept: accountingContextsToAccept});
 
         terminalConfigurations[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(swapTerminal.native_registry)),
+            terminal: IJBTerminal(address(routerTerminal.registry)),
             accountingContextsToAccept: new JBAccountingContext[](0)
         });
 
