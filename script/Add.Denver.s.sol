@@ -37,8 +37,10 @@ contract Drop1Script is Script, Sphinx {
         );
 
         // Get the deployment addresses for the 721 hook contracts for this chain.
-        bannyverse =
-            BannyverseDeploymentLib.getDeployment(vm.envOr("BANNYVERSE_CORE_DEPLOYMENT_PATH", string("deployments/")));
+        bannyverse = BannyverseDeploymentLib.getDeployment(
+            vm.envOr("BANNYVERSE_CORE_DEPLOYMENT_PATH", string("deployments/")),
+            vm.envOr("BANNYVERSE_REVNET_ID", uint256(4))
+        );
 
         // Get the hook address by using the deployer.
         hook = JB721TiersHook(address(revnet.basic_deployer.tiered721HookOf(bannyverse.revnetId)));
