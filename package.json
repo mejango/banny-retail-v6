@@ -11,7 +11,7 @@
     },
     "scripts": {
         "test": "forge test",
-        "coverage:integration": "forge coverage --match-path \"./src/*.sol\" --report lcov --report summary",
+        "coverage": "forge coverage --match-path \"./src/*.sol\" --report lcov --report summary",
         "generate:migration": "node ./script/outfit_drop/generate-migration.js",
         "deploy:mainnets": "source ./.env && export START_TIME=$(date +%s) && npx sphinx propose ./script/Deploy.s.sol --networks mainnets",
         "deploy:testnets": "source ./.env && export START_TIME=$(date +%s) && npx sphinx propose ./script/Deploy.s.sol --networks testnets",
@@ -29,6 +29,6 @@
         "keccak": "^3.0.4"
     },
     "devDependencies": {
-        "@sphinx-labs/plugins": "0.33.3"
+        "@sphinx-labs/plugins": "^0.33.2"
     }
 }
