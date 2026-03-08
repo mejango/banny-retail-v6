@@ -613,6 +613,7 @@ contract Banny721TokenUriResolver is
         view
         returns (string memory)
     {
+        // slither-disable-next-line encode-packed-collision
         return string.concat(
             "data:application/json;base64,",
             Base64.encode(
@@ -1172,6 +1173,7 @@ contract Banny721TokenUriResolver is
 
             // Check if the call is being made either by the outfit's owner or the owner of the banny body currently
             // wearing it.
+            // slither-disable-next-line calls-loop
             if (_msgSender() != IERC721(hook).ownerOf(outfitId)) {
                 // Get the banny body currently wearing this outfit.
                 uint256 wearerId = wearerOf({hook: hook, outfitId: outfitId});
@@ -1180,6 +1182,7 @@ contract Banny721TokenUriResolver is
                 if (wearerId == 0) revert Banny721TokenUriResolver_UnauthorizedOutfit();
 
                 // If the outfit is worn, the banny body's owner can also authorize its use.
+                // slither-disable-next-line calls-loop
                 if (_msgSender() != IERC721(hook).ownerOf(wearerId)) {
                     revert Banny721TokenUriResolver_UnauthorizedOutfit();
                 }
@@ -1245,7 +1248,7 @@ contract Banny721TokenUriResolver is
                 _wearerOf[hook][outfitId] = bannyBodyId;
 
                 // Transfer the outfit to this contract.
-                // slither-disable-next-line reentrancy-no-eth
+                // slither-disable-next-line reentrancy-no-eth,calls-loop
                 if (IERC721(hook).ownerOf(outfitId) != address(this)) {
                     _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: outfitId});
                 }
