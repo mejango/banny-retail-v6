@@ -114,12 +114,15 @@ contract Banny721TokenUriResolver is
 
     /// @notice The outfits currently attached to each banny body.
     /// @dev Naked Banny's will only be shown with outfits currently owned by the owner of the banny body.
+    /// @dev NOTE: Equipped outfits travel with the banny body NFT on transfer. When a body is transferred,
+    /// the new owner inherits all equipped outfits and can unequip them to receive the outfit NFTs.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the outfits.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
 
     /// @notice The background currently attached to each banny body.
     /// @dev Naked Banny's will only be shown with a background currently owned by the owner of the banny body.
+    /// @dev NOTE: Equipped backgrounds travel with the banny body NFT on transfer, same as outfits.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the background.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256)) internal _attachedBackgroundIdOf;
@@ -944,6 +947,11 @@ contract Banny721TokenUriResolver is
     /// 5. Outfit categories must be valid (within recognized range) and passed in ascending order.
     /// 6. Conflicting categories are rejected (e.g., a full head blocks individual face pieces;
     ///    a full suit blocks separate top/bottom).
+    ///
+    /// @dev WARNING: Equipped outfits and backgrounds are held by this contract on behalf of the banny body. When the
+    /// banny body NFT is transferred to a new owner, all equipped assets remain associated with that body. The new
+    /// owner of the body effectively gains control of all equipped items — they can unequip them (receiving the outfit
+    /// NFTs) or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
     ///
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
