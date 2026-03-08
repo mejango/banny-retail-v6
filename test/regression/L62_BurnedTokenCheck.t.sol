@@ -43,8 +43,7 @@ contract MockHook62 {
         address owner = owners[tokenId];
         require(owner != address(0), "ERC721: token does not exist");
         require(
-            msg.sender == owner || msg.sender == from || isApprovedForAll[from][msg.sender],
-            "MockHook: not authorized"
+            msg.sender == owner || msg.sender == from || isApprovedForAll[from][msg.sender], "MockHook: not authorized"
         );
         owners[tokenId] = to;
         if (to.code.length > 0) {
