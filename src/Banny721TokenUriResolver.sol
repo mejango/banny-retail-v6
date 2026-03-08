@@ -950,7 +950,8 @@ contract Banny721TokenUriResolver is
     ///
     /// @dev WARNING: Equipped outfits and backgrounds are held by this contract on behalf of the banny body. When the
     /// banny body NFT is transferred to a new owner, all equipped assets remain associated with that body. The new
-    /// owner of the body effectively gains control of all equipped items — they can unequip them (receiving the outfit
+    /// owner of the body effectively gains control of all equipped items — they can unequip them (receiving the
+    /// outfit
     /// NFTs) or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
     ///
     /// @param hook The hook storing the assets.
