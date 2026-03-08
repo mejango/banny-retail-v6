@@ -42,7 +42,7 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 | `setSvgHashesOf(upcs, svgHashes)` | Owner only | Registers expected SVG content hashes for UPCs. Immutable once set. |
 | `setSvgContentsOf(upcs, svgContents)` | **Anyone** | Stores on-chain SVG content. Must match previously registered hash. Cannot overwrite existing content. |
 | `setProductNames(upcs, names)` | Owner only | Sets human-readable names for product UPCs. |
-| `setMetadata(description, url, baseUri)` | Owner only | Updates token metadata description, external URL, and SVG base URI. Skips empty strings. |
+| `setMetadata(description, url, baseUri)` | Owner only | Updates token metadata description, external URL, and SVG base URI. Empty strings clear the field. |
 
 ### Token Receipt
 
@@ -103,6 +103,8 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 
 | Error | When |
 |-------|------|
+| `Banny721TokenUriResolver_ArrayLengthMismatch` | Batch setter called with mismatched array lengths |
+| `Banny721TokenUriResolver_BannyBodyNotBodyCategory` | Passing a non-body-category token as bannyBodyId to decorateBannyWith |
 | `Banny721TokenUriResolver_CantAccelerateTheLock` | Trying to lock a body that's already locked for longer |
 | `Banny721TokenUriResolver_ContentsAlreadyStored` | SVG content already exists for this UPC |
 | `Banny721TokenUriResolver_ContentsMismatch` | Uploaded content doesn't match registered hash |
@@ -163,7 +165,7 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 13. **SVG fallback chain.** If on-chain content exists: use it. Else if category <= 17: fall back to `svgBaseUri + IPFS URI`. Else: use the hook's `baseURI() + IPFS URI`.
 14. **Mannequin rendering.** Outfit and background tokens (not bodies) are rendered on a grayscale mannequin Banny for preview purposes. The mannequin has `fill:#808080` styling.
 15. **ERC2771 meta-transaction support.** Constructor takes a `trustedForwarder` address. All `_msgSender()` calls use `ERC2771Context`, allowing relayers to submit decoration transactions on behalf of users.
-16. **Empty metadata fields skipped.** `setMetadata` only updates fields where non-empty strings are passed. Allows partial metadata updates without overwriting existing values.
+16. **Empty metadata fields clear the value.** `setMetadata` always writes all three fields. Passing an empty string clears that field. To keep a field unchanged, pass its current value.
 
 ## Example Integration
 

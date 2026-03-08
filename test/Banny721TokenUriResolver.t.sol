@@ -190,21 +190,22 @@ contract TestBanny721TokenUriResolver is Test {
         assertEq(resolver.svgBaseUri(), "https://svg.example.com/");
     }
 
-    function test_setMetadata_skipsEmptyStrings() public {
+    function test_setMetadata_clearsWithEmptyStrings() public {
         vm.startPrank(deployer);
         resolver.setMetadata("Initial desc", "https://initial.url", "https://initial.base/");
 
-        // Passing empty strings should leave existing values unchanged.
+        // Passing empty strings should clear all fields (L-59 fix).
         resolver.setMetadata("", "", "");
-        assertEq(resolver.svgDescription(), "Initial desc");
-        assertEq(resolver.svgExternalUrl(), "https://initial.url");
-        assertEq(resolver.svgBaseUri(), "https://initial.base/");
+        assertEq(resolver.svgDescription(), "");
+        assertEq(resolver.svgExternalUrl(), "");
+        assertEq(resolver.svgBaseUri(), "");
 
-        // Passing one non-empty value should only update that field.
+        // Passing one non-empty value should update that field and clear others.
+        resolver.setMetadata("Initial desc", "https://initial.url", "https://initial.base/");
         resolver.setMetadata("Updated desc", "", "");
         assertEq(resolver.svgDescription(), "Updated desc");
-        assertEq(resolver.svgExternalUrl(), "https://initial.url");
-        assertEq(resolver.svgBaseUri(), "https://initial.base/");
+        assertEq(resolver.svgExternalUrl(), "");
+        assertEq(resolver.svgBaseUri(), "");
         vm.stopPrank();
     }
 
