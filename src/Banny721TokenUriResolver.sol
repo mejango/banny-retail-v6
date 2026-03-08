@@ -28,6 +28,7 @@ contract Banny721TokenUriResolver is
 {
     using Strings for uint256;
 
+    error Banny721TokenUriResolver_ArrayLengthMismatch();
     error Banny721TokenUriResolver_CantAccelerateTheLock();
     error Banny721TokenUriResolver_ContentsAlreadyStored();
     error Banny721TokenUriResolver_ContentsMismatch();
@@ -1028,6 +1029,8 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having their name stored.
     /// @param names The names of the products.
     function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
+        if (upcs.length != names.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
             string memory name = names[i];
@@ -1062,6 +1065,8 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having SVGs stored.
     /// @param svgContents The svg contents being stored, not including the parent <svg></svg> element.
     function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
+        if (upcs.length != svgContents.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
             string memory svgContent = svgContents[i];
@@ -1090,6 +1095,8 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having SVG hashes stored.
     /// @param svgHashes The svg hashes being stored, not including the parent <svg></svg> element.
     function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
+        if (upcs.length != svgHashes.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
             bytes32 svgHash = svgHashes[i];
