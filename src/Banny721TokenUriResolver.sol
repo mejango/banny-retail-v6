@@ -1044,7 +1044,7 @@ contract Banny721TokenUriResolver is
 
             _customProductNameOf[upc] = name;
 
-            emit SetProductName({upc: upc, name: name, caller: msg.sender});
+            emit SetProductName({upc: upc, name: name, caller: _msgSender()});
         }
     }
 
@@ -1067,7 +1067,7 @@ contract Banny721TokenUriResolver is
         svgExternalUrl = url;
         svgBaseUri = baseUri;
 
-        emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: msg.sender});
+        emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: _msgSender()});
     }
 
     /// @notice The owner of this contract can store SVG files for product IDs.
@@ -1095,7 +1095,7 @@ contract Banny721TokenUriResolver is
             // Store the svg contents.
             _svgContentOf[upc] = svgContent;
 
-            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: msg.sender});
+            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: _msgSender()});
         }
     }
 
@@ -1116,7 +1116,7 @@ contract Banny721TokenUriResolver is
             // Store the svg contents.
             svgHashOf[upc] = svgHash;
 
-            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: msg.sender});
+            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: _msgSender()});
         }
     }
 
