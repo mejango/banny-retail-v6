@@ -28,7 +28,6 @@ contract Banny721TokenUriResolver is
 {
     using Strings for uint256;
 
-
     error Banny721TokenUriResolver_ArrayLengthMismatch();
     error Banny721TokenUriResolver_BannyBodyNotBodyCategory();
     error Banny721TokenUriResolver_CantAccelerateTheLock();
