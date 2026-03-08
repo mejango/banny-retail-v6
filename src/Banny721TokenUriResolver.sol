@@ -1268,12 +1268,6 @@ contract Banny721TokenUriResolver is
 
         // If the background is changing, add the latest background and transfer the old one back to the owner.
         if (backgroundId != previousBackgroundId || userOfPreviousBackground != bannyBodyId) {
-            // If there's a previous background worn by this banny, transfer it back to the owner.
-            if (userOfPreviousBackground == bannyBodyId) {
-                // Transfer the previous background to the owner of the banny.
-                _transferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
-            }
-
             // Add the background if needed.
             if (backgroundId != 0) {
                 // Keep a reference to the background's owner.
@@ -1301,21 +1295,27 @@ contract Banny721TokenUriResolver is
                     revert Banny721TokenUriResolver_UnrecognizedBackground();
                 }
 
-                // Store the background for the banny.
-                // slither-disable-next-line reentrancy-no-eth
+                // Effects: update all state before any external transfers (CEI pattern).
                 _attachedBackgroundIdOf[hook][bannyBodyId] = backgroundId;
-
-                // Store the banny that's in the background.
-                // slither-disable-next-line reentrancy-no-eth
                 _userOf[hook][backgroundId] = bannyBodyId;
 
-                // Transfer the background to this contract if it's not already owned by this contract.
+                // Interactions: transfer the previous background back to the owner if needed.
+                if (userOfPreviousBackground == bannyBodyId) {
+                    _transferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
+                }
+
+                // Transfer the new background to this contract if it's not already owned by this contract.
                 if (owner != address(this)) {
                     _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: backgroundId});
                 }
             } else {
-                // slither-disable-next-line reentrancy-no-eth
+                // Effects: clear the background state before any external transfer.
                 _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
+
+                // Interactions: transfer the previous background back to the owner if needed.
+                if (userOfPreviousBackground == bannyBodyId) {
+                    _transferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
+                }
             }
         }
     }
