@@ -18,7 +18,13 @@ library BannyverseDeploymentLib {
     address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
     Vm internal constant vm = Vm(VM_ADDRESS);
 
-    function getDeployment(string memory path) internal returns (BannyverseDeployment memory deployment) {
+    function getDeployment(
+        string memory path,
+        uint256 revnetId
+    )
+        internal
+        returns (BannyverseDeployment memory deployment)
+    {
         // get chainId for which we need to get the deployment.
         uint256 chainId = block.chainid;
 
@@ -29,7 +35,7 @@ library BannyverseDeploymentLib {
 
         for (uint256 _i; _i < networks.length; _i++) {
             if (networks[_i].chainId == chainId) {
-                return getDeployment(path, networks[_i].name);
+                return getDeployment(path, networks[_i].name, revnetId);
             }
         }
 
@@ -38,7 +44,8 @@ library BannyverseDeploymentLib {
 
     function getDeployment(
         string memory path,
-        string memory network_name
+        string memory network_name,
+        uint256 revnetId
     )
         internal
         view
@@ -48,7 +55,7 @@ library BannyverseDeploymentLib {
             _getDeploymentAddress(path, "banny-core-v6", network_name, "Banny721TokenUriResolver")
         );
 
-        deployment.revnetId = 4;
+        deployment.revnetId = revnetId;
     }
 
     /// @notice Get the address of a contract that was deployed by the Deploy script.

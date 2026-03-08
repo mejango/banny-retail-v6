@@ -23,7 +23,7 @@ contract Drop1Script is Script, Sphinx {
 
     function configureSphinx() public override {
         // TODO: Update to contain revnet devs.
-        sphinxConfig.projectName = "banny-core";
+        sphinxConfig.projectName = "banny-core-v6";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
@@ -37,8 +37,10 @@ contract Drop1Script is Script, Sphinx {
         );
 
         // Get the deployment addresses for the 721 hook contracts for this chain.
-        bannyverse =
-            BannyverseDeploymentLib.getDeployment(vm.envOr("BANNYVERSE_CORE_DEPLOYMENT_PATH", string("deployments/")));
+        bannyverse = BannyverseDeploymentLib.getDeployment(
+            vm.envOr("BANNYVERSE_CORE_DEPLOYMENT_PATH", string("deployments/")),
+            vm.envOr("BANNYVERSE_REVNET_ID", uint256(4))
+        );
 
         // Get the hook address by using the deployer.
         hook = JB721TiersHook(address(revnet.basic_deployer.tiered721HookOf(bannyverse.revnetId)));
@@ -73,6 +75,16 @@ contract Drop1Script is Script, Sphinx {
             splits: new JBSplit[](0)
         });
 
+        // Get the next tier ID so we can set names and hashes for the new product.
+        uint256 nextTierId = hook.STORE().maxTierIdOf(address(hook)) + 1;
+
         hook.adjustTiers(products, new uint256[](0));
+
+        // Build the product IDs array for the newly added tier(s).
+        uint256[] memory productIds = new uint256[](1);
+        productIds[0] = nextTierId;
+
+        bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
+        bannyverse.resolver.setProductNames(productIds, names);
     }
 }

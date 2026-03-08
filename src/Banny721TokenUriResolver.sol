@@ -28,6 +28,9 @@ contract Banny721TokenUriResolver is
 {
     using Strings for uint256;
 
+
+    error Banny721TokenUriResolver_ArrayLengthMismatch();
+    error Banny721TokenUriResolver_BannyBodyNotBodyCategory();
     error Banny721TokenUriResolver_CantAccelerateTheLock();
     error Banny721TokenUriResolver_ContentsAlreadyStored();
     error Banny721TokenUriResolver_ContentsMismatch();
@@ -114,12 +117,15 @@ contract Banny721TokenUriResolver is
 
     /// @notice The outfits currently attached to each banny body.
     /// @dev Naked Banny's will only be shown with outfits currently owned by the owner of the banny body.
+    /// @dev NOTE: Equipped outfits travel with the banny body NFT on transfer. When a body is transferred,
+    /// the new owner inherits all equipped outfits and can unequip them to receive the outfit NFTs.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the outfits.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
 
     /// @notice The background currently attached to each banny body.
     /// @dev Naked Banny's will only be shown with a background currently owned by the owner of the banny body.
+    /// @dev NOTE: Equipped backgrounds travel with the banny body NFT on transfer, same as outfits.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the background.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256)) internal _attachedBackgroundIdOf;
@@ -945,6 +951,12 @@ contract Banny721TokenUriResolver is
     /// 6. Conflicting categories are rejected (e.g., a full head blocks individual face pieces;
     ///    a full suit blocks separate top/bottom).
     ///
+    /// @dev WARNING: Equipped outfits and backgrounds are held by this contract on behalf of the banny body. When the
+    /// banny body NFT is transferred to a new owner, all equipped assets remain associated with that body. The new
+    /// owner of the body effectively gains control of all equipped items — they can unequip them (receiving the
+    /// outfit
+    /// NFTs) or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
+    ///
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
     /// @param backgroundId The ID of the background that'll be associated with the specified banny.
@@ -961,6 +973,11 @@ contract Banny721TokenUriResolver is
         nonReentrant
     {
         _checkIfSenderIsOwner({hook: hook, upc: bannyBodyId});
+
+        // Make sure the bannyBodyId belongs to a body-category tier.
+        if (_productOfTokenId({hook: hook, tokenId: bannyBodyId}).category != _BODY_CATEGORY) {
+            revert Banny721TokenUriResolver_BannyBodyNotBodyCategory();
+        }
 
         // Can't decorate a banny that's locked.
         if (outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
@@ -1028,17 +1045,21 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having their name stored.
     /// @param names The names of the products.
     function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
+        if (upcs.length != names.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
             string memory name = names[i];
 
             _customProductNameOf[upc] = name;
 
-            emit SetProductName({upc: upc, name: name, caller: msg.sender});
+            emit SetProductName({upc: upc, name: name, caller: _msgSender()});
         }
     }
 
     /// @notice Allows the owner of this contract to set the token metadata description, external URL, and SVG base URI.
+    /// @dev All fields are always written. Pass the current value for any field you do not want to change,
+    /// or pass an empty string to clear a field.
     /// @param description The description to use in token metadata.
     /// @param url The external URL to use in token metadata.
     /// @param baseUri The base URI of the SVG files.
@@ -1051,17 +1072,19 @@ contract Banny721TokenUriResolver is
         override
         onlyOwner
     {
-        if (bytes(description).length != 0) svgDescription = description;
-        if (bytes(url).length != 0) svgExternalUrl = url;
-        if (bytes(baseUri).length != 0) svgBaseUri = baseUri;
+        svgDescription = description;
+        svgExternalUrl = url;
+        svgBaseUri = baseUri;
 
-        emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: msg.sender});
+        emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: _msgSender()});
     }
 
     /// @notice The owner of this contract can store SVG files for product IDs.
     /// @param upcs The universal product codes of the products having SVGs stored.
     /// @param svgContents The svg contents being stored, not including the parent <svg></svg> element.
     function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
+        if (upcs.length != svgContents.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
             string memory svgContent = svgContents[i];
@@ -1081,7 +1104,7 @@ contract Banny721TokenUriResolver is
             // Store the svg contents.
             _svgContentOf[upc] = svgContent;
 
-            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: msg.sender});
+            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: _msgSender()});
         }
     }
 
@@ -1090,6 +1113,8 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having SVG hashes stored.
     /// @param svgHashes The svg hashes being stored, not including the parent <svg></svg> element.
     function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
+        if (upcs.length != svgHashes.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+
         for (uint256 i; i < upcs.length; i++) {
             uint256 upc = upcs[i];
             bytes32 svgHash = svgHashes[i];
@@ -1100,7 +1125,7 @@ contract Banny721TokenUriResolver is
             // Store the svg contents.
             svgHashOf[upc] = svgHash;
 
-            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: msg.sender});
+            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: _msgSender()});
         }
     }
 
@@ -1268,12 +1293,6 @@ contract Banny721TokenUriResolver is
 
         // If the background is changing, add the latest background and transfer the old one back to the owner.
         if (backgroundId != previousBackgroundId || userOfPreviousBackground != bannyBodyId) {
-            // If there's a previous background worn by this banny, transfer it back to the owner.
-            if (userOfPreviousBackground == bannyBodyId) {
-                // Use try-transfer: the previous background may have been burned or its tier removed.
-                _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
-            }
-
             // Add the background if needed.
             if (backgroundId != 0) {
                 // Keep a reference to the background's owner.
@@ -1301,21 +1320,27 @@ contract Banny721TokenUriResolver is
                     revert Banny721TokenUriResolver_UnrecognizedBackground();
                 }
 
-                // Store the background for the banny.
-                // slither-disable-next-line reentrancy-no-eth
+                // Effects: update all state before any external transfers (CEI pattern).
                 _attachedBackgroundIdOf[hook][bannyBodyId] = backgroundId;
-
-                // Store the banny that's in the background.
-                // slither-disable-next-line reentrancy-no-eth
                 _userOf[hook][backgroundId] = bannyBodyId;
 
-                // Transfer the background to this contract if it's not already owned by this contract.
+                // Interactions: try-transfer the previous background back (may have been burned).
+                if (userOfPreviousBackground == bannyBodyId) {
+                    _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
+                }
+
+                // Transfer the new background to this contract if it's not already owned by this contract.
                 if (owner != address(this)) {
                     _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: backgroundId});
                 }
             } else {
-                // slither-disable-next-line reentrancy-no-eth
+                // Effects: clear the background state before any external transfer.
                 _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
+
+                // Interactions: try-transfer the previous background back (may have been burned).
+                if (userOfPreviousBackground == bannyBodyId) {
+                    _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
+                }
             }
         }
     }
