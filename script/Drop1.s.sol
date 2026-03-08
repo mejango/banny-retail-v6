@@ -1045,29 +1045,8 @@ contract Drop1Script is Script, Sphinx {
             productIds[i] = i + 5;
         }
 
-        if (false) {
-            bytes memory adjustTiersData = abi.encodeCall(JB721TiersHook.adjustTiers, (products, new uint256[](0)));
-            vm.writeFile(
-                string.concat("./", vm.toString(block.chainid), "-adjustTiers.hex.txt"), vm.toString(adjustTiersData)
-            );
-
-            bytes memory setSvgHashData =
-                abi.encodeCall(Banny721TokenUriResolver.setSvgHashesOf, (productIds, svgHashes));
-
-            vm.writeFile(
-                string.concat("./", vm.toString(block.chainid), "-setSvgHashOf.hex.txt"), vm.toString(setSvgHashData)
-            );
-
-            bytes memory setProductNamesData =
-                abi.encodeCall(Banny721TokenUriResolver.setProductNames, (productIds, names));
-            vm.writeFile(
-                string.concat("./", vm.toString(block.chainid), "-setProductNames.hex.txt"),
-                vm.toString(setProductNamesData)
-            );
-        } else {
-            hook.adjustTiers(products, new uint256[](0));
-            bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
-            bannyverse.resolver.setProductNames(productIds, names);
-        }
+        hook.adjustTiers(products, new uint256[](0));
+        bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
+        bannyverse.resolver.setProductNames(productIds, names);
     }
 }
