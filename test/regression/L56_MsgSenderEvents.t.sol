@@ -104,10 +104,7 @@ contract L56_MsgSenderEventsTest is Test {
     function test_setMetadata_emitsCorrectCaller() public {
         vm.expectEmit(true, true, true, true);
         emit IBanny721TokenUriResolver.SetMetadata({
-            description: "desc",
-            externalUrl: "url",
-            baseUri: "base",
-            caller: deployer
+            description: "desc", externalUrl: "url", baseUri: "base", caller: deployer
         });
 
         vm.prank(deployer);
