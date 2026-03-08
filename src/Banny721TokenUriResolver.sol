@@ -28,6 +28,7 @@ contract Banny721TokenUriResolver is
 {
     using Strings for uint256;
 
+    error Banny721TokenUriResolver_BannyBodyNotBodyCategory();
     error Banny721TokenUriResolver_CantAccelerateTheLock();
     error Banny721TokenUriResolver_ContentsAlreadyStored();
     error Banny721TokenUriResolver_ContentsMismatch();
@@ -961,6 +962,11 @@ contract Banny721TokenUriResolver is
         nonReentrant
     {
         _checkIfSenderIsOwner({hook: hook, upc: bannyBodyId});
+
+        // Make sure the bannyBodyId belongs to a body-category tier.
+        if (_productOfTokenId({hook: hook, tokenId: bannyBodyId}).category != _BODY_CATEGORY) {
+            revert Banny721TokenUriResolver_BannyBodyNotBodyCategory();
+        }
 
         // Can't decorate a banny that's locked.
         if (outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
