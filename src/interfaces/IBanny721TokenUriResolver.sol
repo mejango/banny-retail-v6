@@ -41,13 +41,7 @@ interface IBanny721TokenUriResolver {
         external
         view
         returns (string memory);
-    function namesOf(
-        address hook,
-        uint256 tokenId
-    )
-        external
-        view
-        returns (string memory, string memory, string memory);
+    function namesOf(address hook, uint256 tokenId) external view returns (string memory, string memory, string memory);
 
     function decorateBannyWith(
         address hook,

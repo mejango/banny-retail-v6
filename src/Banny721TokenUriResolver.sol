@@ -203,21 +203,20 @@ contract Banny721TokenUriResolver is
             if (product.category == _BACKGROUND_CATEGORY) {
                 uint256 bannyBodyId = userOf({hook: hook, backgroundId: tokenId});
                 extraMetadata = string.concat('"usedByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Used by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             } else {
                 uint256 bannyBodyId = wearerOf({hook: hook, outfitId: tokenId});
                 extraMetadata = string.concat('"wornByBannyBodyId": ', bannyBodyId.toString(), ",");
-                attributes =
-                    string.concat(attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},");
+                attributes = string.concat(
+                    attributes, '{"trait_type": "Worn by Banny", "value": ', bannyBodyId.toString(), "},"
+                );
             }
         } else {
             // Compose the contents.
             contents = svgOf({
-                hook: hook,
-                tokenId: tokenId,
-                shouldDressBannyBody: true,
-                shouldIncludeBackgroundOnBannyBody: true
+                hook: hook, tokenId: tokenId, shouldDressBannyBody: true, shouldIncludeBackgroundOnBannyBody: true
             });
 
             // Get a reference to each asset ID currently attached to the banny body.
@@ -908,11 +907,7 @@ contract Banny721TokenUriResolver is
         }
 
         emit DecorateBanny({
-            hook: hook,
-            bannyBodyId: bannyBodyId,
-            backgroundId: backgroundId,
-            outfitIds: outfitIds,
-            caller: _msgSender()
+            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: _msgSender()
         });
 
         // Add the background.
@@ -1106,10 +1101,10 @@ contract Banny721TokenUriResolver is
             } else if (outfitProductCategory == _SUIT_CATEGORY) {
                 hasSuit = true;
             } else if (
-                (
-                    outfitProductCategory == _EYES_CATEGORY || outfitProductCategory == _GLASSES_CATEGORY || outfitProductCategory == _MOUTH_CATEGORY
-                        || outfitProductCategory == _HEADTOP_CATEGORY
-                ) && hasHead
+                (outfitProductCategory == _EYES_CATEGORY
+                        || outfitProductCategory == _GLASSES_CATEGORY
+                        || outfitProductCategory == _MOUTH_CATEGORY
+                        || outfitProductCategory == _HEADTOP_CATEGORY) && hasHead
             ) {
                 revert Banny721TokenUriResolver_HeadAlreadyAdded();
             } else if (

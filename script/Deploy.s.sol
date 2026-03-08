@@ -88,7 +88,8 @@ contract DeployScript is Script, Sphinx {
     function configureSphinx() public override {
         sphinxConfig.projectName = "banny-core-v5";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum", "celo"];
-        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia", "celo_sepolia"];
+        sphinxConfig.testnets =
+            ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia", "celo_sepolia"];
     }
 
     function run() public {
@@ -186,9 +187,7 @@ contract DeployScript is Script, Sphinx {
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
-                chainId: PREMINT_CHAIN_ID,
-                count: uint104(1_000_000 * DECIMAL_MULTIPLIER),
-                beneficiary: OPERATOR
+                chainId: PREMINT_CHAIN_ID, count: uint104(1_000_000 * DECIMAL_MULTIPLIER), beneficiary: OPERATOR
             });
 
             // decrease by a smaller percent more frequently. 30 days, 7%-ish.
@@ -362,13 +361,11 @@ contract DeployScript is Script, Sphinx {
                     name: "Banny Retail",
                     symbol: "BANNY",
                     baseUri: BASE_URI,
-                    tokenUriResolver: IJB721TokenUriResolver(address(0)), // This will be replaced once we know the address.
+                    tokenUriResolver: IJB721TokenUriResolver(address(0)), // This will be replaced once we know the
+                    // address.
                     contractUri: "https://jbm.infura-ipfs.io/ipfs/Qmd2hgb1E4caEB51VvoC3GvonhwkCoVyXjJ3zqsCxHPTKK",
                     tiersConfig: JB721InitTiersConfig({
-                        tiers: tiers,
-                        currency: ETH_CURRENCY,
-                        decimals: DECIMALS,
-                        prices: core.prices
+                        tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS, prices: core.prices
                     }),
                     reserveBeneficiary: address(0),
                     flags: JB721TiersHookFlags({
@@ -434,15 +431,16 @@ contract DeployScript is Script, Sphinx {
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;
 
         // Deploy the $BANNY Revnet.
-        revnet.basic_deployer.deployWith721sFor({
-            revnetId: 0,
-            configuration: bannyverseConfig.configuration,
-            terminalConfigurations: bannyverseConfig.terminalConfigurations,
-            buybackHookConfiguration: bannyverseConfig.buybackHookConfiguration,
-            suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
-            tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
-            allowedPosts: new REVCroptopAllowedPost[](0)
-        });
+        revnet.basic_deployer
+            .deployWith721sFor({
+                revnetId: 0,
+                configuration: bannyverseConfig.configuration,
+                terminalConfigurations: bannyverseConfig.terminalConfigurations,
+                buybackHookConfiguration: bannyverseConfig.buybackHookConfiguration,
+                suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
+                tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
+                allowedPosts: new REVCroptopAllowedPost[](0)
+            });
     }
 
     function _isDeployed(
