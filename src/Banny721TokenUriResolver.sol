@@ -1045,6 +1045,8 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Allows the owner of this contract to set the token metadata description, external URL, and SVG base URI.
+    /// @dev All fields are always written. Pass the current value for any field you do not want to change,
+    /// or pass an empty string to clear a field.
     /// @param description The description to use in token metadata.
     /// @param url The external URL to use in token metadata.
     /// @param baseUri The base URI of the SVG files.
@@ -1057,9 +1059,9 @@ contract Banny721TokenUriResolver is
         override
         onlyOwner
     {
-        if (bytes(description).length != 0) svgDescription = description;
-        if (bytes(url).length != 0) svgExternalUrl = url;
-        if (bytes(baseUri).length != 0) svgBaseUri = baseUri;
+        svgDescription = description;
+        svgExternalUrl = url;
+        svgBaseUri = baseUri;
 
         emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: msg.sender});
     }
