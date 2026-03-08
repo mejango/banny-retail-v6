@@ -1200,8 +1200,8 @@ contract Banny721TokenUriResolver is
                 // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
                 // decorated.
                 if (previousOutfitId != outfitId && wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {
-                    // slither-disable-next-line reentrancy-no-eth
-                    _transferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId});
+                    // Use try-transfer: the previous outfit may have been burned or its tier removed.
+                    _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId});
                 }
 
                 if (++previousOutfitIndex < previousOutfitIds.length) {
@@ -1239,8 +1239,8 @@ contract Banny721TokenUriResolver is
             // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
             // decorated.
             if (wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {
-                // slither-disable-next-line reentrancy-no-eth
-                _transferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId});
+                // Use try-transfer: the previous outfit may have been burned or its tier removed.
+                _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId});
             }
 
             if (++previousOutfitIndex < previousOutfitIds.length) {
@@ -1270,8 +1270,8 @@ contract Banny721TokenUriResolver is
         if (backgroundId != previousBackgroundId || userOfPreviousBackground != bannyBodyId) {
             // If there's a previous background worn by this banny, transfer it back to the owner.
             if (userOfPreviousBackground == bannyBodyId) {
-                // Transfer the previous background to the owner of the banny.
-                _transferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
+                // Use try-transfer: the previous background may have been burned or its tier removed.
+                _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
             }
 
             // Add the background if needed.
@@ -1327,5 +1327,16 @@ contract Banny721TokenUriResolver is
     /// @param assetId The ID of the token to transfer.
     function _transferFrom(address hook, address from, address to, uint256 assetId) internal {
         IERC721(hook).safeTransferFrom({from: from, to: to, tokenId: assetId});
+    }
+
+    /// @notice Try to transfer a token, silently succeeding if the transfer fails (e.g. token was burned).
+    /// @dev Used when returning previously equipped items that may no longer exist.
+    /// @param hook The 721 contract of the token being transferred.
+    /// @param from The address to transfer the token from.
+    /// @param to The address to transfer the token to.
+    /// @param assetId The ID of the token to transfer.
+    function _tryTransferFrom(address hook, address from, address to, uint256 assetId) internal {
+        // slither-disable-next-line reentrancy-no-eth
+        try IERC721(hook).safeTransferFrom({from: from, to: to, tokenId: assetId}) {} catch {}
     }
 }
