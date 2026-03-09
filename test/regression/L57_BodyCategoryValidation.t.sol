@@ -67,7 +67,7 @@ contract MockStore57 {
     }
 }
 
-/// @notice Regression test: L-57 -- decorateBannyWith should reject non-body-category tokens as bannyBodyId.
+/// @notice decorateBannyWith should reject non-body-category tokens as bannyBodyId.
 contract L57_BodyCategoryValidationTest is Test {
     Banny721TokenUriResolver resolver;
     MockHook57 hook;

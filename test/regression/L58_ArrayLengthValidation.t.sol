@@ -6,7 +6,7 @@ import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
 
-/// @notice Regression test: L-58 -- mismatched array lengths should revert.
+/// @notice Mismatched array lengths should revert.
 contract L58_ArrayLengthValidationTest is Test {
     Banny721TokenUriResolver resolver;
     address deployer = makeAddr("deployer");

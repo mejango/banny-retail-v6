@@ -82,7 +82,7 @@ contract MockStoreM8 {
     }
 }
 
-/// @notice Regression test: M-8 — Removed tier causes outfit state desynchronization.
+/// @notice Removed tier causes outfit state desynchronization.
 /// @dev When a previously equipped outfit's tier is removed, `_productOfTokenId` returns category 0.
 ///      Before the fix, this caused the first while loop to exit immediately (due to `!= 0` guard),
 ///      and the second while loop would transfer out outfits that were being re-equipped.
@@ -123,7 +123,7 @@ contract M8_RemovedTierDesyncTest is Test {
         hook.setApprovalForAll(address(resolver), true);
     }
 
-    /// @notice Core M-8 scenario: equip 3 outfits, remove first outfit's tier, re-equip remaining 2.
+    /// @notice Equip 3 outfits, remove first outfit's tier, re-equip remaining 2.
     ///         The remaining outfits should stay properly equipped and not be transferred back.
     function test_reequipAfterTierRemoval_retainsValidOutfits() public {
         // Step 1: Equip necklace, eyes, and mouth.
