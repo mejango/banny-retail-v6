@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {IERC721} from "@bananapus/721-hook-v6/src/abstract/ERC721.sol";
-import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
-import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
-import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
-import {JBIpfsDecoder} from "@bananapus/721-hook-v6/src/libraries/JBIpfsDecoder.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Base64} from "lib/base64/base64.sol";
+import {IERC721} from "@bananapus/721-hook-v6/src/abstract/ERC721.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
+import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
+import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
+import {JBIpfsDecoder} from "@bananapus/721-hook-v6/src/libraries/JBIpfsDecoder.sol";
+import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 
 import {IBanny721TokenUriResolver} from "./interfaces/IBanny721TokenUriResolver.sol";
 
@@ -28,6 +28,10 @@ contract Banny721TokenUriResolver is
 {
     using Strings for uint256;
 
+    //*********************************************************************//
+    // --------------------------- custom errors ------------------------- //
+    //*********************************************************************//
+
     error Banny721TokenUriResolver_ArrayLengthMismatch();
     error Banny721TokenUriResolver_BannyBodyNotBodyCategory();
     error Banny721TokenUriResolver_CantAccelerateTheLock();
@@ -38,14 +42,14 @@ contract Banny721TokenUriResolver is
     error Banny721TokenUriResolver_HeadAlreadyAdded();
     error Banny721TokenUriResolver_OutfitChangesLocked();
     error Banny721TokenUriResolver_SuitAlreadyAdded();
+    error Banny721TokenUriResolver_UnauthorizedBackground();
     error Banny721TokenUriResolver_UnauthorizedBannyBody();
     error Banny721TokenUriResolver_UnauthorizedOutfit();
-    error Banny721TokenUriResolver_UnauthorizedBackground();
-    error Banny721TokenUriResolver_UnorderedCategories();
-    error Banny721TokenUriResolver_UnrecognizedCategory();
-    error Banny721TokenUriResolver_UnrecognizedBackground();
-    error Banny721TokenUriResolver_UnrecognizedProduct();
     error Banny721TokenUriResolver_UnauthorizedTransfer();
+    error Banny721TokenUriResolver_UnorderedCategories();
+    error Banny721TokenUriResolver_UnrecognizedBackground();
+    error Banny721TokenUriResolver_UnrecognizedCategory();
+    error Banny721TokenUriResolver_UnrecognizedProduct();
 
     //*********************************************************************//
     // ------------------------ private constants ------------------------ //
@@ -517,6 +521,39 @@ contract Banny721TokenUriResolver is
     // -------------------------- internal views ------------------------- //
     //*********************************************************************//
 
+    /// @notice The SVG contents for a banny body.
+    /// @param upc The ID of the token whose product's SVG is being returned.
+    /// @return contents The SVG contents of the banny body.
+    function _bannyBodySvgOf(uint256 upc) internal view returns (string memory) {
+        (
+            string memory b1,
+            string memory b2,
+            string memory b3,
+            string memory b4,
+            string memory a1,
+            string memory a2,
+            string memory a3
+        ) = _fillsFor(upc);
+        return string.concat(
+            "<style>.b1{fill:#",
+            b1,
+            ";}.b2{fill:#",
+            b2,
+            ";}.b3{fill:#",
+            b3,
+            ";}.b4{fill:#",
+            b4,
+            ";}.a1{fill:#",
+            a1,
+            ";}.a2{fill:#",
+            a2,
+            ";}.a3{fill:#",
+            a3,
+            ";}</style>",
+            BANNY_BODY
+        );
+    }
+
     /// @notice The name of each token's category.
     /// @param category The category of the token being named.
     /// @return name The token's category name.
@@ -561,11 +598,6 @@ contract Banny721TokenUriResolver is
         return "";
     }
 
-    /// @dev ERC-2771 specifies the context as being a single address (20 bytes).
-    function _contextSuffixLength() internal view virtual override(ERC2771Context, Context) returns (uint256) {
-        return super._contextSuffixLength();
-    }
-
     /// @notice Make sure the message sender own's the token.
     /// @param hook The 721 contract of the token having ownership checked.
     /// @param upc The product's UPC to check ownership of.
@@ -573,33 +605,9 @@ contract Banny721TokenUriResolver is
         if (IERC721(hook).ownerOf(upc) != _msgSender()) revert Banny721TokenUriResolver_UnauthorizedBannyBody();
     }
 
-    /// @notice The fills for a product.
-    /// @param upc The ID of the token whose product's fills are being returned.
-    /// @return fills The fills for the product.
-    function _fillsFor(uint256 upc)
-        internal
-        pure
-        returns (
-            string memory,
-            string memory,
-            string memory,
-            string memory,
-            string memory,
-            string memory,
-            string memory
-        )
-    {
-        if (upc == ALIEN_UPC) {
-            return ("67d757", "30a220", "217a15", "09490f", "e483ef", "dc2fef", "dc2fef");
-        } else if (upc == PINK_UPC) {
-            return ("ffd8c5", "ff96a9", "fe588b", "c92f45", "ffd8c5", "ff96a9", "fe588b");
-        } else if (upc == ORANGE_UPC) {
-            return ("f3a603", "ff7c02", "fd3600", "c32e0d", "f3a603", "ff7c02", "fd3600");
-        } else if (upc == ORIGINAL_UPC) {
-            return ("ffe900", "ffc700", "f3a603", "965a1a", "ffe900", "ffc700", "f3a603");
-        }
-
-        revert Banny721TokenUriResolver_UnrecognizedProduct();
+    /// @dev ERC-2771 specifies the context as being a single address (20 bytes).
+    function _contextSuffixLength() internal view virtual override(ERC2771Context, Context) returns (uint256) {
+        return super._contextSuffixLength();
     }
 
     /// @notice Encode the token URI JSON with base64.
@@ -645,6 +653,35 @@ contract Banny721TokenUriResolver is
                 )
             )
         );
+    }
+
+    /// @notice The fills for a product.
+    /// @param upc The ID of the token whose product's fills are being returned.
+    /// @return fills The fills for the product.
+    function _fillsFor(uint256 upc)
+        internal
+        pure
+        returns (
+            string memory,
+            string memory,
+            string memory,
+            string memory,
+            string memory,
+            string memory,
+            string memory
+        )
+    {
+        if (upc == ALIEN_UPC) {
+            return ("67d757", "30a220", "217a15", "09490f", "e483ef", "dc2fef", "dc2fef");
+        } else if (upc == PINK_UPC) {
+            return ("ffd8c5", "ff96a9", "fe588b", "c92f45", "ffd8c5", "ff96a9", "fe588b");
+        } else if (upc == ORANGE_UPC) {
+            return ("f3a603", "ff7c02", "fd3600", "c32e0d", "f3a603", "ff7c02", "fd3600");
+        } else if (upc == ORIGINAL_UPC) {
+            return ("ffe900", "ffc700", "f3a603", "965a1a", "ffe900", "ffc700", "f3a603");
+        }
+
+        revert Banny721TokenUriResolver_UnrecognizedProduct();
     }
 
     /// @notice The full name of each product, including category and inventory.
@@ -742,39 +779,6 @@ contract Banny721TokenUriResolver is
     /// @return sender the sender address of this call.
     function _msgSender() internal view override(ERC2771Context, Context) returns (address sender) {
         return ERC2771Context._msgSender();
-    }
-
-    /// @notice The SVG contents for a banny body.
-    /// @param upc The ID of the token whose product's SVG is being returned.
-    /// @return contents The SVG contents of the banny body.
-    function _bannyBodySvgOf(uint256 upc) internal view returns (string memory) {
-        (
-            string memory b1,
-            string memory b2,
-            string memory b3,
-            string memory b4,
-            string memory a1,
-            string memory a2,
-            string memory a3
-        ) = _fillsFor(upc);
-        return string.concat(
-            "<style>.b1{fill:#",
-            b1,
-            ";}.b2{fill:#",
-            b2,
-            ";}.b3{fill:#",
-            b3,
-            ";}.b4{fill:#",
-            b4,
-            ";}.a1{fill:#",
-            a1,
-            ";}.a2{fill:#",
-            a2,
-            ";}.a3{fill:#",
-            a3,
-            ";}</style>",
-            BANNY_BODY
-        );
     }
 
     /// @notice The SVG contents for a list of outfit IDs.
@@ -1041,22 +1045,6 @@ contract Banny721TokenUriResolver is
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    /// @notice Allows the owner to set the product's name.
-    /// @param upcs The universal product codes of the products having their name stored.
-    /// @param names The names of the products.
-    function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
-        if (upcs.length != names.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
-
-        for (uint256 i; i < upcs.length; i++) {
-            uint256 upc = upcs[i];
-            string memory name = names[i];
-
-            _customProductNameOf[upc] = name;
-
-            emit SetProductName({upc: upc, name: name, caller: _msgSender()});
-        }
-    }
-
     /// @notice Allows the owner of this contract to set the token metadata description, external URL, and SVG base URI.
     /// @dev All fields are always written. Pass the current value for any field you do not want to change,
     /// or pass an empty string to clear a field.
@@ -1077,6 +1065,22 @@ contract Banny721TokenUriResolver is
         svgBaseUri = baseUri;
 
         emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: _msgSender()});
+    }
+
+    /// @notice Allows the owner to set the product's name.
+    /// @param upcs The universal product codes of the products having their name stored.
+    /// @param names The names of the products.
+    function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
+        if (upcs.length != names.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+
+        for (uint256 i; i < upcs.length; i++) {
+            uint256 upc = upcs[i];
+            string memory name = names[i];
+
+            _customProductNameOf[upc] = name;
+
+            emit SetProductName({upc: upc, name: name, caller: _msgSender()});
+        }
     }
 
     /// @notice The owner of this contract can store SVG files for product IDs.
@@ -1132,6 +1136,71 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
     // ---------------------- internal transactions ---------------------- //
     //*********************************************************************//
+
+    /// @notice Add a background to a banny body.
+    /// @param hook The hook storing the assets.
+    /// @param bannyBodyId The ID of the banny body being dressed.
+    /// @param backgroundId The ID of the background that'll be associated with the specified banny.
+    function _decorateBannyWithBackground(address hook, uint256 bannyBodyId, uint256 backgroundId) internal {
+        // Keep a reference to the previous background attached.
+        uint256 previousBackgroundId = _attachedBackgroundIdOf[hook][bannyBodyId];
+
+        // Keep a reference to the user of the previous background.
+        uint256 userOfPreviousBackground = userOf({hook: hook, backgroundId: previousBackgroundId});
+
+        // If the background is changing, add the latest background and transfer the old one back to the owner.
+        if (backgroundId != previousBackgroundId || userOfPreviousBackground != bannyBodyId) {
+            // Add the background if needed.
+            if (backgroundId != 0) {
+                // Keep a reference to the background's owner.
+                address owner = IERC721(hook).ownerOf(backgroundId);
+
+                // Check if the call is being made by the background's owner, or the owner of a banny body using it.
+                if (_msgSender() != owner) {
+                    // Get the banny body currently using this background.
+                    uint256 userId = userOf({hook: hook, backgroundId: backgroundId});
+
+                    // If the background is not currently used, only the background's owner can use it for decoration.
+                    if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
+
+                    // If the background is used, the banny body's owner can also authorize its use.
+                    if (_msgSender() != IERC721(hook).ownerOf(userId)) {
+                        revert Banny721TokenUriResolver_UnauthorizedBackground();
+                    }
+                }
+
+                // Get the background's product info.
+                JB721Tier memory backgroundProduct = _productOfTokenId({hook: hook, tokenId: backgroundId});
+
+                // Background must exist and must be a background category.
+                if (backgroundProduct.id == 0 || backgroundProduct.category != _BACKGROUND_CATEGORY) {
+                    revert Banny721TokenUriResolver_UnrecognizedBackground();
+                }
+
+                // Effects: update all state before any external transfers (CEI pattern).
+                _attachedBackgroundIdOf[hook][bannyBodyId] = backgroundId;
+                _userOf[hook][backgroundId] = bannyBodyId;
+
+                // Interactions: try-transfer the previous background back (may have been burned).
+                if (userOfPreviousBackground == bannyBodyId) {
+                    _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
+                }
+
+                // Transfer the new background to this contract if it's not already owned by this contract.
+                if (owner != address(this)) {
+                    _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: backgroundId});
+                }
+            } else {
+                // Effects: clear the background state before any external transfer.
+                _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
+
+                // Interactions: try-transfer the previous background back (may have been burned).
+                if (userOfPreviousBackground == bannyBodyId) {
+                    _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
+                }
+            }
+        }
+    }
 
     /// @notice Add outfits to a banny body.
     /// @dev The caller must own the banny body being dressed and all outfits being worn.
@@ -1280,71 +1349,6 @@ contract Banny721TokenUriResolver is
 
         // Store the outfits.
         _attachedOutfitIdsOf[hook][bannyBodyId] = outfitIds;
-    }
-
-    /// @notice Add a background to a banny body.
-    /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The ID of the banny body being dressed.
-    /// @param backgroundId The ID of the background that'll be associated with the specified banny.
-    function _decorateBannyWithBackground(address hook, uint256 bannyBodyId, uint256 backgroundId) internal {
-        // Keep a reference to the previous background attached.
-        uint256 previousBackgroundId = _attachedBackgroundIdOf[hook][bannyBodyId];
-
-        // Keep a reference to the user of the previous background.
-        uint256 userOfPreviousBackground = userOf({hook: hook, backgroundId: previousBackgroundId});
-
-        // If the background is changing, add the latest background and transfer the old one back to the owner.
-        if (backgroundId != previousBackgroundId || userOfPreviousBackground != bannyBodyId) {
-            // Add the background if needed.
-            if (backgroundId != 0) {
-                // Keep a reference to the background's owner.
-                address owner = IERC721(hook).ownerOf(backgroundId);
-
-                // Check if the call is being made by the background's owner, or the owner of a banny body using it.
-                if (_msgSender() != owner) {
-                    // Get the banny body currently using this background.
-                    uint256 userId = userOf({hook: hook, backgroundId: backgroundId});
-
-                    // If the background is not currently used, only the background's owner can use it for decoration.
-                    if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
-
-                    // If the background is used, the banny body's owner can also authorize its use.
-                    if (_msgSender() != IERC721(hook).ownerOf(userId)) {
-                        revert Banny721TokenUriResolver_UnauthorizedBackground();
-                    }
-                }
-
-                // Get the background's product info.
-                JB721Tier memory backgroundProduct = _productOfTokenId({hook: hook, tokenId: backgroundId});
-
-                // Background must exist and must be a background category.
-                if (backgroundProduct.id == 0 || backgroundProduct.category != _BACKGROUND_CATEGORY) {
-                    revert Banny721TokenUriResolver_UnrecognizedBackground();
-                }
-
-                // Effects: update all state before any external transfers (CEI pattern).
-                _attachedBackgroundIdOf[hook][bannyBodyId] = backgroundId;
-                _userOf[hook][backgroundId] = bannyBodyId;
-
-                // Interactions: try-transfer the previous background back (may have been burned).
-                if (userOfPreviousBackground == bannyBodyId) {
-                    _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
-                }
-
-                // Transfer the new background to this contract if it's not already owned by this contract.
-                if (owner != address(this)) {
-                    _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: backgroundId});
-                }
-            } else {
-                // Effects: clear the background state before any external transfer.
-                _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
-
-                // Interactions: try-transfer the previous background back (may have been burned).
-                if (userOfPreviousBackground == bannyBodyId) {
-                    _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId});
-                }
-            }
-        }
     }
 
     /// @notice Transfer a token from one address to another.
