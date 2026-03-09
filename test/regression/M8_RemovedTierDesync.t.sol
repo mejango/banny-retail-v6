@@ -158,9 +158,7 @@ contract M8_RemovedTierDesyncTest is Test {
 
         // Step 4: Verify eyes and mouth are STILL properly equipped (not transferred out).
         assertEq(resolver.wearerOf(address(hook), EYES_TOKEN), BODY_TOKEN, "eyes should still be worn after re-equip");
-        assertEq(
-            resolver.wearerOf(address(hook), MOUTH_TOKEN), BODY_TOKEN, "mouth should still be worn after re-equip"
-        );
+        assertEq(resolver.wearerOf(address(hook), MOUTH_TOKEN), BODY_TOKEN, "mouth should still be worn after re-equip");
 
         // Eyes and mouth should still be held by the resolver.
         assertEq(hook.ownerOf(EYES_TOKEN), address(resolver), "eyes should still be held by resolver");
