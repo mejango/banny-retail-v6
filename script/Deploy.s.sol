@@ -346,7 +346,8 @@ contract DeployScript is Script, Sphinx {
                         noNewTiersWithReserves: false,
                         noNewTiersWithVotes: false,
                         noNewTiersWithOwnerMinting: false,
-                        preventOverspending: false
+                        preventOverspending: false,
+                        issueTokensForSplits: false
                     })
                 }),
                 salt: HOOK_SALT,
