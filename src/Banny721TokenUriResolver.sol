@@ -1291,7 +1291,10 @@ contract Banny721TokenUriResolver is
             // Remove all previous assets up to and including the current category being iterated on.
             // This inner loop advances through `previousOutfitIds` (bounded by outfit category count) and
             // terminates when it passes the current category or exhausts the array.
-            while (previousOutfitProductCategory <= outfitProductCategory && previousOutfitProductCategory != 0) {
+            // Note: previousOutfitId != 0 guards against re-entering after exhaustion.
+            // Category 0 means the tier was removed — these entries are always processed (transferred out and
+            // skipped) so the index advances past them.
+            while (previousOutfitId != 0 && previousOutfitProductCategory <= outfitProductCategory) {
                 // Transfer the previous outfit to the owner of the banny if its not being worn.
                 // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
                 // decorated.
@@ -1334,7 +1337,10 @@ contract Banny721TokenUriResolver is
         while (previousOutfitId != 0) {
             // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
             // decorated.
-            if (wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {
+            // Skip outfits that are being re-equipped in the new outfit set.
+            if (_isInArray(previousOutfitId, outfitIds)) {
+                // This outfit is being re-equipped — do not transfer it out.
+            } else if (wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {
                 // Use try-transfer: the previous outfit may have been burned or its tier removed.
                 _tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId});
             }
@@ -1369,5 +1375,15 @@ contract Banny721TokenUriResolver is
     function _tryTransferFrom(address hook, address from, address to, uint256 assetId) internal {
         // slither-disable-next-line reentrancy-no-eth
         try IERC721(hook).safeTransferFrom({from: from, to: to, tokenId: assetId}) {} catch {}
+    }
+
+    /// @notice Check if a value is present in an array.
+    /// @param value The value to search for.
+    /// @param array The array to search in.
+    /// @return found True if the value was found.
+    function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
+        for (uint256 i; i < array.length; i++) {
+            if (array[i] == value) return true;
+        }
     }
 }
