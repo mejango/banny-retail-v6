@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
 
-/// @notice Regression test: L-59 -- setMetadata should allow clearing fields to empty string.
+/// @notice setMetadata should allow clearing fields to empty string.
 contract L59_ClearMetadataTest is Test {
     Banny721TokenUriResolver resolver;
     address deployer = makeAddr("deployer");

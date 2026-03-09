@@ -68,7 +68,7 @@ contract MockStore56 {
     }
 }
 
-/// @notice Regression test: L-56 -- events should emit _msgSender(), not msg.sender.
+/// @notice Events should emit _msgSender(), not msg.sender.
 contract L56_MsgSenderEventsTest is Test {
     Banny721TokenUriResolver resolver;
     MockHook56 hook;

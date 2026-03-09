@@ -75,7 +75,7 @@ contract MockStoreI25 {
     }
 }
 
-/// @notice Regression test for I-25: _decorateBannyWithBackground follows CEI pattern.
+/// @notice _decorateBannyWithBackground follows CEI pattern.
 /// @dev The fix reordered state writes (effects) before external transfers (interactions)
 /// in _decorateBannyWithBackground. This test verifies that after a background replacement,
 /// state is consistent and both the old background return and new background custody work.
