@@ -1842,8 +1842,7 @@ contract BannyForkTest is Test {
         string memory bannyBody =
             '<g class="b1"><path d="M173 53h4v17h-4z"/></g><g class="b2"><path d="M167 57h3v10h-3z"/></g><g class="o"><path d="M177 53h3v17h-3z"/></g>';
         string memory defaultNecklace = '<g class="o"><path d="M190 173h-37v-3h-10v-4h-6v4h3v3h-3v4h6v3h10v4h37"/></g>';
-        string memory defaultMouth =
-            '<g class="o"><path d="M183 160v-4h-20v4h-3v3h3v4h24v-7h-4z" fill="#ad71c8"/></g>';
+        string memory defaultMouth = '<g class="o"><path d="M183 160v-4h-20v4h-3v3h3v4h24v-7h-4z" fill="#ad71c8"/></g>';
         string memory defaultEyes = '<g class="o"><path d="M177 140v3h6v11h10v-11h4v-3h-20z"/></g>';
         string memory defaultAlienEyes = '<g class="o"><path d="M190 127h3v3h-3z"/></g>';
 
@@ -1910,10 +1909,7 @@ contract BannyForkTest is Test {
             tokenUriResolver: IJB721TokenUriResolver(address(resolver)),
             contractUri: "",
             tiersConfig: JB721InitTiersConfig({
-                tiers: tiers,
-                currency: JBCurrencyIds.ETH,
-                decimals: 18,
-                prices: IJBPrices(address(0))
+                tiers: tiers, currency: JBCurrencyIds.ETH, decimals: 18, prices: IJBPrices(address(0))
             }),
             reserveBeneficiary: address(0),
             flags: JB721TiersHookFlags({
@@ -1937,15 +1933,7 @@ contract BannyForkTest is Test {
         bannyHook = hookDeployer.deployHookFor(projectId, hookConfig, bytes32(uint256(1)));
     }
 
-    function _tierConfig(
-        uint104 price,
-        uint32 supply,
-        uint24 category
-    )
-        internal
-        pure
-        returns (JB721TierConfig memory)
-    {
+    function _tierConfig(uint104 price, uint32 supply, uint24 category) internal pure returns (JB721TierConfig memory) {
         return JB721TierConfig({
             price: price,
             initialSupply: supply,
