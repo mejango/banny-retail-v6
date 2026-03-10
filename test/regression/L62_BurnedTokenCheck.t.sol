@@ -78,7 +78,7 @@ contract MockStore62 {
     }
 }
 
-/// @notice Regression test: L-62 -- burned equipped tokens should not lock the body.
+/// @notice Burned equipped tokens should not lock the body.
 contract L62_BurnedTokenCheckTest is Test {
     Banny721TokenUriResolver resolver;
     MockHook62 hook;

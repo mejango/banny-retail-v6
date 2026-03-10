@@ -194,7 +194,7 @@ contract TestBanny721TokenUriResolver is Test {
         vm.startPrank(deployer);
         resolver.setMetadata("Initial desc", "https://initial.url", "https://initial.base/");
 
-        // Passing empty strings should clear all fields (L-59 fix).
+        // Passing empty strings should clear all fields.
         resolver.setMetadata("", "", "");
         assertEq(resolver.svgDescription(), "");
         assertEq(resolver.svgExternalUrl(), "");
