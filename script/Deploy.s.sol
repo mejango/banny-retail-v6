@@ -30,7 +30,7 @@ import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerD
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 
-import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
+import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
 
 import {Banny721TokenUriResolver} from "./../src/Banny721TokenUriResolver.sol";

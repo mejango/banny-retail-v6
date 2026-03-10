@@ -4,7 +4,3 @@
 [submodule "lib/base64"]
 	path = lib/base64
 	url = https://github.com/Brechtpd/base64
-[submodule "lib/sphinx"]
-	path = lib/sphinx
-	url = https://github.com/sphinx-labs/sphinx
-	branch = v0.23.0

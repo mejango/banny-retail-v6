@@ -6,7 +6,7 @@ import {Vm} from "forge-std/Vm.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
 
-import {SphinxConstants, NetworkInfo} from "@sphinx-labs/contracts/SphinxConstants.sol";
+import {SphinxConstants, NetworkInfo} from "@sphinx-labs/contracts/contracts/foundry/SphinxConstants.sol";
 
 struct BannyverseDeployment {
     uint256 revnetId;
