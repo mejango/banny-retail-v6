@@ -235,13 +235,7 @@ contract BannyForkTest is Test {
     // ──────────────────────────────────────
 
     function setUp() public {
-        // Skip fork tests when no RPC URL is configured.
-        string memory rpcUrl = vm.envOr("RPC_ETHEREUM_MAINNET", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            vm.skip(true);
-            return;
-        }
-        vm.createSelectFork(rpcUrl);
+        vm.createSelectFork("ethereum");
 
         // Clear any mainnet code at actor addresses (makeAddr may collide with deployed contracts).
         vm.etch(alice, "");
@@ -1832,7 +1826,8 @@ contract BannyForkTest is Test {
         JB721TiersHookStore store = new JB721TiersHookStore();
         JBAddressRegistry addressRegistry = new JBAddressRegistry();
 
-        JB721TiersHook hookImpl = new JB721TiersHook(jbDirectory, jbPermissions, jbRulesets, store, trustedForwarder);
+        JB721TiersHook hookImpl =
+            new JB721TiersHook(jbDirectory, jbPermissions, jbRulesets, store, jbSplits, trustedForwarder);
 
         hookDeployer = new JB721TiersHookDeployer(hookImpl, store, addressRegistry, trustedForwarder);
     }

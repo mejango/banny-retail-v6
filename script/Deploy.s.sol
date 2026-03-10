@@ -10,8 +10,8 @@ import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
-import {JB721TiersHookFlags} from "@bananapus/721-hook-v6/src/structs/JB721TiersHookFlags.sol";
-import {JBDeploy721TiersHookConfig} from "@bananapus/721-hook-v6/src/structs/JBDeploy721TiersHookConfig.sol";
+import {REVBaseline721HookConfig} from "@rev-net/core-v6/src/structs/REVBaseline721HookConfig.sol";
+import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHookFlags.sol";
 import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
@@ -331,7 +331,7 @@ contract DeployScript is Script, Sphinx {
             terminalConfigurations: terminalConfigurations,
             suckerDeploymentConfiguration: suckerDeploymentConfiguration,
             hookConfiguration: REVDeploy721TiersHookConfig({
-                baseline721HookConfiguration: JBDeploy721TiersHookConfig({
+                baseline721HookConfiguration: REVBaseline721HookConfig({
                     name: "Banny Retail",
                     symbol: "BANNY",
                     baseUri: BASE_URI,
@@ -342,12 +342,11 @@ contract DeployScript is Script, Sphinx {
                         tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS, prices: core.prices
                     }),
                     reserveBeneficiary: address(0),
-                    flags: JB721TiersHookFlags({
+                    flags: REV721TiersHookFlags({
                         noNewTiersWithReserves: false,
                         noNewTiersWithVotes: false,
                         noNewTiersWithOwnerMinting: false,
-                        preventOverspending: false,
-                        issueTokensForSplits: false
+                        preventOverspending: false
                     })
                 }),
                 salt: HOOK_SALT,
