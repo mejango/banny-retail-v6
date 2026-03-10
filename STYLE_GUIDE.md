@@ -326,14 +326,13 @@ try hook.afterPayRecordedWith(context) {} catch (bytes memory reason) {
 
 ### foundry.toml
 
-Standard config across all repos:
+Standard config for `@bananapus/core-v6`:
 
 ```toml
 [profile.default]
 solc = '0.8.26'
 evm_version = 'cancun'
 optimizer_runs = 200
-via_ir = true
 libs = ["node_modules", "lib"]
 fs_permissions = [{ access = "read-write", path = "./"}]
 
@@ -354,10 +353,7 @@ multiline_func_header = "all"
 wrap_comments = true
 ```
 
-**Variations:**
-- `evm_version = 'cancun'` for repos using transient storage (buyback-hook, router-terminal, univ4-router)
-- `via_ir = true` for repos hitting stack-too-deep (buyback-hook, banny-retail, univ4-lp-split-hook, deploy-all)
-- `optimizer = false` only for deploy-all-v6 (stack-too-deep with optimization)
+This is the standard config with no deviations.
 
 ### CI Workflows
 
@@ -387,8 +383,6 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run tests
         run: forge test --fail-fast --summary --detailed --skip "*/script/**"
-        env:
-          RPC_ETHEREUM_MAINNET: ${{ secrets.RPC_ETHEREUM_MAINNET }}
       - name: Check contract sizes
         run: FOUNDRY_PROFILE=ci_sizes forge build --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils
 ```
@@ -416,10 +410,10 @@ jobs:
 
 ```json
 {
-  "name": "@bannynet/core-v6",
+  "name": "@bananapus/core-v6",
   "version": "x.x.x",
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/Org/repo.git" },
+  "repository": { "type": "git", "url": "git+https://github.com/Bananapus/nana-core-v6.git" },
   "engines": { "node": ">=20.0.0" },
   "scripts": {
     "test": "forge test",
@@ -452,15 +446,6 @@ Run `forge fmt` before committing. The `[fmt]` config in `foundry.toml` enforces
 - Wrapped comments at reasonable width
 
 CI checks formatting via `forge fmt --check`.
-
-### CI Secrets
-
-| Secret | Purpose |
-|--------|--------|
-| `NPM_TOKEN` | npm publish access (used by `publish.yml`) |
-| `RPC_ETHEREUM_MAINNET` | Ethereum mainnet RPC URL for fork tests (used by `test.yml`) |
-
-Fork tests require `RPC_ETHEREUM_MAINNET` — they fail if it's missing.
 
 ### Branching
 
