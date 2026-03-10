@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
@@ -69,7 +69,7 @@ contract MockStore56 {
 }
 
 /// @notice Events should emit _msgSender(), not msg.sender.
-contract L56_MsgSenderEventsTest is Test {
+contract MsgSenderEventsTest is Test {
     Banny721TokenUriResolver resolver;
     MockHook56 hook;
     MockStore56 store;

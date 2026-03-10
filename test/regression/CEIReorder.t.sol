@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
@@ -79,7 +79,7 @@ contract MockStoreI25 {
 /// @dev The fix reordered state writes (effects) before external transfers (interactions)
 /// in _decorateBannyWithBackground. This test verifies that after a background replacement,
 /// state is consistent and both the old background return and new background custody work.
-contract I25_CEIReorderTest is Test {
+contract CEIReorderTest is Test {
     Banny721TokenUriResolver resolver;
     MockHookI25 hook;
     MockStoreI25 store;

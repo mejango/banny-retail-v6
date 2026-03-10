@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
 
 /// @notice setMetadata should allow clearing fields to empty string.
-contract L59_ClearMetadataTest is Test {
+contract ClearMetadataTest is Test {
     Banny721TokenUriResolver resolver;
     address deployer = makeAddr("deployer");
 

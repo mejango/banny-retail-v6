@@ -17,7 +17,7 @@ Deep implementation-level risk analysis of `Banny721TokenUriResolver`. All line 
 - Severity: **CRITICAL** | Tested: **YES** (Fork.t.sol lines 931-956, BannyAttacks.t.sol)
 - When outfits or backgrounds are equipped via `decorateBannyWith()`, the NFT is transferred to the resolver contract via `safeTransferFrom` (lines 1191, 1325, 1366). The resolver holds custody until the body owner unequips.
 - **Impact**: If the resolver contract has a bug, equipped NFTs could become permanently locked. All value of equipped outfits depends on the resolver's correctness.
-- **Mitigation**: ReentrancyGuard on `decorateBannyWith` (line 977). `_tryTransferFrom` (lines 1375-1378) uses try-catch for returning old outfits, so burned/removed-tier tokens do not block redecoration. Tested in regression L62_BurnedTokenCheck.t.sol.
+- **Mitigation**: ReentrancyGuard on `decorateBannyWith` (line 977). `_tryTransferFrom` (lines 1375-1378) uses try-catch for returning old outfits, so burned/removed-tier tokens do not block redecoration. Tested in regression BurnedTokenCheck.t.sol.
 - **Residual risk**: The resolver is not upgradeable. If a critical bug is found post-deployment, there is no admin mechanism to rescue stuck NFTs. The owner has no function to force-return assets.
 
 **Risk: Body transfer transfers outfit control**
@@ -47,7 +47,7 @@ Deep implementation-level risk analysis of `Banny721TokenUriResolver`. All line 
 - Severity: **HIGH** | Tested: **YES** (Fork.t.sol lines 853-925)
 - `decorateBannyWith` calls `safeTransferFrom` (lines 1191, 1325, 1366) which triggers `onERC721Received` on receiving contracts. A malicious hook could attempt to re-enter `decorateBannyWith` during these callbacks.
 - **Mitigation**: `decorateBannyWith` has `nonReentrant` modifier (line 977, OpenZeppelin ReentrancyGuard). Tested with a purpose-built `ReentrantHook` (Fork.t.sol line 46) that re-enters during `safeTransferFrom`. The reentrancy attempt is caught and silently fails via try-catch.
-- **CEI pattern**: Background replacement follows Checks-Effects-Interactions. State updates (`_attachedBackgroundIdOf`, `_userOf`) happen at lines 1181-1182 before external transfers at lines 1186-1192. Verified in regression I25_CEIReorder.t.sol.
+- **CEI pattern**: Background replacement follows Checks-Effects-Interactions. State updates (`_attachedBackgroundIdOf`, `_userOf`) happen at lines 1181-1182 before external transfers at lines 1186-1192. Verified in regression CEIReorder.t.sol.
 - **Residual risk**: None identified. The ReentrancyGuard provides a hard block, and CEI ordering provides defense-in-depth.
 
 ### MEDIUM -- Hook Trust Boundary
@@ -60,7 +60,7 @@ Deep implementation-level risk analysis of `Banny721TokenUriResolver`. All line 
 - **Residual risk**: If a user interacts with a malicious hook, they could lose the NFTs they equip on that hook. The resolver cannot distinguish legitimate from malicious hooks.
 
 **Risk: Removed tier desynchronization**
-- Severity: **MEDIUM** | Tested: **YES** (M8_RemovedTierDesync.t.sol, 6 test cases)
+- Severity: **MEDIUM** | Tested: **YES** (RemovedTierDesync.t.sol, 6 test cases)
 - When a tier is removed from the JB721TiersHookStore, `_productOfTokenId()` returns a zeroed struct (category=0, id=0). Previously equipped outfits from that tier have category 0 in the redecoration loop.
 - **Impact**: Without proper handling, removed-tier outfits could cause the `_decorateBannyWithOutfits` loop to malfunction -- the category-0 entries would be processed incorrectly by the `while` loop (line 1297).
 - **Mitigation**: The current code handles this correctly. Category-0 entries are processed and transferred out by the while loop. The `_tryTransferFrom` (line 1303, 1345) silently handles cases where the token no longer exists. Six regression tests verify: first/middle/last tier removal, all tiers removed, replacement after removal, and two consecutive removed tiers.
@@ -133,13 +133,13 @@ Deep implementation-level risk analysis of `Banny721TokenUriResolver`. All line 
 | `DecorateFlow.t.sol` | ~40 | L18 vulnerability proof, multi-body outfit reuse, authorization flows, three-party interactions, background replacement, edge cases |
 | `BannyAttacks.t.sol` | 8 | Adversarial: outfit reuse, lock bypass, category conflicts, unauthorized decoration, out-of-order categories, body/background as outfit |
 | `Fork.t.sol` | 40+ | E2E against real JB infrastructure: full lifecycle, multi-actor, reentrancy (ReentrantHook), griefing/front-running, cross-hook isolation, redressing cycles |
-| `regression/I25_CEIReorder.t.sol` | 3 | CEI ordering in background replacement |
-| `regression/M8_RemovedTierDesync.t.sol` | 6 | Removed tier handling during redecoration |
-| `regression/L58_ArrayLengthValidation.t.sol` | 3 | Array length mismatch reverts |
-| `regression/L57_BodyCategoryValidation.t.sol` | 2 | Non-body token as bannyBodyId rejection |
-| `regression/L56_MsgSenderEvents.t.sol` | 4 | Events emit `_msgSender()` not `msg.sender` |
-| `regression/L62_BurnedTokenCheck.t.sol` | 2 | Burned equipped tokens do not lock the body |
-| `regression/L59_ClearMetadata.t.sol` | 2 | setMetadata can clear fields to empty strings |
+| `regression/CEIReorder.t.sol` | 3 | CEI ordering in background replacement |
+| `regression/RemovedTierDesync.t.sol` | 6 | Removed tier handling during redecoration |
+| `regression/ArrayLengthValidation.t.sol` | 3 | Array length mismatch reverts |
+| `regression/BodyCategoryValidation.t.sol` | 2 | Non-body token as bannyBodyId rejection |
+| `regression/MsgSenderEvents.t.sol` | 4 | Events emit `_msgSender()` not `msg.sender` |
+| `regression/BurnedTokenCheck.t.sol` | 2 | Burned equipped tokens do not lock the body |
+| `regression/ClearMetadata.t.sol` | 2 | setMetadata can clear fields to empty strings |
 
 ## Untested Areas
 

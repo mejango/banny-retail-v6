@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Test.sol";
-import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
 
 /// @notice Mismatched array lengths should revert.
-contract L58_ArrayLengthValidationTest is Test {
+contract ArrayLengthValidationTest is Test {
     Banny721TokenUriResolver resolver;
     address deployer = makeAddr("deployer");
 
