@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Test.sol";
-import {IERC721} from "@bananapus/721-hook-v6/src/abstract/ERC721.sol";
-import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
+import {Test} from "forge-std/Test.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
