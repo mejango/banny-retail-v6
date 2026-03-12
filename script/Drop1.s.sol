@@ -9,7 +9,7 @@ import "./helpers/BannyverseDeploymentLib.sol";
 import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
+import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
 
 contract Drop1Script is Script, Sphinx {

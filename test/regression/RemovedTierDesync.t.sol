@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
@@ -86,7 +86,7 @@ contract MockStoreM8 {
 /// @dev When a previously equipped outfit's tier is removed, `_productOfTokenId` returns category 0.
 ///      Before the fix, this caused the first while loop to exit immediately (due to `!= 0` guard),
 ///      and the second while loop would transfer out outfits that were being re-equipped.
-contract M8_RemovedTierDesyncTest is Test {
+contract RemovedTierDesyncTest is Test {
     Banny721TokenUriResolver resolver;
     MockHookM8 hook;
     MockStoreM8 store;

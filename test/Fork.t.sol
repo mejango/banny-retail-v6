@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 // JB core — deploy fresh within fork.
 import {JBPermissions} from "@bananapus/core-v6/src/JBPermissions.sol";
@@ -14,7 +14,6 @@ import {JBSplits} from "@bananapus/core-v6/src/JBSplits.sol";
 import {JBPrices} from "@bananapus/core-v6/src/JBPrices.sol";
 import {JBController} from "@bananapus/core-v6/src/JBController.sol";
 import {JBFundAccessLimits} from "@bananapus/core-v6/src/JBFundAccessLimits.sol";
-import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 
 // 721 hook — deploy fresh within fork.
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
@@ -22,7 +21,6 @@ import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
 import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
 import {JB721TiersHookFlags} from "@bananapus/721-hook-v6/src/structs/JB721TiersHookFlags.sol";
@@ -39,7 +37,6 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 
 // Banny.
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
-import {IBanny721TokenUriResolver} from "../src/interfaces/IBanny721TokenUriResolver.sol";
 
 /// @notice Malicious hook for reentrancy testing. Re-enters the resolver during safeTransferFrom.
 contract ReentrantHook {
@@ -235,13 +232,7 @@ contract BannyForkTest is Test {
     // ──────────────────────────────────────
 
     function setUp() public {
-        // Skip fork tests when no RPC URL is configured.
-        string memory rpcUrl = vm.envOr("RPC_ETHEREUM_MAINNET", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            vm.skip(true);
-            return;
-        }
-        vm.createSelectFork(rpcUrl);
+        vm.createSelectFork("ethereum");
 
         // Clear any mainnet code at actor addresses (makeAddr may collide with deployed contracts).
         vm.etch(alice, "");
@@ -1832,7 +1823,8 @@ contract BannyForkTest is Test {
         JB721TiersHookStore store = new JB721TiersHookStore();
         JBAddressRegistry addressRegistry = new JBAddressRegistry();
 
-        JB721TiersHook hookImpl = new JB721TiersHook(jbDirectory, jbPermissions, jbRulesets, store, trustedForwarder);
+        JB721TiersHook hookImpl =
+            new JB721TiersHook(jbDirectory, jbPermissions, jbRulesets, store, jbSplits, trustedForwarder);
 
         hookDeployer = new JB721TiersHookDeployer(hookImpl, store, addressRegistry, trustedForwarder);
     }

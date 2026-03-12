@@ -1029,7 +1029,7 @@ import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 ${imports}
 import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
-import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
+import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {IJBTerminal} from "@bananapus/core-v5/src/interfaces/IJBTerminal.sol";
 import {JBConstants} from "@bananapus/core-v5/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "@bananapus/core-v5/src/libraries/JBMetadataResolver.sol";
@@ -1596,7 +1596,7 @@ import {MigrationContractArbitrum3} from "./MigrationContractArbitrum3.sol";
 import {MigrationContractArbitrum4} from "./MigrationContractArbitrum4.sol";
 
 import {JB721TiersHook} from "@bananapus/721-hook-v5/src/JB721TiersHook.sol";
-import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
+import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {IJBTerminal} from "@bananapus/core-v5/src/interfaces/IJBTerminal.sol";
 import {JBConstants} from "@bananapus/core-v5/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "@bananapus/core-v5/src/libraries/JBMetadataResolver.sol";
