@@ -299,7 +299,7 @@ contract Banny721TokenUriResolver is
 
         // Get a reference to the pricing context.
         // slither-disable-next-line unused-return
-        (uint256 currency, uint256 decimals,) = IJB721TiersHook(hook).pricingContext();
+        (uint256 currency, uint256 decimals) = IJB721TiersHook(hook).pricingContext();
 
         attributes = string.concat(
             attributes,

@@ -338,9 +338,7 @@ contract DeployScript is Script, Sphinx {
                     tokenUriResolver: IJB721TokenUriResolver(address(0)), // This will be replaced once we know the
                     // address.
                     contractUri: "https://jbm.infura-ipfs.io/ipfs/Qmd2hgb1E4caEB51VvoC3GvonhwkCoVyXjJ3zqsCxHPTKK",
-                    tiersConfig: JB721InitTiersConfig({
-                        tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS, prices: core.prices
-                    }),
+                    tiersConfig: JB721InitTiersConfig({tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS}),
                     reserveBeneficiary: address(0),
                     flags: REV721TiersHookFlags({
                         noNewTiersWithReserves: false,
@@ -350,10 +348,10 @@ contract DeployScript is Script, Sphinx {
                     })
                 }),
                 salt: HOOK_SALT,
-                splitOperatorCanAdjustTiers: true,
-                splitOperatorCanUpdateMetadata: true,
-                splitOperatorCanMint: true,
-                splitOperatorCanIncreaseDiscountPercent: true
+                preventSplitOperatorAdjustingTiers: false,
+                preventSplitOperatorUpdatingMetadata: false,
+                preventSplitOperatorMinting: false,
+                preventSplitOperatorIncreasingDiscountPercent: false
             })
         });
     }
@@ -410,15 +408,14 @@ contract DeployScript is Script, Sphinx {
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;
 
         // Deploy the $BANNY Revnet.
-        revnet.basic_deployer
-            .deployWith721sFor({
-                revnetId: 0,
-                configuration: bannyverseConfig.configuration,
-                terminalConfigurations: bannyverseConfig.terminalConfigurations,
-                suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
-                tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
-                allowedPosts: new REVCroptopAllowedPost[](0)
-            });
+        revnet.basic_deployer.deployFor({
+            revnetId: 0,
+            configuration: bannyverseConfig.configuration,
+            terminalConfigurations: bannyverseConfig.terminalConfigurations,
+            suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
+            tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
+            allowedPosts: new REVCroptopAllowedPost[](0)
+        });
     }
 
     function _isDeployed(
