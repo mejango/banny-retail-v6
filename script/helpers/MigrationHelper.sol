@@ -7,7 +7,7 @@ import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721
 
 library MigrationHelper {
     /// @notice Get the UPC (tier ID) from a token ID
-    function _getUPC(address hook, uint256 tokenId) internal view returns (uint256) {
+    function _getUpc(address hook, uint256 tokenId) internal view returns (uint256) {
         IJB721TiersHookStore store = JB721TiersHook(hook).STORE();
         return store.tierOfTokenId({hook: hook, tokenId: tokenId, includeResolvedUri: false}).id;
     }
@@ -31,17 +31,17 @@ library MigrationHelper {
             v4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
 
         // Compare background UPCs (not token IDs, since they may differ)
-        uint256 v5BackgroundUPC = v5BackgroundId == 0 ? 0 : _getUPC({hook: hookAddress, tokenId: v5BackgroundId});
-        uint256 v4BackgroundUPC = v4BackgroundId == 0 ? 0 : _getUPC({hook: v4HookAddress, tokenId: v4BackgroundId});
+        uint256 v5BackgroundUpc = v5BackgroundId == 0 ? 0 : _getUpc({hook: hookAddress, tokenId: v5BackgroundId});
+        uint256 v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({hook: v4HookAddress, tokenId: v4BackgroundId});
 
-        bool matches = v5BackgroundUPC == v4BackgroundUPC && v5OutfitIds.length == v4OutfitIds.length;
+        bool matches = v5BackgroundUpc == v4BackgroundUpc && v5OutfitIds.length == v4OutfitIds.length;
 
         if (matches) {
             // Compare outfit UPCs
             for (uint256 i = 0; i < v5OutfitIds.length; i++) {
-                uint256 v5OutfitUPC = _getUPC({hook: hookAddress, tokenId: v5OutfitIds[i]});
-                uint256 v4OutfitUPC = _getUPC({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
-                if (v5OutfitUPC != v4OutfitUPC) {
+                uint256 v5OutfitUpc = _getUpc({hook: hookAddress, tokenId: v5OutfitIds[i]});
+                uint256 v4OutfitUpc = _getUpc({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
+                if (v5OutfitUpc != v4OutfitUpc) {
                     matches = false;
                     break;
                 }
@@ -52,16 +52,16 @@ library MigrationHelper {
             // Try fallback resolver
             (v4BackgroundId, v4OutfitIds) =
                 fallbackV4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
-            v4BackgroundUPC = v4BackgroundId == 0 ? 0 : _getUPC({hook: v4HookAddress, tokenId: v4BackgroundId});
+            v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({hook: v4HookAddress, tokenId: v4BackgroundId});
 
             require(
-                v5BackgroundUPC == v4BackgroundUPC && v5OutfitIds.length == v4OutfitIds.length, "V4/V5 asset mismatch"
+                v5BackgroundUpc == v4BackgroundUpc && v5OutfitIds.length == v4OutfitIds.length, "V4/V5 asset mismatch"
             );
 
             for (uint256 i = 0; i < v5OutfitIds.length; i++) {
-                uint256 v5OutfitUPC = _getUPC({hook: hookAddress, tokenId: v5OutfitIds[i]});
-                uint256 v4OutfitUPC = _getUPC({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
-                require(v5OutfitUPC == v4OutfitUPC, "V4/V5 asset mismatch");
+                uint256 v5OutfitUpc = _getUpc({hook: hookAddress, tokenId: v5OutfitIds[i]});
+                uint256 v4OutfitUpc = _getUpc({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
+                require(v5OutfitUpc == v4OutfitUpc, "V4/V5 asset mismatch");
             }
         }
     }
@@ -149,6 +149,7 @@ library MigrationHelper {
         bytes memory buffer = new bytes(digits);
         while (value != 0) {
             digits -= 1;
+            // forge-lint: disable-next-line(unsafe-typecast)
             buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
             value /= 10;
         }

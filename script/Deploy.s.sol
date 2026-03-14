@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "@bananapus/721-hook-v6/script/helpers/Hook721DeploymentLib.sol";
-import "@bananapus/core-v6/script/helpers/CoreDeploymentLib.sol";
-import "@bananapus/suckers-v6/script/helpers/SuckerDeploymentLib.sol";
-import "@bananapus/router-terminal-v6/script/helpers/RouterTerminalDeploymentLib.sol";
-import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
+import {Hook721Deployment, Hook721DeploymentLib} from "@bananapus/721-hook-v6/script/helpers/Hook721DeploymentLib.sol";
+import {CoreDeployment, CoreDeploymentLib} from "@bananapus/core-v6/script/helpers/CoreDeploymentLib.sol";
+import {SuckerDeployment, SuckerDeploymentLib} from "@bananapus/suckers-v6/script/helpers/SuckerDeploymentLib.sol";
+import {RouterTerminalDeployment, RouterTerminalDeploymentLib} from
+    "@bananapus/router-terminal-v6/script/helpers/RouterTerminalDeploymentLib.sol";
+import {RevnetCoreDeployment, RevnetCoreDeploymentLib} from
+    "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
-import {REVBaseline721HookConfig} from "@rev-net/core-v6/src/structs/REVBaseline721HookConfig.sol";
-import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHookFlags.sol";
-import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
@@ -23,8 +22,10 @@ import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.s
 import {REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVAutoIssuance.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllowedPost.sol";
+import {REVBaseline721HookConfig} from "@rev-net/core-v6/src/structs/REVBaseline721HookConfig.sol";
 import {REVDeploy721TiersHookConfig} from "@rev-net/core-v6/src/structs/REVDeploy721TiersHookConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
+import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHookFlags.sol";
 import {REVStageConfig} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
@@ -56,27 +57,27 @@ contract DeployScript is Script, Sphinx {
 
     BannyverseRevnetConfig bannyverseConfig;
 
-    uint32 PREMINT_CHAIN_ID = 1;
-    bytes32 ERC20_SALT = "_BAN_ERC20V6_";
-    bytes32 SUCKER_SALT = "_BAN_SUCKERV6_";
-    bytes32 HOOK_SALT = "_BAN_HOOKV6_";
-    bytes32 RESOLVER_SALT = "_BAN_RESOLVERV6_";
-    string NAME = "Banny Network";
-    string SYMBOL = "BAN";
-    string PROJECT_URI = "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp";
-    string BASE_URI = "ipfs://";
-    uint32 NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
-    uint32 ETH_CURRENCY = JBCurrencyIds.ETH;
-    uint8 DECIMALS = 18;
-    uint256 DECIMAL_MULTIPLIER = 10 ** DECIMALS;
-    uint24 BANNY_BODY_CATEGORY = 0;
-    address OPERATOR;
-    address TRUSTED_FORWARDER;
-    uint48 BAN_START_TIME = 1_740_435_044;
-    uint104 BAN_MAINNET_AUTO_ISSUANCE_ = 545_296_034_092_246_678_345_976;
-    uint104 BAN_BASE_AUTO_ISSUANCE_ = 10_097_684_379_816_492_953_872;
-    uint104 BAN_OP_AUTO_ISSUANCE_ = 328_366_065_858_064_488_000;
-    uint104 BAN_ARB_AUTO_ISSUANCE_ = 2_825_980_000_000_000_000_000;
+    uint32 constant PREMINT_CHAIN_ID = 1;
+    bytes32 constant ERC20_SALT = "_BAN_ERC20V6_";
+    bytes32 constant SUCKER_SALT = "_BAN_SUCKERV6_";
+    bytes32 constant HOOK_SALT = "_BAN_HOOKV6_";
+    bytes32 constant RESOLVER_SALT = "_BAN_RESOLVERV6_";
+    string constant NAME = "Banny Network";
+    string constant SYMBOL = "BAN";
+    string constant PROJECT_URI = "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp";
+    string constant BASE_URI = "ipfs://";
+    uint32 constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
+    uint32 constant ETH_CURRENCY = JBCurrencyIds.ETH;
+    uint8 constant DECIMALS = 18;
+    uint256 constant DECIMAL_MULTIPLIER = 10 ** DECIMALS;
+    uint24 constant BANNY_BODY_CATEGORY = 0;
+    address operator;
+    address trustedForwarder;
+    uint48 constant BAN_START_TIME = 1_740_435_044;
+    uint104 constant BAN_MAINNET_AUTO_ISSUANCE = 545_296_034_092_246_678_345_976;
+    uint104 constant BAN_BASE_AUTO_ISSUANCE = 10_097_684_379_816_492_953_872;
+    uint104 constant BAN_OP_AUTO_ISSUANCE = 328_366_065_858_064_488_000;
+    uint104 constant BAN_ARB_AUTO_ISSUANCE = 2_825_980_000_000_000_000_000;
 
     function configureSphinx() public override {
         sphinxConfig.projectName = "banny-core-v6";
@@ -86,7 +87,7 @@ contract DeployScript is Script, Sphinx {
 
     function run() public {
         // Get the operator address.
-        OPERATOR = safeAddress();
+        operator = safeAddress();
 
         // Get the deployment addresses for the nana CORE for this chain.
         // We want to do this outside of the `sphinx` modifier.
@@ -113,7 +114,7 @@ contract DeployScript is Script, Sphinx {
             )
         );
 
-        TRUSTED_FORWARDER = core.controller.trustedForwarder();
+        trustedForwarder = core.controller.trustedForwarder();
 
         bannyverseConfig = getBannyverseRevnetConfig();
 
@@ -142,7 +143,7 @@ contract DeployScript is Script, Sphinx {
         splits[0] = JBSplit({
             percent: JBConstants.SPLITS_TOTAL_PERCENT,
             projectId: 0,
-            beneficiary: payable(OPERATOR),
+            beneficiary: payable(operator),
             preferAddToBalance: false,
             lockedUntil: 0,
             hook: IJBSplitHook(address(0))
@@ -153,16 +154,17 @@ contract DeployScript is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: BAN_MAINNET_AUTO_ISSUANCE_, beneficiary: OPERATOR});
-            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: BAN_BASE_AUTO_ISSUANCE_, beneficiary: OPERATOR});
-            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: BAN_OP_AUTO_ISSUANCE_, beneficiary: OPERATOR});
-            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: BAN_ARB_AUTO_ISSUANCE_, beneficiary: OPERATOR});
+            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: BAN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: BAN_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: BAN_ARB_AUTO_ISSUANCE, beneficiary: operator});
 
             stageConfigurations[0] = REVStageConfig({
                 startsAtOrAfter: BAN_START_TIME,
                 autoIssuances: autoIssuances,
                 splitPercent: 3800, // 38%
                 splits: splits,
+                // forge-lint: disable-next-line(unsafe-typecast)
                 initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
                 issuanceCutFrequency: 60 days,
                 issuanceCutPercent: 380_000_000, // 38%,
@@ -174,7 +176,8 @@ contract DeployScript is Script, Sphinx {
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
-                chainId: PREMINT_CHAIN_ID, count: uint104(1_000_000 * DECIMAL_MULTIPLIER), beneficiary: OPERATOR
+                // forge-lint: disable-next-line(unsafe-typecast)
+                chainId: PREMINT_CHAIN_ID, count: uint104(1_000_000 * DECIMAL_MULTIPLIER), beneficiary: operator
             });
 
             // decrease by a smaller percent more frequently. 30 days, 7%-ish.
@@ -206,7 +209,7 @@ contract DeployScript is Script, Sphinx {
         REVConfig memory revnetConfiguration = REVConfig({
             description: REVDescription({name: NAME, ticker: SYMBOL, uri: PROJECT_URI, salt: ERC20_SALT}),
             baseCurrency: ETH_CURRENCY,
-            splitOperator: OPERATOR,
+            splitOperator: operator,
             stageConfigurations: stageConfigurations
         });
 
@@ -219,7 +222,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(""),
+            encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             cannotIncreaseDiscountPercent: true,
@@ -237,7 +240,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(""),
+            encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             cannotIncreaseDiscountPercent: true,
@@ -255,7 +258,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(""),
+            encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             cannotIncreaseDiscountPercent: true,
@@ -273,7 +276,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(""),
+            encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             cannotIncreaseDiscountPercent: true,
@@ -360,15 +363,15 @@ contract DeployScript is Script, Sphinx {
         // Deploy the Banny URI Resolver.
         Banny721TokenUriResolver resolver;
 
-        string memory _BANNY_BODY =
+        string memory bannyBodySvg =
             '<g class="a1"><path d="M173 53h4v17h-4z"/></g><g class="a2"><path d="M167 57h3v10h-3z"/><path d="M169 53h4v17h-4z"/></g><g class="a3"><path d="M167 53h3v4h-3z"/><path d="M163 57h4v10h-4z"/><path d="M167 67h3v3h-3z"/></g><g class="b1"><path d="M213 253h-3v-3-3h-3v-7-3h-4v-10h-3v-7-7-3h-3v-73h-4v-10h-3v-10h-3v-7h-4v-7h-3v-3h-3v-3h-4v10h4v10h3v10h3v3h4v7 3 70 3h3v7h3v20h4v7h3v3h3v3h4v4h3v3h3v-3-4z"/><path d="M253 307v-4h-3v-3h-3v-3h-4v-4h-3v-3h-3v-3h-4v-4h-3v-3h-3v-3h-4v-4h-3v-6h-3v-7h-4v17h4v3h3v3h3 4v4h3v3h3v3h4v4h3v3h3v3h4v4h3v3h3v3h4v-6h-4z"/></g><g class="b2"><path d="M250 310v-3h-3v-4h-4v-3h-3v-3h-3v-4h-4v-3h-3v-3h-3v-4h-7v-3h-3v-3h-4v-17h-3v-3h-3v-4h-4v-3h-3v-3h-3v-7h-4v-20h-3v-7h-3v-73-3-7h-4v-3h-3v-10h-3v-10h-4V70h-3v-3l-3 100 3-100v40h-3v10h-4v6h-3v14h-3v3 13h-4v44h4v16h3v14h3v13h4v10h3v7h3v3h4v3h3v4h3v3h4v3h3v4h3v3h4v3h3v7h7v7h6v3h7v3h7v4h13v3h3v3h10v-3h-3zm-103-87v-16h3v-10h-3v6h-4v17h-3v10h3v-7h4z"/><path d="M143 230h4v7h-4zm4 10h3v3h-3zm3 7h3v3h-3zm3 6h4v4h-4z"/><path d="M163 257h-6v3h3v3h3v4h4v-4-3h-4v-3z"/></g><g class="b3"><path d="M143 197v6h4v-6h6v-44h4v-16h3v-14h3v-6h4v-10h3V97h-7v6h-3v4h-3v3h-4v3h-3v4 3h-3v3 4h-4v10h-3v16 4h-3v46h3v-6h3z"/><path d="M140 203h3v17h-3z"/><path d="M137 220h3v10h-3z"/><path d="M153 250h-3v-7h-3v-6h-4v-7h-3v10h3v7h4v6h3v4h3v-7zm-3 10h3v7h-3z"/><path d="M147 257h3v3h-3zm6 0h4v3h-4z"/><path d="M160 263v-3h-3v3 7h6v-7h-3zm-10-56v16h-3v7h3v10h3v7h4v6h6v4h7v-4-3h-3v-10h-4v-13h-3v-14h-3v-16h-4v10h-3z"/><path d="M243 313v-3h-3v-3h-10-3v-4h-7v-3h-7v-3h-6v-7h-7v-7h-3v-3h-4v-3h-3v-4h-3v-3h-4v-3h-3v-4h-3v-3h-4v-3h-3v10h-3v3h-4v3h-3v7h3v7h4v6h3v5h4v3h6v3h3v3h4 3v3h3 4v3h3 3v4h10v3h7 7 3v3h10 3v-3h10v-3h4v-4h-14z"/></g><g class="b4"><path d="M183 130h4v7h-4z"/><path d="M180 127h3v3h-3zm-27-4h4v7h-4z"/><path d="M157 117h3v6h-3z"/><path d="M160 110h3v7h-3z"/><path d="M163 107h4v3h-4zm-3 83h3v7h-3z"/><path d="M163 187h4v3h-4zm20 0h7v3h-7z"/><path d="M180 190h3v3h-3zm10-7h3v4h-3z"/><path d="M193 187h4v6h-4zm-20 53h4v7h-4z"/><path d="M177 247h3v6h-3z"/><path d="M180 253h3v7h-3z"/><path d="M183 260h7v3h-7z"/><path d="M190 263h3v4h-3zm0-20h3v4h-3z"/><path d="M187 240h3v3h-3z"/><path d="M190 237h3v3h-3zm13 23h4v3h-4z"/><path d="M207 263h3v7h-3z"/><path d="M210 270h3v3h-3zm-10 7h3v6h-3z"/><path d="M203 283h4v7h-4z"/><path d="M207 290h6v3h-6z"/></g><g class="o"><path d="M133 157h4v50h-4zm0 63h4v10h-4zm27-163h3v10h-3z"/><path d="M163 53h4v4h-4z"/><path d="M167 50h10v3h-10z"/><path d="M177 53h3v17h-3z"/><path d="M173 70h4v27h-4zm-6 0h3v27h-3z"/><path d="M163 67h4v3h-4zm0 30h4v3h-4z"/><path d="M160 100h3v3h-3z"/><path d="M157 103h3v4h-3z"/><path d="M153 107h4v3h-4z"/><path d="M150 110h3v3h-3z"/><path d="M147 113h3v7h-3z"/><path d="M143 120h4v7h-4z"/><path d="M140 127h3v10h-3z"/><path d="M137 137h3v20h-3zm56-10h4v10h-4z"/><path d="M190 117h3v10h-3z"/><path d="M187 110h3v7h-3z"/><path d="M183 103h4v7h-4z"/><path d="M180 100h3v3h-3z"/><path d="M177 97h3v3h-3zm-40 106h3v17h-3zm0 27h3v10h-3zm10 30h3v7h-3z"/><path d="M150 257v-4h-3v-6h-4v-7h-3v10h3v10h4v-3h3z"/><path d="M150 257h3v3h-3z"/><path d="M163 273v-3h-6v-10h-4v7h-3v3h3v3h4v7h3v-7h3z"/><path d="M163 267h4v3h-4z"/><path d="M170 257h-3-4v3h4v7h3v-10z"/><path d="M157 253h6v4h-6z"/><path d="M153 247h4v6h-4z"/><path d="M150 240h3v7h-3z"/><path d="M147 230h3v10h-3zm13 50h3v7h-3z"/><path d="M143 223h4v7h-4z"/><path d="M147 207h3v16h-3z"/><path d="M150 197h3v10h-3zm-10 0h3v6h-3zm50 113h7v3h-7zm23 10h17v3h-17z"/><path d="M230 323h13v4h-13z"/><path d="M243 320h10v3h-10z"/><path d="M253 317h4v3h-4z"/><path d="M257 307h3v10h-3z"/><path d="M253 303h4v4h-4z"/><path d="M250 300h3v3h-3z"/><path d="M247 297h3v3h-3z"/><path d="M243 293h4v4h-4z"/><path d="M240 290h3v3h-3z"/><path d="M237 287h3v3h-3z"/><path d="M233 283h4v4h-4z"/><path d="M230 280h3v3h-3z"/><path d="M227 277h3v3h-3z"/><path d="M223 273h4v4h-4z"/><path d="M220 267h3v6h-3z"/><path d="M217 260h3v7h-3z"/><path d="M213 253h4v7h-4z"/><path d="M210 247h3v6h-3z"/><path d="M207 237h3v10h-3z"/><path d="M203 227h4v10h-4zm-40 60h4v6h-4zm24 20h3v3h-3z"/><path d="M167 293h3v5h-3zm16 14h4v3h-4z"/><path d="M170 298h4v3h-4zm10 6h3v3h-3z"/><path d="M174 301h6v3h-6zm23 12h6v4h-6z"/><path d="M203 317h10v3h-10zm-2-107v-73h-4v73h3v17h3v-17h-2z"/></g><g class="o"><path d="M187 307v-4h3v-6h-3v-4h-4v-3h-3v-3h-7v-4h-6v4h-4v3h4v27h-4v13h-3v10h-4v7h4v3h3 10 14v-3h-4v-4h-3v-3h-3v-3h-4v-7h4v-10h3v-7h3v-3h7v-3h-3zm16 10v-4h-6v17h-4v10h-3v7h3v3h4 6 4 3 14v-3h-4v-4h-7v-3h-3v-3h-3v-10h3v-7h3v-3h-10z"/></g>';
-        string memory _DEFAULT_NECKLACE =
+        string memory defaultNecklaceSvg =
             '<g class="o"><path d="M190 173h-37v-3h-10v-4h-6v4h3v3h-3v4h6v3h10v4h37v-4h3v-3h-3v-4zm-40 4h-3v-4h3v4zm7 3v-3h3v3h-3zm6 0v-3h4v3h-4zm7 0v-3h3v3h-3zm7 0v-3h3v3h-3zm10 0h-4v-3h4v3z"/><path d="M190 170h3v3h-3z"/><path d="M193 166h4v4h-4zm0 7h4v4h-4z"/></g><g class="w"><path d="M137 170h3v3h-3zm10 3h3v4h-3zm10 4h3v3h-3zm6 0h4v3h-4zm7 0h3v3h-3zm7 0h3v3h-3zm6 0h4v3h-4zm7-4h3v4h-3z"/><path d="M193 170h4v3h-4z"/></g>';
-        string memory _DEFAULT_MOUTH =
+        string memory defaultMouthSvg =
             '<g class="o"><path d="M183 160v-4h-20v4h-3v3h3v4h24v-7h-4zm-13 3v-3h10v3h-10z" fill="#ad71c8"/><path d="M170 160h10v3h-10z"/></g>';
-        string memory _DEFAULT_STANDARD_EYES =
+        string memory defaultStandardEyesSvg =
             '<g class="o"><path d="M177 140v3h6v11h10v-11h4v-3h-20z"/><path d="M153 140v3h7v8 3h7 3v-11h3v-3h-20z"/></g><g class="w"><path d="M153 143h7v4h-7z"/><path d="M157 147h3v3h-3zm20-4h6v4h-6z"/><path d="M180 147h3v3h-3z"/></g>';
-        string memory _DEFAULT_ALIEN_EYES =
+        string memory defaultAlienEyesSvg =
             '<g class="o"><path d="M190 127h3v3h-3zm3 13h4v3h-4zm-42 0h6v6h-6z"/><path d="M151 133h3v7h-3zm10 0h6v4h-6z"/><path d="M157 137h17v6h-17zm3 13h14v3h-14zm17-13h7v16h-7z"/><path d="M184 137h6v6h-6zm0 10h10v6h-10z"/><path d="M187 143h10v4h-10z"/><path d="M190 140h3v3h-3zm-6-10h3v7h-3z"/><path d="M187 130h6v3h-6zm-36 0h10v3h-10zm16 13h7v7h-7zm-10 0h7v7h-7z"/><path d="M164 147h3v3h-3zm29-20h4v6h-4z"/><path d="M194 133h3v7h-3z"/></g><g class="w"><path d="M154 133h7v4h-7z"/><path d="M154 137h3v3h-3zm10 6h3v4h-3zm20 0h3v4h-3zm3-10h7v4h-7z"/><path d="M190 137h4v3h-4z"/></g>';
         {
             // Perform the check for the resolver..
@@ -376,25 +379,25 @@ contract DeployScript is Script, Sphinx {
                 RESOLVER_SALT,
                 type(Banny721TokenUriResolver).creationCode,
                 abi.encode(
-                    _BANNY_BODY,
-                    _DEFAULT_NECKLACE,
-                    _DEFAULT_MOUTH,
-                    _DEFAULT_STANDARD_EYES,
-                    _DEFAULT_ALIEN_EYES,
-                    OPERATOR,
-                    TRUSTED_FORWARDER
+                    bannyBodySvg,
+                    defaultNecklaceSvg,
+                    defaultMouthSvg,
+                    defaultStandardEyesSvg,
+                    defaultAlienEyesSvg,
+                    operator,
+                    trustedForwarder
                 )
             );
             // Deploy it if it has not been deployed yet.
             resolver = !_resolverIsDeployed
                 ? new Banny721TokenUriResolver{salt: RESOLVER_SALT}({
-                    bannyBody: _BANNY_BODY,
-                    defaultNecklace: _DEFAULT_NECKLACE,
-                    defaultMouth: _DEFAULT_MOUTH,
-                    defaultStandardEyes: _DEFAULT_STANDARD_EYES,
-                    defaultAlienEyes: _DEFAULT_ALIEN_EYES,
-                    owner: OPERATOR,
-                    trustedForwarder: TRUSTED_FORWARDER
+                    bannyBody: bannyBodySvg,
+                    defaultNecklace: defaultNecklaceSvg,
+                    defaultMouth: defaultMouthSvg,
+                    defaultStandardEyes: defaultStandardEyesSvg,
+                    defaultAlienEyes: defaultAlienEyesSvg,
+                    owner: operator,
+                    trustedForwarder: trustedForwarder
                 })
                 : Banny721TokenUriResolver(_resolver);
         }
