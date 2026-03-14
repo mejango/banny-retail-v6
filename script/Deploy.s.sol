@@ -204,7 +204,7 @@ contract DeployScript is Script, Sphinx {
         });
 
         REVConfig memory revnetConfiguration = REVConfig({
-            description: REVDescription(NAME, SYMBOL, PROJECT_URI, ERC20_SALT),
+            description: REVDescription({name: NAME, ticker: SYMBOL, uri: PROJECT_URI, salt: ERC20_SALT}),
             baseCurrency: ETH_CURRENCY,
             splitOperator: OPERATOR,
             stageConfigurations: stageConfigurations
@@ -387,22 +387,24 @@ contract DeployScript is Script, Sphinx {
             );
             // Deploy it if it has not been deployed yet.
             resolver = !_resolverIsDeployed
-                ? new Banny721TokenUriResolver{salt: RESOLVER_SALT}(
-                    _BANNY_BODY,
-                    _DEFAULT_NECKLACE,
-                    _DEFAULT_MOUTH,
-                    _DEFAULT_STANDARD_EYES,
-                    _DEFAULT_ALIEN_EYES,
-                    OPERATOR,
-                    TRUSTED_FORWARDER
-                )
+                ? new Banny721TokenUriResolver{salt: RESOLVER_SALT}({
+                    bannyBody: _BANNY_BODY,
+                    defaultNecklace: _DEFAULT_NECKLACE,
+                    defaultMouth: _DEFAULT_MOUTH,
+                    defaultStandardEyes: _DEFAULT_STANDARD_EYES,
+                    defaultAlienEyes: _DEFAULT_ALIEN_EYES,
+                    owner: OPERATOR,
+                    trustedForwarder: TRUSTED_FORWARDER
+                })
                 : Banny721TokenUriResolver(_resolver);
         }
 
         // Set the resolver's metadata.
-        resolver.setMetadata(
-            "A piece of Banny Retail.", "https://retail.banny.eth.shop", "https://bannyverse.infura-ipfs.io/ipfs/"
-        );
+        resolver.setMetadata({
+            description: "A piece of Banny Retail.",
+            url: "https://retail.banny.eth.shop",
+            baseUri: "https://bannyverse.infura-ipfs.io/ipfs/"
+        });
 
         // Update our config with its address.
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;

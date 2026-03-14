@@ -24,21 +24,23 @@ library MigrationHelper {
         view
     {
         // Get V5 asset token IDs (from V5 hook)
-        (uint256 v5BackgroundId, uint256[] memory v5OutfitIds) = resolver.assetIdsOf(hookAddress, tokenId);
+        (uint256 v5BackgroundId, uint256[] memory v5OutfitIds) =
+            resolver.assetIdsOf({hook: hookAddress, bannyBodyId: tokenId});
         // Get V4 asset token IDs (from V4 hook)
-        (uint256 v4BackgroundId, uint256[] memory v4OutfitIds) = v4Resolver.assetIdsOf(v4HookAddress, tokenId);
+        (uint256 v4BackgroundId, uint256[] memory v4OutfitIds) =
+            v4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
 
         // Compare background UPCs (not token IDs, since they may differ)
-        uint256 v5BackgroundUPC = v5BackgroundId == 0 ? 0 : _getUPC(hookAddress, v5BackgroundId);
-        uint256 v4BackgroundUPC = v4BackgroundId == 0 ? 0 : _getUPC(v4HookAddress, v4BackgroundId);
+        uint256 v5BackgroundUPC = v5BackgroundId == 0 ? 0 : _getUPC({hook: hookAddress, tokenId: v5BackgroundId});
+        uint256 v4BackgroundUPC = v4BackgroundId == 0 ? 0 : _getUPC({hook: v4HookAddress, tokenId: v4BackgroundId});
 
         bool matches = v5BackgroundUPC == v4BackgroundUPC && v5OutfitIds.length == v4OutfitIds.length;
 
         if (matches) {
             // Compare outfit UPCs
             for (uint256 i = 0; i < v5OutfitIds.length; i++) {
-                uint256 v5OutfitUPC = _getUPC(hookAddress, v5OutfitIds[i]);
-                uint256 v4OutfitUPC = _getUPC(v4HookAddress, v4OutfitIds[i]);
+                uint256 v5OutfitUPC = _getUPC({hook: hookAddress, tokenId: v5OutfitIds[i]});
+                uint256 v4OutfitUPC = _getUPC({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
                 if (v5OutfitUPC != v4OutfitUPC) {
                     matches = false;
                     break;
@@ -48,16 +50,17 @@ library MigrationHelper {
 
         if (!matches) {
             // Try fallback resolver
-            (v4BackgroundId, v4OutfitIds) = fallbackV4Resolver.assetIdsOf(v4HookAddress, tokenId);
-            v4BackgroundUPC = v4BackgroundId == 0 ? 0 : _getUPC(v4HookAddress, v4BackgroundId);
+            (v4BackgroundId, v4OutfitIds) =
+                fallbackV4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
+            v4BackgroundUPC = v4BackgroundId == 0 ? 0 : _getUPC({hook: v4HookAddress, tokenId: v4BackgroundId});
 
             require(
                 v5BackgroundUPC == v4BackgroundUPC && v5OutfitIds.length == v4OutfitIds.length, "V4/V5 asset mismatch"
             );
 
             for (uint256 i = 0; i < v5OutfitIds.length; i++) {
-                uint256 v5OutfitUPC = _getUPC(hookAddress, v5OutfitIds[i]);
-                uint256 v4OutfitUPC = _getUPC(v4HookAddress, v4OutfitIds[i]);
+                uint256 v5OutfitUPC = _getUPC({hook: hookAddress, tokenId: v5OutfitIds[i]});
+                uint256 v4OutfitUPC = _getUPC({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
                 require(v5OutfitUPC == v4OutfitUPC, "V4/V5 asset mismatch");
             }
         }
@@ -91,14 +94,14 @@ library MigrationHelper {
                 // Check if this tier is owned by the fallback resolver in V4
                 // If so, skip verification (these are now owned by rightful owners in V5)
                 uint256 v4FallbackResolverBalance =
-                    v4Store.tierBalanceOf(v4HookAddress, v4FallbackResolverAddress, tierId);
+                    v4Store.tierBalanceOf({hook: v4HookAddress, owner: v4FallbackResolverAddress, tierId: tierId});
                 if (v4FallbackResolverBalance > 0) {
                     continue;
                 }
 
                 // Get V4 and V5 tier balances for this owner and tier
-                uint256 v4Balance = v4Store.tierBalanceOf(v4HookAddress, owner, tierId);
-                uint256 v5Balance = v5Store.tierBalanceOf(hookAddress, owner, tierId);
+                uint256 v4Balance = v4Store.tierBalanceOf({hook: v4HookAddress, owner: owner, tierId: tierId});
+                uint256 v5Balance = v5Store.tierBalanceOf({hook: hookAddress, owner: owner, tierId: tierId});
 
                 // Require that V5 balance is never greater than V4 balance
                 require(

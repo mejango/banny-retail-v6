@@ -78,13 +78,13 @@ contract Drop1Script is Script, Sphinx {
         // Get the next tier ID so we can set names and hashes for the new product.
         uint256 nextTierId = hook.STORE().maxTierIdOf(address(hook)) + 1;
 
-        hook.adjustTiers(products, new uint256[](0));
+        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
 
         // Build the product IDs array for the newly added tier(s).
         uint256[] memory productIds = new uint256[](1);
         productIds[0] = nextTierId;
 
-        bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
-        bannyverse.resolver.setProductNames(productIds, names);
+        bannyverse.resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
+        bannyverse.resolver.setProductNames({upcs: productIds, names: names});
     }
 }

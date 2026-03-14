@@ -35,7 +35,7 @@ library BannyverseDeploymentLib {
 
         for (uint256 _i; _i < networks.length; _i++) {
             if (networks[_i].chainId == chainId) {
-                return getDeployment(path, networks[_i].name, revnetId);
+                return getDeployment({path: path, network_name: networks[_i].name, revnetId: revnetId});
             }
         }
 
@@ -52,7 +52,12 @@ library BannyverseDeploymentLib {
         returns (BannyverseDeployment memory deployment)
     {
         deployment.resolver = Banny721TokenUriResolver(
-            _getDeploymentAddress(path, "banny-core-v6", network_name, "Banny721TokenUriResolver")
+            _getDeploymentAddress({
+                path: path,
+                project_name: "banny-core-v6",
+                network_name: network_name,
+                contractName: "Banny721TokenUriResolver"
+            })
         );
 
         deployment.revnetId = revnetId;
@@ -75,6 +80,6 @@ library BannyverseDeploymentLib {
     {
         string memory deploymentJson =
             vm.readFile(string.concat(path, project_name, "/", network_name, "/", contractName, ".json"));
-        return stdJson.readAddress(deploymentJson, ".address");
+        return stdJson.readAddress({json: deploymentJson, key: ".address"});
     }
 }

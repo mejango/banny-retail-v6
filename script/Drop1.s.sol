@@ -1047,8 +1047,8 @@ contract Drop1Script is Script, Sphinx {
             productIds[i] = i + 5;
         }
 
-        hook.adjustTiers(products, new uint256[](0));
-        bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
-        bannyverse.resolver.setProductNames(productIds, names);
+        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
+        bannyverse.resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
+        bannyverse.resolver.setProductNames({upcs: productIds, names: names});
     }
 }
