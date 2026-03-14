@@ -27,7 +27,6 @@ import {JB721TiersHookFlags} from "@bananapus/721-hook-v6/src/structs/JB721Tiers
 import {JBDeploy721TiersHookConfig} from "@bananapus/721-hook-v6/src/structs/JBDeploy721TiersHookConfig.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
-import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 
@@ -113,10 +112,12 @@ contract ReentrantMockStore {
         return tiers[hook][tokenId];
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function encodedTierIPFSUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function encodedIPFSUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
@@ -299,13 +300,13 @@ contract BannyForkTest is Test {
         assertEq(IERC721(address(bannyHook)).ownerOf(ORIGINAL_BODY_1), alice);
     }
 
-    function test_fork_e2e_alienBodyDefaultEyes() public {
+    function test_fork_e2e_alienBodyDefaultEyes() public view {
         // Alice owns ALIEN_BODY_1. Naked alien body should inject alien eyes in SVG.
         string memory svg = resolver.svgOf(address(bannyHook), ALIEN_BODY_1, true, false);
         assertGt(bytes(svg).length, 0, "alien body SVG should render");
     }
 
-    function test_fork_e2e_outfitRenderedOnMannequin() public {
+    function test_fork_e2e_outfitRenderedOnMannequin() public view {
         // Unequipped outfit token should render on mannequin.
         string memory uri = resolver.tokenUriOf(address(bannyHook), NECKLACE_1);
         assertGt(bytes(uri).length, 0, "outfit URI should render on mannequin");
@@ -781,14 +782,14 @@ contract BannyForkTest is Test {
     // 7. TOKEN URI RENDERING
     // ═══════════════════════════════════════════════════════════════════════
 
-    function test_fork_render_nakedBodyHasDefaultInjections() public {
+    function test_fork_render_nakedBodyHasDefaultInjections() public view {
         // A naked body should still render with default necklace, eyes, mouth.
         string memory svg = resolver.svgOf(address(bannyHook), ORIGINAL_BODY_1, true, false);
         assertGt(bytes(svg).length, 0, "naked body should render");
         // The SVG should contain the body path and defaults.
     }
 
-    function test_fork_render_allFourBodyTypes() public {
+    function test_fork_render_allFourBodyTypes() public view {
         // Each body type should render.
         string memory alienSvg = resolver.svgOf(address(bannyHook), ALIEN_BODY_1, true, false);
         string memory pinkSvg = resolver.svgOf(address(bannyHook), PINK_BODY_1, true, false);
@@ -1011,17 +1012,17 @@ contract BannyForkTest is Test {
         assertEq(outfitIds.length, 0);
     }
 
-    function test_fork_edge_assetIdsEmptyInitially() public {
+    function test_fork_edge_assetIdsEmptyInitially() public view {
         (uint256 bgId, uint256[] memory outfitIds) = resolver.assetIdsOf(address(bannyHook), ORIGINAL_BODY_1);
         assertEq(bgId, 0);
         assertEq(outfitIds.length, 0);
     }
 
-    function test_fork_edge_wearerOfUnwornReturnsZero() public {
+    function test_fork_edge_wearerOfUnwornReturnsZero() public view {
         assertEq(resolver.wearerOf(address(bannyHook), NECKLACE_1), 0);
     }
 
-    function test_fork_edge_userOfUnusedBackgroundReturnsZero() public {
+    function test_fork_edge_userOfUnusedBackgroundReturnsZero() public view {
         assertEq(resolver.userOf(address(bannyHook), BACKGROUND_1), 0);
     }
 
@@ -1136,7 +1137,7 @@ contract BannyForkTest is Test {
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
-    function test_fork_edge_namesReturnsCorrectData() public {
+    function test_fork_edge_namesReturnsCorrectData() public view {
         // Verify namesOf returns correct product name for each body type.
         (string memory alienFull,,) = resolver.namesOf(address(bannyHook), ALIEN_BODY_1);
         assertGt(bytes(alienFull).length, 0, "alien name should not be empty");
@@ -1791,6 +1792,7 @@ contract BannyForkTest is Test {
     // Internal helpers
     // ═══════════════════════════════════════════════════════════════════════
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function _deployJBCore() internal {
         jbPermissions = new JBPermissions(trustedForwarder);
         jbProjects = new JBProjects(multisig, address(0), trustedForwarder);
@@ -1944,6 +1946,7 @@ contract BannyForkTest is Test {
         });
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function _mintInitialNFTs() internal {
         // Mint bodies and outfits to alice, bob.
         vm.startPrank(multisig); // hook owner can mint
