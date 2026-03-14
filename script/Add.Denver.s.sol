@@ -5,10 +5,11 @@ import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfi
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 
-import "./helpers/BannyverseDeploymentLib.sol";
-import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
-
+import {BannyverseDeployment, BannyverseDeploymentLib} from "./helpers/BannyverseDeploymentLib.sol";
+import {
+    RevnetCoreDeployment,
+    RevnetCoreDeploymentLib
+} from "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
 
@@ -78,13 +79,13 @@ contract Drop1Script is Script, Sphinx {
         // Get the next tier ID so we can set names and hashes for the new product.
         uint256 nextTierId = hook.STORE().maxTierIdOf(address(hook)) + 1;
 
-        hook.adjustTiers(products, new uint256[](0));
+        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
 
         // Build the product IDs array for the newly added tier(s).
         uint256[] memory productIds = new uint256[](1);
         productIds[0] = nextTierId;
 
-        bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
-        bannyverse.resolver.setProductNames(productIds, names);
+        bannyverse.resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
+        bannyverse.resolver.setProductNames({upcs: productIds, names: names});
     }
 }

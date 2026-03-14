@@ -5,10 +5,11 @@ import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfi
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 
-import "./helpers/BannyverseDeploymentLib.sol";
-import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
-
+import {BannyverseDeployment, BannyverseDeploymentLib} from "./helpers/BannyverseDeploymentLib.sol";
+import {
+    RevnetCoreDeployment,
+    RevnetCoreDeploymentLib
+} from "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
 
@@ -1047,8 +1048,8 @@ contract Drop1Script is Script, Sphinx {
             productIds[i] = i + 5;
         }
 
-        hook.adjustTiers(products, new uint256[](0));
-        bannyverse.resolver.setSvgHashesOf(productIds, svgHashes);
-        bannyverse.resolver.setProductNames(productIds, names);
+        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
+        bannyverse.resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
+        bannyverse.resolver.setProductNames({upcs: productIds, names: names});
     }
 }

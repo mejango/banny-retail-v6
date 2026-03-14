@@ -16,6 +16,7 @@ struct BannyverseDeployment {
 library BannyverseDeploymentLib {
     // Cheat code address, 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D.
     address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
+    // forge-lint: disable-next-line(screaming-snake-case-const)
     Vm internal constant vm = Vm(VM_ADDRESS);
 
     function getDeployment(
@@ -35,7 +36,7 @@ library BannyverseDeploymentLib {
 
         for (uint256 _i; _i < networks.length; _i++) {
             if (networks[_i].chainId == chainId) {
-                return getDeployment(path, networks[_i].name, revnetId);
+                return getDeployment({path: path, networkName: networks[_i].name, revnetId: revnetId});
             }
         }
 
@@ -44,7 +45,7 @@ library BannyverseDeploymentLib {
 
     function getDeployment(
         string memory path,
-        string memory network_name,
+        string memory networkName,
         uint256 revnetId
     )
         internal
@@ -52,7 +53,12 @@ library BannyverseDeploymentLib {
         returns (BannyverseDeployment memory deployment)
     {
         deployment.resolver = Banny721TokenUriResolver(
-            _getDeploymentAddress(path, "banny-core-v6", network_name, "Banny721TokenUriResolver")
+            _getDeploymentAddress({
+                path: path,
+                projectName: "banny-core-v6",
+                networkName: networkName,
+                contractName: "Banny721TokenUriResolver"
+            })
         );
 
         deployment.revnetId = revnetId;
@@ -65,16 +71,17 @@ library BannyverseDeploymentLib {
     /// @return The address of the contract.
     function _getDeploymentAddress(
         string memory path,
-        string memory project_name,
-        string memory network_name,
+        string memory projectName,
+        string memory networkName,
         string memory contractName
     )
         internal
         view
         returns (address)
     {
+        // forge-lint: disable-next-line(unsafe-cheatcode)
         string memory deploymentJson =
-            vm.readFile(string.concat(path, project_name, "/", network_name, "/", contractName, ".json"));
-        return stdJson.readAddress(deploymentJson, ".address");
+            vm.readFile(string.concat(path, projectName, "/", networkName, "/", contractName, ".json"));
+        return stdJson.readAddress({json: deploymentJson, key: ".address"});
     }
 }

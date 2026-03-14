@@ -1824,7 +1824,7 @@ contract BannyForkTest is Test {
         JBAddressRegistry addressRegistry = new JBAddressRegistry();
 
         JB721TiersHook hookImpl =
-            new JB721TiersHook(jbDirectory, jbPermissions, jbRulesets, store, jbSplits, trustedForwarder);
+            new JB721TiersHook(jbDirectory, jbPermissions, jbPrices, jbRulesets, store, jbSplits, trustedForwarder);
 
         hookDeployer = new JB721TiersHookDeployer(hookImpl, store, addressRegistry, trustedForwarder);
     }
@@ -1900,9 +1900,7 @@ contract BannyForkTest is Test {
             baseUri: "ipfs://",
             tokenUriResolver: IJB721TokenUriResolver(address(resolver)),
             contractUri: "",
-            tiersConfig: JB721InitTiersConfig({
-                tiers: tiers, currency: JBCurrencyIds.ETH, decimals: 18, prices: IJBPrices(address(0))
-            }),
+            tiersConfig: JB721InitTiersConfig({tiers: tiers, currency: JBCurrencyIds.ETH, decimals: 18}),
             reserveBeneficiary: address(0),
             flags: JB721TiersHookFlags({
                 noNewTiersWithReserves: false,

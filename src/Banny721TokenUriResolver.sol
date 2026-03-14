@@ -108,10 +108,15 @@ contract Banny721TokenUriResolver is
     /// @custom:param upc The universal product code that the SVG hash represent.
     mapping(uint256 upc => bytes32) public override svgHashOf;
 
+    // forge-lint: disable-next-line(mixed-case-variable)
     string public override DEFAULT_ALIEN_EYES;
+    // forge-lint: disable-next-line(mixed-case-variable)
     string public override DEFAULT_MOUTH;
+    // forge-lint: disable-next-line(mixed-case-variable)
     string public override DEFAULT_NECKLACE;
+    // forge-lint: disable-next-line(mixed-case-variable)
     string public override DEFAULT_STANDARD_EYES;
+    // forge-lint: disable-next-line(mixed-case-variable)
     string public override BANNY_BODY;
 
     //*********************************************************************//
@@ -299,7 +304,7 @@ contract Banny721TokenUriResolver is
 
         // Get a reference to the pricing context.
         // slither-disable-next-line unused-return
-        (uint256 currency, uint256 decimals,) = IJB721TiersHook(hook).pricingContext();
+        (uint256 currency, uint256 decimals) = IJB721TiersHook(hook).pricingContext();
 
         attributes = string.concat(
             attributes,
