@@ -79,10 +79,12 @@ contract MockStore {
         return tiers[hook][tokenId];
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function encodedTierIPFSUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function encodedIPFSUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
@@ -166,7 +168,7 @@ contract TestBanny721TokenUriResolver is Test {
     // --- Constructor --------------------------------------------------- //
     //*********************************************************************//
 
-    function test_constructor_setsDefaults() public {
+    function test_constructor_setsDefaults() public view {
         assertEq(resolver.BANNY_BODY(), "<path/>");
         assertEq(resolver.DEFAULT_NECKLACE(), "<necklace/>");
         assertEq(resolver.DEFAULT_MOUTH(), "<mouth/>");
@@ -607,27 +609,27 @@ contract TestBanny721TokenUriResolver is Test {
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds1);
 
         // Create a new necklace token.
-        uint256 NECKLACE_TOKEN_2 = 11_000_000_001;
-        _setupTier(NECKLACE_TOKEN_2, 11, 3); // Same category (3)
-        hook.setOwner(NECKLACE_TOKEN_2, alice);
+        uint256 necklaceToken2 = 11_000_000_001;
+        _setupTier(necklaceToken2, 11, 3); // Same category (3)
+        hook.setOwner(necklaceToken2, alice);
 
         // Replace with new necklace. Old one should be returned.
         uint256[] memory outfitIds2 = new uint256[](1);
-        outfitIds2[0] = NECKLACE_TOKEN_2;
+        outfitIds2[0] = necklaceToken2;
         vm.prank(alice);
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds2);
 
         // Old necklace returned to alice.
         assertEq(hook.ownerOf(NECKLACE_TOKEN), alice, "old necklace should be returned");
         // New necklace held by resolver.
-        assertEq(hook.ownerOf(NECKLACE_TOKEN_2), address(resolver), "new necklace should be held");
+        assertEq(hook.ownerOf(necklaceToken2), address(resolver), "new necklace should be held");
     }
 
     //*********************************************************************//
     // --- onERC721Received ---------------------------------------------- //
     //*********************************************************************//
 
-    function test_onERC721Received_acceptsFromSelf() public {
+    function test_onERC721Received_acceptsFromSelf() public view {
         bytes4 result = resolver.onERC721Received(address(resolver), alice, 1, "");
         assertEq(result, IERC721Receiver.onERC721Received.selector, "should accept from self");
     }
@@ -641,7 +643,7 @@ contract TestBanny721TokenUriResolver is Test {
     // --- View: assetIdsOf with no outfits ------------------------------ //
     //*********************************************************************//
 
-    function test_assetIdsOf_empty() public {
+    function test_assetIdsOf_empty() public view {
         (uint256 backgroundId, uint256[] memory outfitIds) = resolver.assetIdsOf(address(hook), BODY_TOKEN);
         assertEq(backgroundId, 0, "no background initially");
         assertEq(outfitIds.length, 0, "no outfits initially");
@@ -651,11 +653,11 @@ contract TestBanny721TokenUriResolver is Test {
     // --- View: userOf / wearerOf --------------------------------------- //
     //*********************************************************************//
 
-    function test_userOf_returnsZeroIfNotAttached() public {
+    function test_userOf_returnsZeroIfNotAttached() public view {
         assertEq(resolver.userOf(address(hook), BACKGROUND_TOKEN), 0, "no user initially");
     }
 
-    function test_wearerOf_returnsZeroIfNotWorn() public {
+    function test_wearerOf_returnsZeroIfNotWorn() public view {
         assertEq(resolver.wearerOf(address(hook), NECKLACE_TOKEN), 0, "no wearer initially");
     }
 

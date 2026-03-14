@@ -82,6 +82,8 @@ contract DeployScript is Script, Sphinx {
     uint104 constant BAN_BASE_AUTO_ISSUANCE = 10_097_684_379_816_492_953_872;
     uint104 constant BAN_OP_AUTO_ISSUANCE = 328_366_065_858_064_488_000;
     uint104 constant BAN_ARB_AUTO_ISSUANCE = 2_825_980_000_000_000_000_000;
+    // forge-lint: disable-next-line(unsafe-typecast)
+    uint104 constant BAN_PREMINT_COUNT = uint104(1_000_000 * DECIMAL_MULTIPLIER);
 
     function configureSphinx() public override {
         sphinxConfig.projectName = "banny-core-v6";
@@ -179,12 +181,8 @@ contract DeployScript is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
-            autoIssuances[0] = REVAutoIssuance({
-                // forge-lint: disable-next-line(unsafe-typecast)
-                chainId: PREMINT_CHAIN_ID,
-                count: uint104(1_000_000 * DECIMAL_MULTIPLIER),
-                beneficiary: operator
-            });
+            autoIssuances[0] =
+                REVAutoIssuance({chainId: PREMINT_CHAIN_ID, count: BAN_PREMINT_COUNT, beneficiary: operator});
 
             // decrease by a smaller percent more frequently. 30 days, 7%-ish.
             stageConfigurations[1] = REVStageConfig({

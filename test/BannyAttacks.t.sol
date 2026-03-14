@@ -70,10 +70,12 @@ contract AttackMockStore {
         return tiers[hook][tokenId];
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function encodedTierIPFSUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function encodedIPFSUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
