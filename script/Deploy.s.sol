@@ -4,10 +4,14 @@ pragma solidity 0.8.26;
 import {Hook721Deployment, Hook721DeploymentLib} from "@bananapus/721-hook-v6/script/helpers/Hook721DeploymentLib.sol";
 import {CoreDeployment, CoreDeploymentLib} from "@bananapus/core-v6/script/helpers/CoreDeploymentLib.sol";
 import {SuckerDeployment, SuckerDeploymentLib} from "@bananapus/suckers-v6/script/helpers/SuckerDeploymentLib.sol";
-import {RouterTerminalDeployment, RouterTerminalDeploymentLib} from
-    "@bananapus/router-terminal-v6/script/helpers/RouterTerminalDeploymentLib.sol";
-import {RevnetCoreDeployment, RevnetCoreDeploymentLib} from
-    "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
+import {
+    RouterTerminalDeployment,
+    RouterTerminalDeploymentLib
+} from "@bananapus/router-terminal-v6/script/helpers/RouterTerminalDeploymentLib.sol";
+import {
+    RevnetCoreDeployment,
+    RevnetCoreDeploymentLib
+} from "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
@@ -177,7 +181,9 @@ contract DeployScript is Script, Sphinx {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
                 // forge-lint: disable-next-line(unsafe-typecast)
-                chainId: PREMINT_CHAIN_ID, count: uint104(1_000_000 * DECIMAL_MULTIPLIER), beneficiary: operator
+                chainId: PREMINT_CHAIN_ID,
+                count: uint104(1_000_000 * DECIMAL_MULTIPLIER),
+                beneficiary: operator
             });
 
             // decrease by a smaller percent more frequently. 30 days, 7%-ish.
@@ -413,14 +419,15 @@ contract DeployScript is Script, Sphinx {
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;
 
         // Deploy the $BANNY Revnet.
-        revnet.basic_deployer.deployFor({
-            revnetId: 0,
-            configuration: bannyverseConfig.configuration,
-            terminalConfigurations: bannyverseConfig.terminalConfigurations,
-            suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
-            tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
-            allowedPosts: new REVCroptopAllowedPost[](0)
-        });
+        revnet.basic_deployer
+            .deployFor({
+                revnetId: 0,
+                configuration: bannyverseConfig.configuration,
+                terminalConfigurations: bannyverseConfig.terminalConfigurations,
+                suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
+                tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
+                allowedPosts: new REVCroptopAllowedPost[](0)
+            });
     }
 
     function _isDeployed(

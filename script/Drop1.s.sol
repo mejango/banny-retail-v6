@@ -6,7 +6,10 @@ import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 
 import {BannyverseDeployment, BannyverseDeploymentLib} from "./helpers/BannyverseDeploymentLib.sol";
-import {RevnetCoreDeployment, RevnetCoreDeploymentLib} from "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
+import {
+    RevnetCoreDeployment,
+    RevnetCoreDeploymentLib
+} from "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
 

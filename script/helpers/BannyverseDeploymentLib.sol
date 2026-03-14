@@ -79,8 +79,8 @@ library BannyverseDeploymentLib {
         view
         returns (address)
     {
+        // forge-lint: disable-next-line(unsafe-cheatcode)
         string memory deploymentJson =
-            // forge-lint: disable-next-line(unsafe-cheatcode)
             vm.readFile(string.concat(path, projectName, "/", networkName, "/", contractName, ".json"));
         return stdJson.readAddress({json: deploymentJson, key: ".address"});
     }

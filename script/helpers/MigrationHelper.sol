@@ -50,8 +50,7 @@ library MigrationHelper {
 
         if (!matches) {
             // Try fallback resolver
-            (v4BackgroundId, v4OutfitIds) =
-                fallbackV4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
+            (v4BackgroundId, v4OutfitIds) = fallbackV4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
             v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({hook: v4HookAddress, tokenId: v4BackgroundId});
 
             require(
