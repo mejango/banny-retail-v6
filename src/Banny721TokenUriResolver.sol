@@ -1368,6 +1368,16 @@ contract Banny721TokenUriResolver is
         _attachedOutfitIdsOf[hook][bannyBodyId] = outfitIds;
     }
 
+    /// @notice Check if a value is present in an array.
+    /// @param value The value to search for.
+    /// @param array The array to search in.
+    /// @return found True if the value was found.
+    function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
+        for (uint256 i; i < array.length; i++) {
+            if (array[i] == value) return true;
+        }
+    }
+
     /// @notice Transfer a token from one address to another.
     /// @param hook The 721 contract of the token being transferred.
     /// @param from The address to transfer the token from.
@@ -1390,15 +1400,5 @@ contract Banny721TokenUriResolver is
     function _tryTransferFrom(address hook, address from, address to, uint256 assetId) internal {
         // slither-disable-next-line reentrancy-no-eth
         try IERC721(hook).safeTransferFrom({from: from, to: to, tokenId: assetId}) {} catch {}
-    }
-
-    /// @notice Check if a value is present in an array.
-    /// @param value The value to search for.
-    /// @param array The array to search in.
-    /// @return found True if the value was found.
-    function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
-        for (uint256 i; i < array.length; i++) {
-            if (array[i] == value) return true;
-        }
     }
 }
