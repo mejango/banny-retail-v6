@@ -127,6 +127,9 @@ contract Banny721TokenUriResolver is
     /// @dev Naked Banny's will only be shown with outfits currently owned by the owner of the banny body.
     /// @dev NOTE: Equipped outfits travel with the banny body NFT on transfer. When a body is transferred,
     /// the new owner inherits all equipped outfits and can unequip them to receive the outfit NFTs.
+    // The _attachedOutfitIdsOf array grows with each attachment. Gas cost for operations
+    // iterating this array increases linearly. In practice, Bannys have a small, bounded number of outfit slots
+    // (< 20), making gas cost manageable. No explicit cap is needed given the natural slot limit.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the outfits.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
@@ -1025,6 +1028,9 @@ contract Banny721TokenUriResolver is
     }
 
     /// @dev Make sure tokens can be received if the transaction was initiated by this contract.
+    // NFTs sent via transferFrom (not safeTransferFrom) bypass onERC721Received and cannot be
+    // tracked or recovered. This is an inherent ERC-721 limitation — the contract cannot prevent non-safe
+    // transfers. Users and UIs should always use safeTransferFrom.
     /// @param operator The address that initiated the transaction.
     /// @param from The address that initiated the transfer.
     /// @param tokenId The ID of the token being transferred.
@@ -1373,6 +1379,10 @@ contract Banny721TokenUriResolver is
 
     /// @notice Try to transfer a token, silently succeeding if the transfer fails (e.g. token was burned).
     /// @dev Used when returning previously equipped items that may no longer exist.
+    // `_tryTransferFrom` may silently fail to transfer outfit NFTs, leaving them attached to the
+    // Banny but owned by a different address. This is by design — the try-catch pattern prevents a single failing
+    // outfit transfer from blocking the entire Banny transfer. Orphaned outfits can be recovered by the original
+    // owner.
     /// @param hook The 721 contract of the token being transferred.
     /// @param from The address to transfer the token from.
     /// @param to The address to transfer the token to.

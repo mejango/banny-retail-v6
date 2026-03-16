@@ -1043,12 +1043,20 @@ contract Drop1Script is Script, Sphinx {
             splits: new JBSplit[](0)
         });
 
+        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
+
+        // Read maxTierIdOf after adjustTiers so the value reflects our newly added tiers,
+        // avoiding a race condition where another transaction could change maxTierIdOf between
+        // the read and the adjustTiers call.
+        uint256 maxTierId = hook.STORE().maxTierIdOf(address(hook));
+
+        // Build the product IDs array for the newly added tiers.
+        // The last 47 tier IDs correspond to the 47 tiers we just added.
         uint256[] memory productIds = new uint256[](47);
         for (uint256 i; i < 47; i++) {
-            productIds[i] = i + 5;
+            productIds[i] = maxTierId - 46 + i;
         }
 
-        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
         bannyverse.resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
         bannyverse.resolver.setProductNames({upcs: productIds, names: names});
     }
