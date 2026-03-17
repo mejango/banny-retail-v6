@@ -130,6 +130,9 @@ contract Banny721TokenUriResolver is
     // The _attachedOutfitIdsOf array grows with each attachment. Gas cost for operations
     // iterating this array increases linearly. In practice, Bannys have a small, bounded number of outfit slots
     // (< 20), making gas cost manageable. No explicit cap is needed given the natural slot limit.
+    // This array may contain stale entries (e.g. outfits transferred away externally). Stale entries are
+    // filtered at read time via `outfitsOf` and `wearerOf`, which check current ownership/attachment status.
+    // This lazy reconciliation avoids extra storage writes on every transfer.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the outfits.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
@@ -619,6 +622,9 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Encode the token URI JSON with base64.
+    // Metadata strings (name, description, external_url) are set by the contract owner, not by users.
+    // No JSON escaping is applied — the owner is trusted to provide valid values. On-chain JSON is consumed
+    // by off-chain indexers and UIs, not rendered in a browser context where XSS would apply.
     function _encodeTokenUri(
         uint256 tokenId,
         JB721Tier memory product,
@@ -1079,6 +1085,8 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Allows the owner to set the product's name.
+    /// @dev Product names are mutable — the owner can update them at any time. This is intentional to allow
+    /// corrections and localization. Names are only used in metadata and do not affect on-chain logic.
     /// @param upcs The universal product codes of the products having their name stored.
     /// @param names The names of the products.
     function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
