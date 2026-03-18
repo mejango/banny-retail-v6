@@ -235,10 +235,7 @@ contract TestQALastMile is Test {
         assertTrue(_contains(json, '"attributes"'), 'JSON should contain "attributes" field');
 
         // Validate the "image" field contains a valid SVG data URI.
-        assertTrue(
-            _contains(json, '"image":"data:image/svg+xml;base64,'),
-            "image field should contain SVG data URI"
-        );
+        assertTrue(_contains(json, '"image":"data:image/svg+xml;base64,'), "image field should contain SVG data URI");
 
         // Extract and decode the SVG from the image field.
         // Find the SVG base64 start marker.
@@ -298,8 +295,7 @@ contract TestQALastMile is Test {
         // where baseUri is svgBaseUri ("https://bannyverse.test/").
         assertTrue(_contains(svg, "<image href="), "SVG should contain an <image href= fallback tag");
         assertTrue(
-            _contains(svg, 'width="400" height="400"/>'),
-            "IPFS fallback image should have width and height attributes"
+            _contains(svg, 'width="400" height="400"/>'), "IPFS fallback image should have width and height attributes"
         );
 
         // Also verify that the tokenUriOf still produces a valid data URI (not the raw IPFS fallback path).
@@ -355,10 +351,7 @@ contract TestQALastMile is Test {
 
         // Verify the URI is valid.
         assertGt(bytes(uri).length, 0, "9-outfit tokenURI should not be empty");
-        assertTrue(
-            _startsWith(uri, "data:application/json;base64,"),
-            "9-outfit tokenURI should be a base64 data URI"
-        );
+        assertTrue(_startsWith(uri, "data:application/json;base64,"), "9-outfit tokenURI should be a base64 data URI");
 
         // Log gas used for snapshot tracking.
         emit log_named_uint("Gas used for 9-outfit tokenUriOf", gasUsed);
