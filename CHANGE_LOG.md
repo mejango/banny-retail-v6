@@ -171,7 +171,7 @@ No struct changes. Both versions use `JB721Tier` from the respective `721-hook` 
 
 ### `_bannyBodySvgOf()` Relocated
 - **v5:** Located after `_msgSender()` / `_msgData()` overrides (line ~700).
-- **v6:** Relocated to immediately after `_categoryNameOf()` (line ~532), grouped with other internal view functions.
+- **v6:** Relocated to immediately before `_categoryNameOf()` (line ~538), grouped with other internal view functions.
 
 ### `_contextSuffixLength()` Relocated
 - **v5:** Located before `_bannyBodySvgOf()` (line ~562).
@@ -194,8 +194,8 @@ No struct changes. Both versions use `JB721Tier` from the respective `721-hook` 
 - **v6 adds:** `// forge-lint: disable-next-line(mixed-case-variable)` above `DEFAULT_ALIEN_EYES`, `DEFAULT_MOUTH`, `DEFAULT_NECKLACE`, `DEFAULT_STANDARD_EYES`, and `BANNY_BODY`.
 
 ### Import Order Change
-- **v5:** OpenZeppelin imports mixed with `@bananapus` imports.
-- **v6:** OpenZeppelin imports first, then `@bananapus` imports, separated by a blank line.
+- **v5:** `@bananapus` imports first, then OpenZeppelin imports.
+- **v6:** OpenZeppelin imports first, then `@bananapus` imports.
 
 ### Slither Annotations
 - **v6 adds:** `// slither-disable-next-line calls-loop` on several `IERC721(hook).ownerOf()` calls inside loops.
