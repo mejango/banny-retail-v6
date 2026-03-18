@@ -22,7 +22,7 @@
 ## 4. DoS Vectors
 
 - **Unbounded outfit iteration.** `_attachedOutfitIdsOf` array grows with each decoration and is never compacted. Over time with repeated equip/unequip cycles, gas costs increase.
-- **On-chain SVG rendering gas.** `tokenUriOf` constructs full SVGs on-chain with string concatenation. Complex outfits with many layers can exceed block gas limits for `view` calls, making tokens unrenderable by off-chain indexers.
+- **On-chain SVG rendering gas.** `tokenUriOf` constructs full SVGs on-chain with string concatenation. Complex outfits with many layers can exceed block gas limits for `view` calls, making tokens unrenderable by off-chain indexers. Measured gas ceiling: ~609K gas for the worst case (9 non-conflicting outfits + background with on-chain SVG content), well within typical RPC node limits (30M+). Regression test: `test_tokenUri_gasSnapshot_9outfits` in `test/TestQALastMile.t.sol`.
 - **External hook calls in view functions.** `tokenUriOf` and `svgOf` call into the hook's store multiple times per outfit. A malicious hook that consumes excessive gas or reverts can make token metadata unretrievable.
 
 ## 5. Integration Risks
