@@ -23,7 +23,8 @@ Banny is a composable NFT character system built on top of Juicebox 721 hooks. E
    → Body's tokenURI now renders the full dressed composition
    |
 4. Outfit lock (optional): lockOutfitChangesFor(hook, bodyId)
-   → Freezes outfit changes for 7 days
+   → Freezes outfit and background changes for 7 days
+   → Prevents moving currently equipped assets away through another body's decoration call
    → Proves the Banny's look is stable (useful for PFPs, displays)
    |
 5. SVG content is stored on-chain via a two-step process:

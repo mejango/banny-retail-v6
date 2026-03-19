@@ -1156,6 +1156,16 @@ contract Banny721TokenUriResolver is
     // ---------------------- internal transactions ---------------------- //
     //*********************************************************************//
 
+    /// @notice Revert if an equipped asset is being reassigned away from a locked source body.
+    /// @param hook The hook storing the assets.
+    /// @param bannyBodyId The body currently using the asset.
+    /// @param exemptBodyId The destination body currently being decorated.
+    function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
+        if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
+            revert Banny721TokenUriResolver_OutfitChangesLocked();
+        }
+    }
+
     /// @notice Add a background to a banny body.
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
@@ -1186,6 +1196,9 @@ contract Banny721TokenUriResolver is
                     if (_msgSender() != IERC721(hook).ownerOf(userId)) {
                         revert Banny721TokenUriResolver_UnauthorizedBackground();
                     }
+
+                    // A locked source body keeps its equipped background until the lock expires.
+                    _revertIfBodyLocked({hook: hook, bannyBodyId: userId, exemptBodyId: bannyBodyId});
                 }
 
                 // Get the background's product info.
@@ -1274,6 +1287,9 @@ contract Banny721TokenUriResolver is
                 if (_msgSender() != IERC721(hook).ownerOf(wearerId)) {
                     revert Banny721TokenUriResolver_UnauthorizedOutfit();
                 }
+
+                // A locked source body keeps its equipped outfits until the lock expires.
+                _revertIfBodyLocked({hook: hook, bannyBodyId: wearerId, exemptBodyId: bannyBodyId});
             }
 
             // Get the outfit's product info.
