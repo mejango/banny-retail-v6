@@ -11,7 +11,7 @@
 
 - **Outfit theft via banny body transfer.** Equipped outfits and backgrounds travel with the banny body NFT on transfer. If a banny body is sold with valuable outfits equipped, the buyer gains control of all equipped items. Sellers must unequip before selling. Marketplaces may not surface this risk.
 - **try-catch silent failures.** `_tryTransferFrom` silently catches all transfer failures. If an outfit NFT is burned or its tier removed, the transfer fails silently. The outfit remains logically "equipped" in state but the NFT is lost. This can create phantom outfits that show in SVG rendering but cannot be recovered.
-- **Lock griefing.** `lockOutfitChangesFor` extends the lock to `block.timestamp + 7 days`. Locking just before selling prevents the buyer from changing outfits for up to 7 days.
+- **Lock griefing.** `lockOutfitChangesFor` extends the lock to `block.timestamp + 7 days`. Locking just before selling prevents the buyer from changing outfits for up to 7 days. The lock now also freezes reassignment of currently equipped outfits/backgrounds away from that body during the lock window.
 
 ## 3. Access Control
 

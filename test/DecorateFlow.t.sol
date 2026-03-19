@@ -797,6 +797,37 @@ contract DecorateFlowTests is Test {
         assertEq(hook.ownerOf(NECKLACE_1), bob, "necklace returned to bob");
     }
 
+    /// @notice A locked body keeps its equipped background until the lock expires, even if the owner also controls an
+    /// unlocked destination body.
+    function test_lock_preventsMovingBackgroundFromLockedBody() public {
+        vm.prank(alice);
+        resolver.decorateBannyWith(address(hook), BODY_A, BACKGROUND_1, new uint256[](0));
+
+        vm.prank(alice);
+        resolver.lockOutfitChangesFor(address(hook), BODY_A);
+
+        vm.prank(alice);
+        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
+        resolver.decorateBannyWith(address(hook), BODY_B, BACKGROUND_1, new uint256[](0));
+    }
+
+    /// @notice A locked body keeps its equipped outfits until the lock expires, even if the owner also controls an
+    /// unlocked destination body.
+    function test_lock_preventsMovingOutfitFromLockedBody() public {
+        uint256[] memory outfits = new uint256[](1);
+        outfits[0] = NECKLACE_1;
+
+        vm.prank(alice);
+        resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
+
+        vm.prank(alice);
+        resolver.lockOutfitChangesFor(address(hook), BODY_A);
+
+        vm.prank(alice);
+        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
+        resolver.decorateBannyWith(address(hook), BODY_B, 0, outfits);
+    }
+
     // =========================================================================
     //  SECTION 8: Complex Multi-Step Scenarios
     // =========================================================================

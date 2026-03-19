@@ -311,7 +311,7 @@ Where `outfitId` is currently equipped on `oldBodyId`, and the caller owns both 
 
 ### Edge Cases
 
-- **Old body is locked**: The lock is on `oldBodyId`, but the caller is calling `decorateBannyWith` on `newBodyId`. The lock only prevents changes to the locked body, not removal of its outfits via a different body's decoration call. **Wait -- verify this**: The outfit's `wearerOf` returns `oldBodyId`. The caller owns `oldBodyId`. The authorization check at line 1266 checks `ownerOf(wearerId)` which is the caller. So this succeeds. However, `oldBodyId`'s `_attachedOutfitIdsOf` still contains the outfit. The outfit has been moved at the `_wearerOf` level, but the old array is stale. This is handled by `assetIdsOf` which filters by checking `wearerOf` (line 383). **Auditors should verify the lock on `oldBodyId` does not prevent this path.** The lock check is only in `decorateBannyWith` at line 995, and it checks the body being decorated (`bannyBodyId`), not the body being undressed.
+- **Old body is locked**: Reverts `OutfitChangesLocked`. A locked source body keeps its currently equipped outfits and background until the lock expires, even if the caller owns both bodies.
 
 ---
 
