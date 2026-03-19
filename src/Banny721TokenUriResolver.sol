@@ -1156,6 +1156,16 @@ contract Banny721TokenUriResolver is
     // ---------------------- internal transactions ---------------------- //
     //*********************************************************************//
 
+    /// @notice Revert if an equipped asset is being reassigned away from a locked source body.
+    /// @param hook The hook storing the assets.
+    /// @param bannyBodyId The body currently using the asset.
+    /// @param exemptBodyId The destination body currently being decorated.
+    function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
+        if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
+            revert Banny721TokenUriResolver_OutfitChangesLocked();
+        }
+    }
+
     /// @notice Add a background to a banny body.
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
@@ -1380,16 +1390,6 @@ contract Banny721TokenUriResolver is
 
         // Store the outfits.
         _attachedOutfitIdsOf[hook][bannyBodyId] = outfitIds;
-    }
-
-    /// @notice Revert if an equipped asset is being reassigned away from a locked source body.
-    /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The body currently using the asset.
-    /// @param exemptBodyId The destination body currently being decorated.
-    function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
-        if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
-            revert Banny721TokenUriResolver_OutfitChangesLocked();
-        }
     }
 
     /// @notice Check if a value is present in an array.
