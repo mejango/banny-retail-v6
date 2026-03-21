@@ -17,25 +17,27 @@ src/
 
 ### Asset Storage
 ```
-Owner → storeContents(hash, contents)
-  → Store SVG content chunks on-chain (keyed by hash)
-  → Content stored in multiple chunks for large SVGs
+Owner → setSvgHashesOf(upcs, hashes)
+  → Register content hashes for UPCs (owner-only)
 
-Owner → addProduct(category, hash)
-  → Register a product (body/background/head/suit) for a category
-  → Products linked to stored SVG content
+Anyone → setSvgContentsOf(upcs, contents)
+  → Upload SVG content matching registered hashes
+  → Content validated against hash before storage
+
+Owner → setProductNames(upcs, names)
+  → Register product names for UPCs
 ```
 
 ### Outfit Composition
 ```
-NFT Holder → dress(tokenId, outfitTokenIds[])
-  → Attach outfit NFTs (head, suit, background) to a body NFT
-  → Outfit NFTs transferred to resolver contract (locked)
+Body Owner → decorateBannyWith(hook, bodyId, backgroundId, outfitIds)
+  → Attach outfit and background NFTs to a body NFT
+  → Outfit/background NFTs transferred to resolver contract
+  → Previous outfits returned to owner
   → Composite SVG generated from layered components
 
-NFT Holder → undress(tokenId, outfitTokenIds[])
-  → Remove outfit NFTs from body
-  → Outfit NFTs returned to holder
+Body Owner → lockOutfitChangesFor(hook, bodyId)
+  → Lock outfit changes for 7 days
 ```
 
 ### Token URI Generation
