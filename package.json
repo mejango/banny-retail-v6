@@ -1,6 +1,6 @@
 {
     "name": "@bannynet/core-v6",
-    "version": "0.0.10",
+    "version": "0.0.11",
     "license": "MIT",
     "repository": {
         "type": "git",
@@ -20,14 +20,14 @@
         "artifacts": "source ./.env && npx sphinx artifacts --org-id 'ea165b21-7cdc-4d7b-be59-ecdd4c26bee4' --project-name 'banny-core-v6'"
     },
     "dependencies": {
-        "@bananapus/721-hook-v6": "^0.0.17",
-        "@bananapus/core-v6": "^0.0.17",
+        "@bananapus/721-hook-v6": "^0.0.19",
+        "@bananapus/core-v6": "^0.0.24",
         "@bananapus/permission-ids-v6": "^0.0.10",
-        "@bananapus/router-terminal-v6": "^0.0.13",
-        "@bananapus/suckers-v6": "^0.0.11",
-        "@croptop/core-v6": "^0.0.18",
+        "@bananapus/router-terminal-v6": "^0.0.17",
+        "@bananapus/suckers-v6": "^0.0.13",
+        "@croptop/core-v6": "^0.0.20",
         "@openzeppelin/contracts": "^5.6.1",
-        "@rev-net/core-v6": "^0.0.13",
+        "@rev-net/core-v6": "^0.0.15",
         "keccak": "^3.0.4"
     },
     "devDependencies": {

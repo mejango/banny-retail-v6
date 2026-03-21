@@ -93,20 +93,32 @@ Requires `via_ir = true` in foundry.toml due to stack depth in SVG composition.
 | Command | Description |
 |---------|-------------|
 | `forge build` | Compile contracts (requires via-IR) |
-| `forge test` | Run all tests (3 test files: functionality, attacks, decoration flows) |
+| `forge test` | Run all tests (14 test files: functionality, attacks, decoration flows, fork integration, transfer lifecycle, audit gaps, QA, regressions) |
 | `forge test -vvv` | Run tests with full trace |
 
 ## Repository Layout
 
 ```
 src/
-  Banny721TokenUriResolver.sol                  # Sole contract (~1,331 lines)
+  Banny721TokenUriResolver.sol                  # Sole contract (~1,428 lines)
   interfaces/
     IBanny721TokenUriResolver.sol               # Public interface + events
 test/
-  Banny721TokenUriResolver.t.sol                # Unit tests (~690 lines)
-  BannyAttacks.t.sol                            # Security/adversarial tests (~323 lines)
-  DecorateFlow.t.sol                            # Decoration flow tests (~1,057 lines)
+  Banny721TokenUriResolver.t.sol                # Unit tests
+  BannyAttacks.t.sol                            # Security/adversarial tests
+  DecorateFlow.t.sol                            # Decoration flow tests
+  Fork.t.sol                                    # Fork integration tests
+  OutfitTransferLifecycle.t.sol                 # Transfer lifecycle tests
+  TestAuditGaps.sol                             # Audit gap coverage (meta-tx, SVG edge cases)
+  TestQALastMile.t.sol                          # QA tests (gas, round-trip, fallback)
+  regression/
+    ArrayLengthValidation.t.sol                 # Input validation regression
+    BodyCategoryValidation.t.sol                # Body category regression
+    BurnedTokenCheck.t.sol                      # Burned token regression
+    CEIReorder.t.sol                            # CEI ordering regression
+    ClearMetadata.t.sol                         # Metadata clearing regression
+    MsgSenderEvents.t.sol                       # Event emission regression
+    RemovedTierDesync.t.sol                     # Removed tier desync regression
 script/
   Deploy.s.sol                                  # Sphinx multi-chain deployment
   Drop1.s.sol                                   # Outfit drop deployment
