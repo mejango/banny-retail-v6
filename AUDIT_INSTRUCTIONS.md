@@ -6,7 +6,7 @@ Target: `Banny721TokenUriResolver` -- a single-contract system that manages on-c
 
 | Contract | Lines | Role |
 |----------|-------|------|
-| `Banny721TokenUriResolver` | ~1,404 | Token URI resolver, outfit custody, SVG storage, decoration logic, lock mechanism |
+| `Banny721TokenUriResolver` | ~1,428 | Token URI resolver, outfit custody, SVG storage, decoration logic, lock mechanism |
 | `IBanny721TokenUriResolver` | ~175 | Interface: events, view functions, mutating functions |
 
 Inheritance chain: `Ownable`, `ERC2771Context`, `ReentrancyGuard`, `IJB721TokenUriResolver`, `IBanny721TokenUriResolver`, `IERC721Receiver`.
@@ -63,15 +63,15 @@ There are 18 categories (0-17), each representing a layer or slot:
 | 16 | `_SPECIAL_HEAD_CATEGORY` | Special Head | Special outfit slot |
 | 17 | `_SPECIAL_BODY_CATEGORY` | Special Body | Special outfit slot |
 
-Categories 0 and 1 cannot be used as outfits (enforced at line 1275). Outfits must be categories 2-17.
+Categories 0 and 1 cannot be used as outfits (enforced at line 1299). Outfits must be categories 2-17.
 
 ### Conflict Rules
 
 Two conflict rules prevent contradictory outfits:
-1. **Head blocks face pieces**: If category 4 (Head) is equipped, categories 5 (Eyes), 6 (Glasses), 7 (Mouth), and 12 (HeadTop) are rejected (line 1289-1294).
-2. **Suit blocks top/bottom**: If category 9 (Suit) is equipped, categories 10 (SuitBottom) and 11 (SuitTop) are rejected (line 1295-1299).
+1. **Head blocks face pieces**: If category 4 (Head) is equipped, categories 5 (Eyes), 6 (Glasses), 7 (Mouth), and 12 (HeadTop) are rejected (line 1312-1318).
+2. **Suit blocks top/bottom**: If category 9 (Suit) is equipped, categories 10 (SuitBottom) and 11 (SuitTop) are rejected (line 1319-1323).
 
-Outfits must be passed in **ascending category order** (line 1280-1281). No two outfits can share a category.
+Outfits must be passed in **ascending category order** (line 1304-1305). No two outfits can share a category.
 
 ## Outfit Decoration System
 
@@ -80,13 +80,13 @@ Outfits must be passed in **ascending category order** (line 1280-1281). No two 
 `decorateBannyWith(hook, bannyBodyId, backgroundId, outfitIds)` is the single entry point for all decoration changes. There is no separate "undress" function -- undressing is accomplished by calling `decorateBannyWith` with an empty `outfitIds` array and `backgroundId = 0`.
 
 The function:
-1. Verifies the caller owns the banny body (line 987).
-2. Verifies the body token is actually category 0 (line 990).
-3. Verifies the body is not locked (line 995).
-4. Delegates background handling to `_decorateBannyWithBackground` (line 1004).
-5. Delegates outfit handling to `_decorateBannyWithOutfits` (line 1007).
+1. Verifies the caller owns the banny body (line 993).
+2. Verifies the body token is actually category 0 (line 996).
+3. Verifies the body is not locked (line 1001).
+4. Delegates background handling to `_decorateBannyWithBackground` (line 1010).
+5. Delegates outfit handling to `_decorateBannyWithOutfits` (line 1013).
 
-### Background Decoration (`_decorateBannyWithBackground`, line 1155)
+### Background Decoration (`_decorateBannyWithBackground`, line 1173)
 
 - If `backgroundId != 0`, the caller must own the background NFT or own the banny body currently using it.
 - The background must be category 1 (`_BACKGROUND_CATEGORY`).
@@ -94,19 +94,19 @@ The function:
 - The old background is returned via `_tryTransferFrom` (silent failure on burned tokens).
 - The new background is transferred into the resolver via `_transferFrom` (reverts on failure).
 
-### Outfit Decoration (`_decorateBannyWithOutfits`, line 1222)
+### Outfit Decoration (`_decorateBannyWithOutfits`, line 1243)
 
 This is the most complex function. It performs a **merge-style iteration** over two arrays: the new `outfitIds` and the previously equipped `previousOutfitIds`.
 
 For each new outfit:
-1. Authorization: caller must own the outfit OR own the banny body currently wearing it (lines 1257-1268).
-2. Category validation: must be 2-17, ascending order, no conflicts (lines 1275-1300).
-3. The inner `while` loop transfers out old outfits up to the current category (lines 1308-1326).
-4. If the outfit is not already worn by this body, state is updated and the outfit is transferred in (lines 1329-1337).
+1. Authorization: caller must own the outfit OR own the banny body currently wearing it (lines 1278-1293).
+2. Category validation: must be 2-17, ascending order, no conflicts (lines 1299-1324).
+3. The inner `while` loop transfers out old outfits up to the current category (lines 1332-1350).
+4. If the outfit is not already worn by this body, state is updated and the outfit is transferred in (lines 1353-1361).
 
-After all new outfits are processed, a second `while` loop (line 1348) transfers out any remaining old outfits.
+After all new outfits are processed, a second `while` loop (line 1372) transfers out any remaining old outfits.
 
-Finally, `_attachedOutfitIdsOf[hook][bannyBodyId]` is overwritten wholesale with the new array (line 1368).
+Finally, `_attachedOutfitIdsOf[hook][bannyBodyId]` is overwritten wholesale with the new array (line 1392).
 
 ## Custody Model
 
@@ -132,8 +132,8 @@ Every outfit NFT held by the resolver must be recoverable by the current owner o
 `lockOutfitChangesFor(hook, bannyBodyId)` locks a body for 7 days (`_LOCK_DURATION = 7 days = 604,800 seconds`). While locked, `decorateBannyWith` reverts with `OutfitChangesLocked`.
 
 Rules:
-- Only the body owner can lock (line 1015).
-- Lock can only be extended, never shortened (line 1024). Attempting to set a shorter lock reverts with `CantAccelerateTheLock`.
+- Only the body owner can lock (line 1021).
+- Lock can only be extended, never shortened (line 1030). Attempting to set a shorter lock reverts with `CantAccelerateTheLock`.
 - Equal-time relocks succeed (the `>` check allows `currentLockedUntil == newLockUntil`).
 - The lock survives body transfers -- a buyer who receives a locked body cannot change outfits until the lock expires.
 - The `outfitLockedUntil` mapping is public and readable by marketplaces.
@@ -144,19 +144,19 @@ Rules:
 
 ### Hash-Then-Reveal Pattern
 
-1. Owner calls `setSvgHashesOf(upcs, svgHashes)` to commit `keccak256` hashes (line 1130). Hashes are write-once per UPC.
-2. Anyone calls `setSvgContentsOf(upcs, svgContents)` to reveal content (line 1100). Content must match the stored hash. Content is write-once per UPC.
-3. If content is not yet uploaded, `_svgOf` falls back to IPFS resolution via `JBIpfsDecoder` (line 936-942).
+1. Owner calls `setSvgHashesOf(upcs, svgHashes)` to commit `keccak256` hashes (line 1138). Hashes are write-once per UPC.
+2. Anyone calls `setSvgContentsOf(upcs, svgContents)` to reveal content (line 1108). Content must match the stored hash. Content is write-once per UPC.
+3. If content is not yet uploaded, `_svgOf` falls back to IPFS resolution via `JBIpfsDecoder` (line 936-949).
 
 ### SVG Composition
 
-`tokenUriOf` (line 200) builds a complete on-chain data URI:
+`tokenUriOf` (line 203) builds a complete on-chain data URI:
 1. For non-body tokens: renders the outfit SVG on a grey mannequin banny.
 2. For body tokens: composes background + body + all outfit layers in category order.
 
 The body SVG uses CSS classes (`.b1`-`.b4`, `.a1`-`.a3`) with color fills specific to each body type (Alien=green, Pink=pink, Orange=orange, Original=yellow).
 
-Default accessories (necklace, eyes, mouth) are injected when no custom outfit occupies that slot. The necklace has special layering: it is stored during iteration but rendered after `_SUIT_TOP_CATEGORY` (line 880-884).
+Default accessories (necklace, eyes, mouth) are injected when no custom outfit occupies that slot. The necklace has special layering: it is stored during iteration but rendered after `_SUIT_TOP_CATEGORY` (line 885-890).
 
 ### SVG Sanitization
 
@@ -174,7 +174,7 @@ If a non-zero forwarder is set, that forwarder contract can append arbitrary sen
 
 ## `onERC721Received` Gate
 
-The resolver implements `IERC721Receiver.onERC721Received` (line 1038) and rejects all incoming transfers unless `operator == address(this)`. This means:
+The resolver implements `IERC721Receiver.onERC721Received` (line 1044) and rejects all incoming transfers unless `operator == address(this)`. This means:
 - Only the resolver itself can send NFTs to itself (via its own `_transferFrom` calls).
 - Users cannot accidentally send NFTs directly to the resolver.
 - If a user sends an NFT via `transferFrom` (not `safeTransferFrom`), the callback is not triggered and the NFT is silently deposited. This is an inherent ERC-721 limitation.
@@ -183,24 +183,24 @@ The resolver implements `IERC721Receiver.onERC721Received` (line 1038) and rejec
 
 ### 1. Outfit Authorization Logic (CRITICAL)
 
-File: `src/Banny721TokenUriResolver.sol`, lines 1254-1268.
+File: `src/Banny721TokenUriResolver.sol`, lines 1278-1293.
 
 The authorization check for outfits allows the caller to use an outfit if they either own it directly or own the banny body currently wearing it. A historical bug (L18, now fixed) allowed `ownerOf(0)` bypass when `wearerOf` returned 0 for unworn outfits. Verify the current fix is sound:
-- Line 1262: `if (wearerId == 0) revert` -- ensures unworn outfits require direct ownership.
-- Line 1266: `ownerOf(wearerId)` -- verifies caller owns the body wearing the outfit.
+- Line 1283: `if (wearerId == 0) revert` -- ensures unworn outfits require direct ownership.
+- Line 1287: `ownerOf(wearerId)` -- verifies caller owns the body wearing the outfit.
 
 Look for: any path where an attacker can pass authorization without actually owning the outfit or the body wearing it.
 
 ### 2. Merge Iteration in `_decorateBannyWithOutfits` (HIGH)
 
-Lines 1250-1368. The merge between new `outfitIds` and `previousOutfitIds` is complex. The inner `while` loop advances through previous outfits, transferring them out. The second `while` loop (line 1348) handles remaining previous outfits.
+Lines 1271-1392. The merge between new `outfitIds` and `previousOutfitIds` is complex. The inner `while` loop advances through previous outfits, transferring them out. The second `while` loop (line 1372) handles remaining previous outfits.
 
 Look for:
 - Off-by-one errors in the `previousOutfitIndex` counter.
 - Skipped outfits that should be returned.
 - Double-transfer of outfits (both in the inner while and the tail while).
 - Removed-tier outfits (category=0) causing infinite loops or skipped entries.
-- The `_isInArray` check at line 1352 preventing outfits in the new set from being transferred out.
+- The `_isInArray` check at line 1376 preventing outfits in the new set from being transferred out.
 
 ### 3. Custody Accounting Consistency (HIGH)
 
@@ -211,11 +211,11 @@ These four mappings must remain consistent. After every `decorateBannyWith` call
 - The background in `_attachedBackgroundIdOf[hook][bodyId]` should have `_userOf[hook][backgroundId] == bodyId`.
 - Every outfit/background held by the resolver should be tracked in these mappings.
 
-**Note**: `_attachedOutfitIdsOf` is overwritten wholesale at line 1368, but `_wearerOf` is only set for *new* outfits at line 1331. Outfits that were already worn by this body retain their `_wearerOf` entry from the previous call. Verify this does not cause stale state.
+**Note**: `_attachedOutfitIdsOf` is overwritten wholesale at line 1392, but `_wearerOf` is only set for *new* outfits at line 1355. Outfits that were already worn by this body retain their `_wearerOf` entry from the previous call. Verify this does not cause stale state.
 
 ### 4. `_tryTransferFrom` Silent Failures (MEDIUM)
 
-Line 1390-1393. When returning old outfits, transfer failures are silently caught. This is intentional (handles burned tokens) but could mask real bugs.
+Line 1424-1428. When returning old outfits, transfer failures are silently caught. This is intentional (handles burned tokens) but could mask real bugs.
 
 Look for: scenarios where `_tryTransferFrom` silently fails but the state mappings (`_wearerOf`, `_attachedOutfitIdsOf`) have already been updated, causing an outfit to be "lost" -- not held by the resolver, not returned to the owner, but still tracked as worn.
 
@@ -227,13 +227,13 @@ Verify: a malicious hook cannot affect outfits custodied from a different (legit
 
 ### 6. CEI Ordering in Background Replacement (MEDIUM)
 
-`_decorateBannyWithBackground` (lines 1192-1203) updates state before transfers. Verify:
-- `_attachedBackgroundIdOf` and `_userOf` are updated at lines 1192-1193 before the try-transfer at line 1197 and the incoming transfer at line 1202.
-- No reachable state where a reentrancy callback during the safeTransferFrom at line 1202 could observe inconsistent state.
+`_decorateBannyWithBackground` (lines 1212-1224) updates state before transfers. Verify:
+- `_attachedBackgroundIdOf` and `_userOf` are updated at lines 1213-1214 before the try-transfer at line 1218 and the incoming transfer at line 1223.
+- No reachable state where a reentrancy callback during the safeTransferFrom at line 1223 could observe inconsistent state.
 
 ### 7. SVG Content Safety (LOW)
 
-SVG content is stored verbatim. While this is a view-function-only concern, verify that the encoding in `_encodeTokenUri` (line 622) cannot produce malformed JSON that breaks parsers. Specifically check for unescaped characters in `svgDescription`, `svgExternalUrl`, and custom product names injected into the JSON.
+SVG content is stored verbatim. While this is a view-function-only concern, verify that the encoding in `_encodeTokenUri` (line 628) cannot produce malformed JSON that breaks parsers. Specifically check for unescaped characters in `svgDescription`, `svgExternalUrl`, and custom product names injected into the JSON.
 
 ## Key Invariants to Test
 
@@ -266,7 +266,7 @@ RPC_ETHEREUM_MAINNET=<your-rpc-url> forge test --match-path test/Fork.t.sol -vvv
 forge test --gas-report
 ```
 
-**Test suite**: 11 test files, ~130+ tests.
+**Test suite**: 13 test files, ~130+ tests.
 
 | File | Purpose |
 |------|---------|
@@ -281,6 +281,8 @@ forge test --gas-report
 | `regression/MsgSenderEvents.t.sol` | ERC-2771 event correctness |
 | `regression/BurnedTokenCheck.t.sol` | Burned token handling |
 | `regression/ClearMetadata.t.sol` | Metadata clearing |
+| `OutfitTransferLifecycle.t.sol` | Outfit transfer lifecycle flows |
+| `TestQALastMile.t.sol` | QA last-mile edge cases |
 
 **Untested areas** (potential audit additions):
 - Meta-transaction flows with a real forwarder (all tests use `address(0)`).
@@ -348,4 +350,4 @@ For each finding:
 
 | ID | Severity | Status | Description |
 |----|----------|--------|-------------|
-| L18 | HIGH | FIXED | `ownerOf(0)` bypass in outfit authorization. When `wearerOf` returned 0 for unworn outfits, `hook.ownerOf(0)` could succeed for some hooks, allowing unauthorized outfit use. Fixed by adding `if (wearerId == 0) revert` guard at line 1262. Regression test in `DecorateFlow.t.sol`. |
+| L18 | HIGH | FIXED | `ownerOf(0)` bypass in outfit authorization. When `wearerOf` returned 0 for unworn outfits, `hook.ownerOf(0)` could succeed for some hooks, allowing unauthorized outfit use. Fixed by adding `if (wearerId == 0) revert` guard at line 1283. Regression test in `DecorateFlow.t.sol`. |
