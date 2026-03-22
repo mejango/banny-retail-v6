@@ -2,6 +2,14 @@
 
 This document describes all changes between `banny-retail` (v5) and `banny-retail-v6` (v6).
 
+## Summary
+
+- **Key bug fixes**: Default eyes incorrectly selected based on outfit UPC instead of body UPC; decoration operations blocked when a previously-equipped item was burned/removed.
+- **Fault-tolerant transfers**: New `_tryTransferFrom()` wraps returns of previously-equipped items in try-catch — a burned or removed outfit no longer blocks the entire `decorateBannyWith()` operation.
+- **Richer metadata**: `setSvgBaseUri()` replaced by `setMetadata()` which sets description, external URL, and base URI together. Token JSON `description` and `external_url` are now dynamic.
+- **Body category validation**: `decorateBannyWith()` now verifies the `bannyBodyId` actually belongs to a body-category tier before proceeding.
+- **Batch setter safety**: Array length mismatch checks added to `setProductNames()`, `setSvgContentsOf()`, and `setSvgHashesOf()`.
+
 ---
 
 ## 1. Breaking Changes
@@ -51,6 +59,8 @@ All `@bananapus/721-hook-v5` imports replaced with `@bananapus/721-hook-v6`:
 - Used in `_decorateBannyWithBackground()` and `_decorateBannyWithOutfits()` when returning previously equipped items.
 - **v5:** Used `_transferFrom()` (which reverts on failure) for all transfers, meaning a single burned/removed outfit could block the entire decoration operation.
 
+> **Why this mattered**: In v5, if a project owner removed a tier that contained an equipped outfit, the Banny body owner could never change decorations again — the `safeTransferFrom` for the removed item would revert, permanently blocking the `decorateBannyWith()` function. This was the most-reported user issue.
+
 ### `_isInArray()` Helper
 - **v6 adds:** `_isInArray(uint256 value, uint256[] memory array)` -- checks if a value is present in an array.
 - Used during outfit cleanup to skip outfits being re-equipped rather than transferring them out and back in.
@@ -71,6 +81,8 @@ All `@bananapus/721-hook-v5` imports replaced with `@bananapus/721-hook-v6`:
 ### Default Eyes Bug Fix (`_outfitContentsFor`)
 - **v5 (bug):** `_outfitContentsFor()` used the current outfit's `upc` to decide alien vs. standard default eyes: `if (upc == ALIEN_UPC)`. This checked the UPC of the *outfit being iterated*, not the banny body.
 - **v6 (fix):** `_outfitContentsFor()` now accepts an additional `bodyUpc` parameter and uses `if (bodyUpc == ALIEN_UPC)` to correctly select default eyes based on the banny body type.
+
+> **Why this mattered**: The bug caused alien Bannys to get standard eyes and vice versa when any outfit was equipped, breaking the visual identity of the NFT. The fix ensures default eyes are always selected based on the body type, not whatever outfit happens to be iterated.
 
 ### Improved Background Authorization Logic
 - **v6:** `_decorateBannyWithBackground()` now explicitly checks if an unused background (where `userId == 0`) can only be attached by its owner. In v5, the authorization check `_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(userOf(hook, backgroundId))` could behave unexpectedly when `userOf()` returned 0 (querying `ownerOf(0)` on the hook).
@@ -220,3 +232,5 @@ No struct changes. Both versions use `JB721Tier` from the respective `721-hook` 
 | `_outfitContentsFor(hook, outfitIds)` | `_outfitContentsFor(hook, outfitIds, bodyUpc)` | Added `bodyUpc` param (bug fix) |
 | `@bananapus/721-hook-v5` | `@bananapus/721-hook-v6` | Dependency upgrade |
 | `pragma solidity 0.8.23` | `pragma solidity 0.8.26` | Compiler version bump |
+
+> **Cross-repo impact**: The `pricingContext()` return change (3 values → 2) is driven by the upstream `nana-721-hook-v6` `IJB721TiersHook` interface change. The `@bananapus/721-hook-v6` dependency brings in the new tier splits system, though Banny Retail does not use tier splits.
