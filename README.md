@@ -8,6 +8,8 @@ On-chain composable avatar system for Juicebox 721 collections -- manages Banny 
 
 Banny is a composable NFT character system built on top of Juicebox 721 hooks. Each Banny is a body NFT (Alien, Pink, Orange, or Original) that can wear outfit NFTs and sit on a background NFT. The resolver composes these layers into a single SVG image, fully on-chain.
 
+Outfit changes can be locked for 7 days via `lockOutfitChangesFor`. This proves that a Banny's appearance is stable -- useful for PFPs, social displays, or any context where others rely on a Banny looking the way it does right now. While locked, neither the owner nor anyone else can change or remove the body's outfits or background.
+
 ### How It Works
 
 ```
@@ -31,6 +33,41 @@ Banny is a composable NFT character system built on top of Juicebox 721 hooks. E
    → Owner registers content hashes: setSvgHashesOf(upcs, hashes)
    → Anyone uploads matching content: setSvgContentsOf(upcs, contents)
    → Falls back to IPFS base URI if on-chain content not yet stored
+```
+
+### Decoration Flow
+
+```mermaid
+sequenceDiagram
+    participant Owner as Body Owner
+    participant Resolver as Banny721TokenUriResolver
+    participant Hook as 721 Hook (NFT Contract)
+
+    Owner->>Resolver: decorateBannyWith(hook, bodyId, bgId, outfitIds)
+    Resolver->>Hook: ownerOf(bodyId) -- verify caller owns body
+    Hook-->>Resolver: owner address
+
+    Note over Resolver: Check body is not locked
+
+    alt Background is changing
+        Resolver->>Hook: transferFrom(owner, resolver, bgId)
+        Note over Resolver: Store bgId as body's background
+        opt Previous background exists
+            Resolver->>Hook: transferFrom(resolver, owner, prevBgId)
+        end
+    end
+
+    loop Each outfit in outfitIds
+        Resolver->>Hook: transferFrom(owner, resolver, outfitId)
+        Note over Resolver: Track outfitId as worn by body
+        opt Previous outfit in same category
+            Resolver->>Hook: transferFrom(resolver, owner, prevOutfitId)
+        end
+    end
+
+    Note over Resolver: tokenURI(bodyId) now renders composed SVG
+    Owner->>Resolver: tokenURI(bodyId)
+    Resolver-->>Owner: base64-encoded JSON with layered SVG
 ```
 
 ### Asset Categories
@@ -138,6 +175,21 @@ script/
 | `setSvgContentsOf` | Anyone (content validated against registered hash) |
 | `setProductNames` | Contract owner only |
 | `setMetadata` | Contract owner only |
+
+## Supported Chains
+
+Deployed via Sphinx deterministic deployment (`script/Deploy.s.sol`).
+
+| Network | Chain ID |
+|---------|----------|
+| Ethereum | 1 |
+| Optimism | 10 |
+| Base | 8453 |
+| Arbitrum | 42161 |
+| Ethereum Sepolia | 11155111 |
+| Optimism Sepolia | 11155420 |
+| Base Sepolia | 84532 |
+| Arbitrum Sepolia | 421614 |
 
 ## Risks
 
