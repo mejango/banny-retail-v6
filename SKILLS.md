@@ -58,6 +58,46 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 | `@openzeppelin/contracts` | `Ownable`, `ReentrancyGuard`, `ERC2771Context`, `IERC721Receiver`, `Strings` | Access control, reentrancy protection, meta-transactions, safe NFT receipt, string utilities |
 | `lib/base64` | `Base64` | Base64 encoding for on-chain SVG and JSON metadata |
 
+### Deployment / Setup Sequence
+
+The resolver is connected to a 721 hook in one of two ways:
+
+1. **At hook deployment**: Pass the resolver address as `tokenUriResolver` in `JBDeploy721TiersHookConfig` when calling `IJB721TiersHookDeployer.deployHookFor(...)`. The hook's `initialize()` stores it in the hook store via `recordSetTokenUriResolver`.
+2. **After deployment**: Call `hook.setMetadata(...)` with the resolver address as the `tokenUriResolver` parameter. Requires `SET_721_METADATA` permission. Pass `IJB721TokenUriResolver(address(this))` as a sentinel value to leave it unchanged, since `address(0)` clears the resolver.
+
+Once set, the hook's store maps `tokenUriResolverOf[hook]` to the resolver address. Any `tokenURI(tokenId)` call on the hook delegates to `resolver.tokenUriOf(hook, tokenId)`, which composes the on-chain SVG.
+
+## Rendering Order
+
+The composed SVG layers elements back-to-front. Later layers are drawn on top of earlier layers. The full rendering order for a dressed body is:
+
+1. **Background** (category 1) -- if attached and `shouldIncludeBackgroundOnBannyBody` is true
+2. **Body** (category 0) -- the base Banny character with color-fill styles (`b1`-`b4`, `a1`-`a3`)
+3. **Backside** (category 2) -- rendered behind the body in the SVG source but layered by the SVG's internal z-ordering
+4. **Necklace** (category 3) -- default injected if none attached; custom necklaces are deferred and rendered after suit top (category 11)
+5. **Head** (category 4) -- if present, suppresses default injection of eyes, mouth
+6. **Eyes** (category 5) -- default alien or standard eyes injected if no head and no explicit eyes
+7. **Glasses** (category 6)
+8. **Mouth** (category 7) -- default mouth injected if no head and no explicit mouth
+9. **Legs** (category 8)
+10. **Suit** (category 9)
+11. **Suit Bottom** (category 10)
+12. **Suit Top** (category 11)
+13. **Custom Necklace** -- rendered here (after suit top) if a custom necklace was provided, so it layers on top of clothing
+14. **Headtop** (category 12)
+15. **Hand** (category 13)
+16. **Special overlays** (categories 14-17) -- suit, legs, head, body specials
+
+For non-body tokens (outfits, backgrounds), the item is rendered on a grayscale mannequin Banny (`fill:#808080`) for preview.
+
+## SVG Format Requirements
+
+- **Canvas**: All SVGs are rendered within a `400x400` viewport: `<svg width="400" height="400" viewBox="0 0 400 400">`.
+- **Fragment, not document**: SVG content stored via `setSvgContentsOf` must NOT include the parent `<svg>` element. The resolver wraps all fragments in the outer SVG element with shared styles (`.o{fill:#050505;}.w{fill:#f9f9f9;}`).
+- **Hash verification only**: The contract validates uploaded SVG content against a pre-registered `keccak256` hash but performs no structural validation (no dimension checks, no viewBox enforcement). Ensuring content renders correctly at 400x400 is the uploader's responsibility.
+- **Body color classes**: Body SVGs use CSS classes `b1`-`b4` (body fills) and `a1`-`a3` (accent fills) which are injected as `<style>` elements based on the body's UPC. Outfit SVGs can reference `.o` (dark, #050505) and `.w` (light, #f9f9f9) classes provided by the wrapper.
+- **Immutability**: Once stored, SVG content cannot be changed. A content or hash error requires deploying a new resolver instance.
+
 ## Key Types
 
 ### Asset Categories
@@ -166,6 +206,7 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 14. **Mannequin rendering.** Outfit and background tokens (not bodies) are rendered on a grayscale mannequin Banny for preview purposes. The mannequin has `fill:#808080` styling.
 15. **ERC2771 meta-transaction support.** Constructor takes a `trustedForwarder` address. All `_msgSender()` calls use `ERC2771Context`, allowing relayers to submit decoration transactions on behalf of users.
 16. **Empty metadata fields clear the value.** `setMetadata` always writes all three fields. Passing an empty string clears that field. To keep a field unchanged, pass its current value.
+17. **Outfit locks persist through transfers.** The `outfitLockedUntil` mapping is keyed by `(hook, bannyBodyId)` and is never cleared on transfer. When a locked body NFT is transferred, the new owner inherits the lock and cannot change outfits until it expires. Equipped outfits also travel with the body -- the new owner can unequip them after the lock expires. Sellers should unequip valuable outfits before transferring a body.
 
 ## Example Integration
 
