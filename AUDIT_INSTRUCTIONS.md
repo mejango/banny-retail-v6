@@ -325,3 +325,27 @@ The resolver makes external calls to the `hook` and its `STORE()` but does not c
 | `UnrecognizedBackground` | Token is not category 1 |
 | `UnrecognizedCategory` | Outfit category not in 2-17 range |
 | `UnrecognizedProduct` | Body UPC not 1-4 (Alien/Pink/Orange/Original) |
+
+## How to Report Findings
+
+For each finding:
+
+1. **Title** -- one line, starts with severity (CRITICAL/HIGH/MEDIUM/LOW)
+2. **Affected contract(s)** -- exact file path and line numbers
+3. **Description** -- what is wrong, in plain language
+4. **Trigger sequence** -- step-by-step, minimal steps to reproduce
+5. **Impact** -- what an attacker gains, what a user loses
+6. **Proof** -- code trace or Foundry test
+7. **Fix** -- minimal code change
+
+**Severity guide:**
+- **CRITICAL**: Permanent NFT custody loss, unauthorized outfit theft.
+- **HIGH**: Conditional NFT loss, authorization bypass, broken custody invariant.
+- **MEDIUM**: State inconsistency without fund loss, griefing that locks outfits.
+- **LOW**: Cosmetic SVG issues, informational, edge-case-only.
+
+## Previous Audit Findings
+
+| ID | Severity | Status | Description |
+|----|----------|--------|-------------|
+| L18 | HIGH | FIXED | `ownerOf(0)` bypass in outfit authorization. When `wearerOf` returned 0 for unworn outfits, `hook.ownerOf(0)` could succeed for some hooks, allowing unauthorized outfit use. Fixed by adding `if (wearerId == 0) revert` guard at line 1262. Regression test in `DecorateFlow.t.sol`. |
