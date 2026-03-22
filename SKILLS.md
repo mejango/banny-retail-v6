@@ -141,7 +141,7 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 | `_svgContentOf` | `upc => string` | On-chain SVG content (immutable once set) |
 | `svgHashOf` | `upc => bytes32` | Expected SVG content hash (immutable once set) |
 | `_customProductNameOf` | `upc => string` | Human-readable product name |
-| `outfitLockedUntil` | `hook => upc => uint256` | Timestamp until outfit changes locked |
+| `outfitLockedUntil` | `hook => bannyBodyId => uint256` | Timestamp until outfit changes locked (declared as `upc` but keyed by token ID) |
 | `_userOf` | `hook => backgroundId => uint256` | Which body uses a background |
 | `_wearerOf` | `hook => outfitId => uint256` | Which body wears an outfit |
 | `svgBaseUri` | `string` | IPFS/HTTP base URI for fallback SVG loading |
