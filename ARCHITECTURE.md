@@ -60,11 +60,12 @@ JB721TiersHook → tokenURI(tokenId)
         1. Background (if attached)
         2. Body (with color palette fills from UPC)
         3. Outfits in category order:
-           Backside(2) → Necklace(3)* → Head(4) → Eyes(5)* →
-           Glasses(6) → Mouth(7)* → Legs(8) → Suit(9) →
-           Suit Bottom(10) → Suit Top(11) → Necklace* →
+           Backside(2) → Necklace(3)† → Head(4) → Eyes(5)† →
+           Glasses(6) → Mouth(7)† → Legs(8) → Suit(9) →
+           Suit Bottom(10) → Suit Top(11) → Necklace‡ →
            Headtop(12) → Hand(13) → Special categories(14-17)
-           (* = default inserted if no custom equipped and no full Head)
+           († = default inserted if no custom equipped and no full Head)
+           (‡ = custom necklace rendered here, above suit layers)
     → Wrap in <svg> container (400x400 viewBox)
     → Encode as base64 data URI with JSON metadata
     → Return fully on-chain SVG
