@@ -91,7 +91,7 @@ JB721TiersHook.tokenURI(tokenId)
 - **Removed tier in previous set**: `_productOfTokenId` returns category 0. The while loop processes it (category 0 <= any new category) and transfers it out
 - **Categories not ascending**: Reverts `Banny721TokenUriResolver_UnorderedCategories`
 - **Duplicate categories**: Reverts `Banny721TokenUriResolver_UnorderedCategories` (equality fails the `<` check)
-- **Category 0 or 1 as outfit**: Reverts `Banny721TokenUriResolver_UnrecognizedCategory`
+- **Category outside 2--17 as outfit**: Reverts `Banny721TokenUriResolver_UnrecognizedCategory`
 - **Head category conflict**: Reverts `Banny721TokenUriResolver_HeadAlreadyAdded`
 - **Suit category conflict**: Reverts `Banny721TokenUriResolver_SuitAlreadyAdded`
 - **Unauthorized background**: Reverts `Banny721TokenUriResolver_UnauthorizedBackground`
@@ -429,7 +429,7 @@ Returns `(fullName, categoryName, productName)`.
 
 ### Get Lock Status
 
-**Entry point**: `Banny721TokenUriResolver.outfitLockedUntil(address hook, uint256 upc) public returns (uint256)`
+**Entry point**: `Banny721TokenUriResolver.outfitLockedUntil(address hook, uint256 upc) public view returns (uint256)`
 
 **Who can call**: Anyone (public mapping).
 
@@ -444,39 +444,40 @@ Returns the timestamp until which the body is locked, or 0 if never locked.
 ## Summary: State Machine per Banny Body
 
 ```
-                     +-----------+
-                     |   NAKED   |
-                     | (minted)  |
-                     +-----+-----+
-                           |
-                  decorateBannyWith(outfits)
-                           |
-                     +-----v-----+
-                     |  DRESSED  |<----+
-                     |           |     |
-                     +-----+-----+     |
-                           |           |
-             +-------------+-------+   |
-             |                     |   |
-    decorateBannyWith([])  decorateBannyWith(newOutfits)
-             |                     |
-       +-----v-----+              +---+
-       |   NAKED   |
-       +-----+-----+
-             |
-    lockOutfitChangesFor()
-             |
-       +-----v-----+
-       |   LOCKED   |
-       | (7 days)   |
-       +-----+-----+
-             |
-       block.timestamp > lockUntil
-             |
-       +-----v-----+
-       | UNLOCKED  |
-       | (NAKED)   |
-       +-----------+
+                    +-----------+
+                    |   NAKED   |
+                    | (minted)  |
+                    +-----+-----+
+                          |
+                 decorateBannyWith(outfits)
+                          |
+                    +-----v-----+
+                    |  DRESSED  |<----+
+                    |           |     |
+                    +--+--+--+--+     |
+                       |  |  |        |
+          +------------+  |  +--------+
+          |               |  decorateBannyWith(newOutfits)
+ decorateBannyWith([])    |
+          |               | lockOutfitChangesFor()
+    +-----v-----+         |
+    |   NAKED   |         |
+    +-----+-----+         |
+          |               |
+ lockOutfitChangesFor()   |
+          |               |
+    +-----v---------------v--+
+    |        LOCKED           |
+    |       (7 days)          |
+    +-----+-------------------+
+          |
+    block.timestamp > lockUntil
+          |
+    +-----v-----------+
+    | UNLOCKED        |
+    | (NAKED or       |
+    |  DRESSED)       |
+    +-----------------+
 ```
 
 The lock state applies equally to dressed and naked bodies. A dressed body can be locked, preventing outfit changes. A naked body can be locked, preventing outfit additions.
