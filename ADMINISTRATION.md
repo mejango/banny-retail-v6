@@ -59,6 +59,17 @@ Admin privileges and their scope in banny-retail-v6. The contract (`Banny721Toke
 **Metadata:**
 - `svgDescription`, `svgExternalUrl`, and `svgBaseUri` can be changed by the owner at any time via `setMetadata()`. All three are always overwritten in a single call.
 
+## Custodial Model
+
+When a user equips an outfit or background on a banny body via `decorateBannyWith()`, the outfit/background NFT is transferred from the user's wallet into the `Banny721TokenUriResolver` contract. The resolver holds these NFTs in custody until the user unequips them (by calling `decorateBannyWith()` again with different outfits).
+
+**Trust assumptions:**
+- Users must trust that the resolver contract's `decorateBannyWith()` function correctly returns NFTs when outfits are changed. There is no separate `withdraw()` or `rescue()` function.
+- The `onERC721Received` guard (line 1043: `operator == address(this)`) prevents anyone from sending arbitrary NFTs to the resolver. Only self-initiated transfers during `decorateBannyWith()` are accepted.
+- If the banny body NFT is transferred to a new owner while outfits are equipped, the new body owner can unequip and claim the outfit NFTs (line 979-985: ownership check is against current body owner).
+- The `lockOutfitChangesFor()` function can lock outfits for up to 7 days per call (extendable). During a lock, neither the body owner nor anyone else can change the equipped outfits.
+- There is no admin override to rescue stuck outfit NFTs. If a bug in `decorateBannyWith()` prevents unequipping, the outfits remain locked in the resolver permanently.
+
 ## Immutable Configuration
 
 The following are set at construction and cannot be changed:
