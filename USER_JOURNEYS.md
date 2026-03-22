@@ -1,6 +1,6 @@
 # banny-retail-v6 -- User Journeys
 
-Every interaction path through `Banny721TokenUriResolver`, traced from entry point to final state. All function signatures and line references are verified against `src/Banny721TokenUriResolver.sol`.
+All interaction paths through `Banny721TokenUriResolver`, traced from entry point to final state. All function signatures, events, and revert names are verified against `src/Banny721TokenUriResolver.sol` and `src/interfaces/IBanny721TokenUriResolver.sol`.
 
 ---
 
@@ -8,11 +8,9 @@ Every interaction path through `Banny721TokenUriResolver`, traced from entry poi
 
 The resolver does not handle minting. Banny bodies are minted through the Juicebox 721 tier system. This journey is included for context because it produces the token that all other journeys depend on.
 
-### Entry Point
+**Entry point**: Payment to a `JBMultiTerminal` for the project that owns the `JB721TiersHook`. The hook's `afterPayRecordedWith` callback mints a 721 token from the appropriate tier.
 
-Payment to a `JBMultiTerminal` for the project that owns the `JB721TiersHook`. The hook's `afterPayRecordedWith` callback mints a 721 token from the appropriate tier.
-
-### What the Resolver Does
+**Who can call**: Anyone (via `JBMultiTerminal.pay`).
 
 After minting, when any caller requests the token URI:
 
@@ -21,98 +19,86 @@ JB721TiersHook.tokenURI(tokenId)
   -> Banny721TokenUriResolver.tokenUriOf(hook, tokenId)
 ```
 
-**Function**: `tokenUriOf(address hook, uint256 tokenId) external view returns (string memory)` (line 200)
+**Function**: `tokenUriOf(address hook, uint256 tokenId) external view returns (string memory)`
 
-### Parameters
+**Parameters**:
+- `hook` -- The `JB721TiersHook` contract address
+- `tokenId` -- The minted token ID (e.g., `4_000_000_001` for Original Banny #1)
 
-- `hook`: The `JB721TiersHook` contract address.
-- `tokenId`: The minted token ID (e.g., `4_000_000_001` for Original Banny #1).
+**State read**:
+1. `_productOfTokenId(hook, tokenId)` calls `hook.STORE().tierOfTokenId(hook, tokenId, false)`
+2. If `product.category == 0` (body), calls `svgOf(hook, tokenId, true, true)`
+3. `svgOf` calls `assetIdsOf(hook, tokenId)` which returns empty arrays (no outfits or background attached)
+4. The body SVG is composed with default accessories (necklace, eyes, mouth) and no custom outfits
 
-### State Read
+**Result**: A base64-encoded data URI containing JSON metadata with:
+- Product name (Alien, Pink, Orange, or Original)
+- Category name ("Banny body")
+- An SVG image with the naked banny body and default accessories
+- Empty `outfitIds` array, `backgroundId: 0`
 
-1. `_productOfTokenId(hook, tokenId)` calls `hook.STORE().tierOfTokenId(hook, tokenId, false)`.
-2. If `product.category == 0` (body), calls `svgOf(hook, tokenId, true, true)`.
-3. `svgOf` calls `assetIdsOf(hook, tokenId)` which returns empty arrays (no outfits or background attached).
-4. The body SVG is composed with default accessories (necklace, eyes, mouth) and no custom outfits.
+**Events**: None (view function).
 
-### Result
-
-A base64-encoded data URI containing JSON metadata with:
-- Product name (Alien, Pink, Orange, or Original).
-- Category name ("Banny body").
-- An SVG image with the naked banny body and default accessories.
-- Empty `outfitIds` array, `backgroundId: 0`.
-
-### Edge Cases
-
-- **Token ID does not exist**: `_productOfTokenId` returns a tier with `id == 0`. Function returns `""` (line 205).
-- **SVG content not uploaded**: Falls back to IPFS URI via `JBIpfsDecoder` (line 303).
-- **Token from category > 17**: Falls back to hook's `baseURI()` for IPFS resolution (line 300).
+**Edge cases**:
+- **Token ID does not exist**: `_productOfTokenId` returns a tier with `id == 0`. Function returns `""`
+- **SVG content not uploaded**: Falls back to IPFS URI via `JBIpfsDecoder`
+- **Token from category > 17**: Falls back to hook's `baseURI()` for IPFS resolution
+- **Unrecognized product**: Reverts `Banny721TokenUriResolver_UnrecognizedProduct`
 
 ---
 
 ## Journey 2: Dress a Banny with Outfits
 
-### Entry Point
+**Entry point**: `Banny721TokenUriResolver.decorateBannyWith(address hook, uint256 bannyBodyId, uint256 backgroundId, uint256[] calldata outfitIds)`
 
-```solidity
-function decorateBannyWith(
-    address hook,
-    uint256 bannyBodyId,
-    uint256 backgroundId,
-    uint256[] calldata outfitIds
-) external nonReentrant
-```
+**Who can call**: The owner of the banny body NFT (`IERC721(hook).ownerOf(bannyBodyId) == _msgSender()`). Protected by `ReentrancyGuard`. ERC-2771 meta-transactions supported.
 
-Line 977. Protected by `ReentrancyGuard`.
+**Prerequisites**:
+- Caller owns the banny body NFT
+- Body is not locked (`outfitLockedUntil[hook][bannyBodyId] <= block.timestamp`)
+- Caller owns each outfit NFT directly, or owns the banny body currently wearing that outfit
+- Caller owns the background NFT directly (or owns the banny body currently using it), if `backgroundId != 0`
+- Caller has approved the resolver for the hook contract (`hook.setApprovalForAll(resolver, true)`)
 
-### Prerequisites
+**Parameters**:
+- `hook` -- The `JB721TiersHook` contract address
+- `bannyBodyId` -- Token ID of the banny body being dressed. Must be category 0
+- `backgroundId` -- Token ID of the background to attach. Pass `0` for no background
+- `outfitIds` -- Array of outfit token IDs. Must be in ascending category order (categories 2--17). Pass `[]` for no outfits
 
-- Caller owns the banny body NFT (`IERC721(hook).ownerOf(bannyBodyId) == _msgSender()`).
-- Body is not locked (`outfitLockedUntil[hook][bannyBodyId] <= block.timestamp`).
-- Caller owns each outfit NFT directly, or owns the banny body currently wearing that outfit.
-- Caller owns the background NFT directly (or owns the banny body currently using it), if `backgroundId != 0`.
-- Caller has approved the resolver for the hook contract (`hook.setApprovalForAll(resolver, true)`).
+**State changes**:
+1. `_checkIfSenderIsOwner(hook, bannyBodyId)` -- verifies caller owns the body
+2. `_productOfTokenId(hook, bannyBodyId).category` must equal `_BODY_CATEGORY` (0)
+3. `outfitLockedUntil[hook][bannyBodyId]` must be `<= block.timestamp`
+4. Background processing (`_decorateBannyWithBackground`):
+   - `_attachedBackgroundIdOf[hook][bannyBodyId]` updated to `backgroundId` (or cleared to 0)
+   - `_userOf[hook][backgroundId]` set to `bannyBodyId`
+   - Old background NFT returned to caller via `_tryTransferFrom` (silent failure OK)
+   - New background NFT transferred into the resolver via `_transferFrom` (reverts on failure)
+5. Outfit processing (`_decorateBannyWithOutfits`):
+   - For each new outfit: `_wearerOf[hook][outfitId]` set to `bannyBodyId`
+   - Old outfits up to the current category are transferred out via `_tryTransferFrom`
+   - New outfits transferred into the resolver via `_transferFrom` (if not already held)
+   - `_attachedOutfitIdsOf[hook][bannyBodyId]` overwritten with the new `outfitIds` array
 
-### Parameters
+**Events**: `DecorateBanny(address indexed hook, uint256 indexed bannyBodyId, uint256 indexed backgroundId, uint256[] outfitIds, address caller)` -- emitted before state changes, where `caller = _msgSender()`
 
-- `hook`: The `JB721TiersHook` contract address.
-- `bannyBodyId`: Token ID of the banny body being dressed. Must be category 0.
-- `backgroundId`: Token ID of the background to attach. Pass `0` for no background.
-- `outfitIds`: Array of outfit token IDs. Must be in ascending category order (categories 2-17). Pass `[]` for no outfits.
-
-### State Changes
-
-**Checks (lines 987-997)**:
-1. `_checkIfSenderIsOwner(hook, bannyBodyId)` -- reverts `UnauthorizedBannyBody` if caller is not the body owner.
-2. `_productOfTokenId(hook, bannyBodyId).category` must equal 0 -- reverts `BannyBodyNotBodyCategory`.
-3. `outfitLockedUntil[hook][bannyBodyId]` must be `<= block.timestamp` -- reverts `OutfitChangesLocked`.
-
-**Event emission (line 999)**:
-```
-DecorateBanny(hook, bannyBodyId, backgroundId, outfitIds, _msgSender())
-```
-
-**Background processing (`_decorateBannyWithBackground`, line 1155)**:
-
-If the background is changing:
-- `_attachedBackgroundIdOf[hook][bannyBodyId]` is updated to `backgroundId` (or cleared to 0).
-- `_userOf[hook][backgroundId]` is set to `bannyBodyId`.
-- Old background NFT is returned to caller via `_tryTransferFrom` (silent failure OK).
-- New background NFT is transferred into the resolver via `_transferFrom` (reverts on failure).
-
-**Outfit processing (`_decorateBannyWithOutfits`, line 1222)**:
-
-For each new outfit:
-- Authorization verified: caller owns the outfit or the body wearing it.
-- Category validated: in range 2-17, ascending order, no conflicts.
-- Old outfits up to the current category are transferred out via `_tryTransferFrom`.
-- New outfit transferred into the resolver via `_transferFrom` (if not already held).
-- `_wearerOf[hook][outfitId]` set to `bannyBodyId`.
-
-After all new outfits are processed:
-- Remaining old outfits are transferred out.
-- `_attachedOutfitIdsOf[hook][bannyBodyId]` is overwritten with the new `outfitIds` array (line 1368).
+**Edge cases**:
+- **Empty outfitIds with backgroundId=0**: Strips all outfits and background. All previously equipped NFTs returned to caller
+- **Outfit already worn by this body**: Not re-transferred. `_wearerOf` retains existing value. The outfit stays in resolver custody
+- **Outfit worn by another body owned by caller**: Authorized via `ownerOf(wearerId) == _msgSender()`. The outfit is unlinked from the old body and transferred to the new body's custody
+- **Burned outfit in previous set**: `_tryTransferFrom` silently fails. The burned outfit is removed from the attachment array but no NFT is returned
+- **Removed tier in previous set**: `_productOfTokenId` returns category 0. The while loop processes it (category 0 <= any new category) and transfers it out
+- **Categories not ascending**: Reverts `Banny721TokenUriResolver_UnorderedCategories`
+- **Duplicate categories**: Reverts `Banny721TokenUriResolver_UnorderedCategories` (equality fails the `<` check)
+- **Category 0 or 1 as outfit**: Reverts `Banny721TokenUriResolver_UnrecognizedCategory`
+- **Head category conflict**: Reverts `Banny721TokenUriResolver_HeadAlreadyAdded`
+- **Suit category conflict**: Reverts `Banny721TokenUriResolver_SuitAlreadyAdded`
+- **Unauthorized background**: Reverts `Banny721TokenUriResolver_UnauthorizedBackground`
+- **Unauthorized outfit**: Reverts `Banny721TokenUriResolver_UnauthorizedOutfit`
+- **Unrecognized background category**: Reverts `Banny721TokenUriResolver_UnrecognizedBackground`
+- **Source body is locked**: Reverts `Banny721TokenUriResolver_OutfitChangesLocked` (via `_revertIfBodyLocked`)
+- **Reentrancy via safeTransferFrom callback**: Blocked by `nonReentrant` modifier
 
 ### Example: Dress with Hat and Glasses
 
@@ -137,47 +123,32 @@ Result:
   - Body's tokenURI now renders with hat layer.
 ```
 
-### Edge Cases
-
-- **Empty outfitIds with backgroundId=0**: Strips all outfits and background. All previously equipped NFTs returned to caller.
-- **Outfit already worn by this body**: Not re-transferred. `_wearerOf` retains existing value. The outfit stays in resolver custody.
-- **Outfit worn by another body owned by caller**: Authorized via `ownerOf(wearerId) == _msgSender()`. The outfit is unlinked from the old body and transferred to the new body's custody.
-- **Burned outfit in previous set**: `_tryTransferFrom` silently fails. The burned outfit is removed from the attachment array but no NFT is returned.
-- **Removed tier in previous set**: `_productOfTokenId` returns category 0. The while loop processes it (category 0 <= any new category) and transfers it out.
-- **Categories not ascending**: Reverts `UnorderedCategories`.
-- **Duplicate categories**: Reverts `UnorderedCategories` (equality fails the `<` check).
-- **Category 0 or 1 as outfit**: Reverts `UnrecognizedCategory`.
-- **Reentrancy via safeTransferFrom callback**: Blocked by `nonReentrant` modifier.
-
 ---
 
 ## Journey 3: Undress a Banny
 
 Undressing is not a separate function. It is performed by calling `decorateBannyWith` with empty arrays.
 
-### Entry Point
+**Entry point**: `Banny721TokenUriResolver.decorateBannyWith(address hook, uint256 bannyBodyId, 0, [])`
 
-```solidity
-decorateBannyWith(hook, bannyBodyId, 0, [])
-```
+**Who can call**: The owner of the banny body NFT.
 
-### Parameters
+**Parameters**:
+- `hook` -- The hook address
+- `bannyBodyId` -- The banny body to undress
+- `backgroundId` -- `0` (remove background)
+- `outfitIds` -- `[]` (remove all outfits)
 
-- `hook`: The hook address.
-- `bannyBodyId`: The banny body to undress.
-- `backgroundId`: `0` (remove background).
-- `outfitIds`: `[]` (remove all outfits).
+**State changes**:
+1. All checks pass (ownership, not locked, body category)
+2. `_attachedBackgroundIdOf[hook][bannyBodyId]` set to 0. Old background NFT returned to caller
+3. The new `outfitIds` array is empty, so the merge loop does not execute. The tail loop transfers out all previous outfits
+4. `_attachedOutfitIdsOf[hook][bannyBodyId]` set to `[]`
+5. All outfit NFTs and the background NFT are returned to `_msgSender()`
 
-### State Changes
+**Events**: `DecorateBanny(hook, bannyBodyId, 0, [], caller)`
 
-1. All checks pass (ownership, not locked, body category).
-2. **Background**: `_attachedBackgroundIdOf[hook][bannyBodyId]` set to 0. Old background NFT returned to caller.
-3. **Outfits**: The new `outfitIds` array is empty, so the merge loop does not execute. The tail loop transfers out all previous outfits. `_attachedOutfitIdsOf[hook][bannyBodyId]` set to `[]`.
-4. All outfit NFTs and the background NFT are returned to `_msgSender()`.
-
-### Partial Undress
-
-To remove some outfits but keep others, pass only the outfits you want to keep:
+**Partial undress**: To remove some outfits but keep others, pass only the outfits you want to keep:
 
 ```
 Before: outfitIds = [hat, glasses, necklace]
@@ -185,46 +156,38 @@ Call:    decorateBannyWith(hook, bodyId, backgroundId, [necklace])
 After:  hat and glasses returned to caller, necklace stays equipped.
 ```
 
-### Edge Cases
-
-- **Body is locked**: Reverts `OutfitChangesLocked`. Cannot undress during lock period.
-- **Some equipped outfits were burned**: `_tryTransferFrom` silently fails for burned tokens. No revert, no NFT returned for those tokens.
-- **Caller is not the current owner**: Reverts `UnauthorizedBannyBody`. This can happen if the body was recently transferred.
+**Edge cases**:
+- **Body is locked**: Reverts `Banny721TokenUriResolver_OutfitChangesLocked`. Cannot undress during lock period
+- **Some equipped outfits were burned**: `_tryTransferFrom` silently fails for burned tokens. No revert, no NFT returned for those tokens
+- **Caller is not the current owner**: Reverts `Banny721TokenUriResolver_UnauthorizedBannyBody`. This can happen if the body was recently transferred
 
 ---
 
 ## Journey 4: Lock a Banny
 
-### Entry Point
+**Entry point**: `Banny721TokenUriResolver.lockOutfitChangesFor(address hook, uint256 bannyBodyId)`
 
-```solidity
-function lockOutfitChangesFor(
-    address hook,
-    uint256 bannyBodyId
-) public
-```
+**Who can call**: The owner of the banny body NFT (`IERC721(hook).ownerOf(bannyBodyId) == _msgSender()`).
 
-Line 1013.
+**Parameters**:
+- `hook` -- The hook address
+- `bannyBodyId` -- The banny body to lock
 
-### Prerequisites
+**State changes**:
+1. `_checkIfSenderIsOwner(hook, bannyBodyId)` -- verifies caller owns the body
+2. `newLockUntil = block.timestamp + 7 days` (constant `_LOCK_DURATION`)
+3. If `currentLockedUntil > newLockUntil`, reverts
+4. `outfitLockedUntil[hook][bannyBodyId] = newLockUntil`
 
-- Caller owns the banny body NFT.
+**Events**: None. The `lockOutfitChangesFor` function does not emit an event.
 
-### Parameters
-
-- `hook`: The hook address.
-- `bannyBodyId`: The banny body to lock.
-
-### State Changes
-
-1. `_checkIfSenderIsOwner(hook, bannyBodyId)` -- reverts `UnauthorizedBannyBody` if not owner.
-2. `newLockUntil = block.timestamp + 7 days` (line 1021).
-3. If `currentLockedUntil > newLockUntil`, reverts `CantAccelerateTheLock` (line 1024).
-4. `outfitLockedUntil[hook][bannyBodyId] = newLockUntil` (line 1027).
-
-### Result
-
-The body cannot have its outfits or background changed until `block.timestamp > outfitLockedUntil[hook][bannyBodyId]`.
+**Edge cases**:
+- **Relocking while already locked**: Succeeds if the new expiry is >= the current expiry. Since `newLockUntil = block.timestamp + 7 days`, this effectively extends the lock by whatever time remains
+- **Attempting to shorten the lock**: Reverts `Banny721TokenUriResolver_CantAccelerateTheLock`
+- **Locking an undressed body**: Valid. The body is locked with no outfits. No outfits can be added during the lock period
+- **Lock after transfer**: The new owner can lock. The old owner cannot (they no longer pass `_checkIfSenderIsOwner`)
+- **Lock does not prevent body transfer**: The lock only affects `decorateBannyWith`. The body NFT can still be transferred on the hook contract
+- **No admin override**: The contract owner cannot unlock a body. The lock must expire naturally
 
 ### Use Case: Marketplace Sale
 
@@ -237,49 +200,39 @@ The body cannot have its outfits or background changed until `block.timestamp > 
 6. After 7 days, Bob can undress and receive the hat and suit NFTs.
 ```
 
-### Edge Cases
-
-- **Relocking while already locked**: Succeeds if the new expiry is >= the current expiry. Since `newLockUntil = block.timestamp + 7 days`, this effectively extends the lock by whatever time remains.
-- **Locking an undressed body**: Valid. The body is locked with no outfits. No outfits can be added during the lock period.
-- **Lock after transfer**: The new owner can lock. The old owner cannot (they no longer pass `_checkIfSenderIsOwner`).
-- **Lock does not prevent body transfer**: The lock only affects `decorateBannyWith`. The body NFT can still be transferred on the hook contract.
-- **No admin override**: The contract owner cannot unlock a body. The lock must expire naturally.
-
 ---
 
 ## Journey 5: Transfer a Decorated Banny
 
 The resolver does not intercept or control body transfers. Body transfers happen on the `JB721TiersHook` contract. The resolver observes the ownership change lazily.
 
-### What Happens
+**Entry point**: `JB721TiersHook.safeTransferFrom(address from, address to, uint256 tokenId)` (standard ERC-721 transfer on the hook contract, not the resolver)
 
-1. Alice transfers body #1 to Bob via the hook contract (`hook.safeTransferFrom(alice, bob, bodyId)`).
-2. No resolver functions are called during the transfer.
-3. The resolver's state remains unchanged:
-   - `_attachedOutfitIdsOf[hook][bodyId]` still contains the outfit array.
-   - `_attachedBackgroundIdOf[hook][bodyId]` still contains the background ID.
-   - `_wearerOf[hook][outfitId]` still maps each outfit to `bodyId`.
-   - `_userOf[hook][backgroundId]` still maps to `bodyId`.
-4. All equipped outfit and background NFTs remain held by the resolver.
+**Who can call**: The body owner, or an approved operator on the hook contract.
 
-### What Bob Can Do
+**State changes**:
+1. No resolver functions are called during the transfer
+2. Resolver state remains unchanged:
+   - `_attachedOutfitIdsOf[hook][bodyId]` still contains the outfit array
+   - `_attachedBackgroundIdOf[hook][bodyId]` still contains the background ID
+   - `_wearerOf[hook][outfitId]` still maps each outfit to `bodyId`
+   - `_userOf[hook][backgroundId]` still maps to `bodyId`
+3. All equipped outfit and background NFTs remain held by the resolver
 
-Bob now owns the body. All resolver authorization checks (`_checkIfSenderIsOwner`) will pass for Bob.
+**Events**: None from the resolver. The hook emits the standard ERC-721 `Transfer(from, to, tokenId)`.
 
-- **Undress**: `decorateBannyWith(hook, bodyId, 0, [])` returns all equipped NFTs to Bob.
-- **Redress**: `decorateBannyWith(hook, bodyId, newBg, [newOutfits])` replaces outfits. Old outfits returned to Bob (even though Alice originally equipped them).
-- **Lock**: `lockOutfitChangesFor(hook, bodyId)` locks the body under Bob's control.
+**What the new owner (Bob) can do**:
+- **Undress**: `decorateBannyWith(hook, bodyId, 0, [])` returns all equipped NFTs to Bob
+- **Redress**: `decorateBannyWith(hook, bodyId, newBg, [newOutfits])` replaces outfits. Old outfits returned to Bob (even though Alice originally equipped them)
+- **Lock**: `lockOutfitChangesFor(hook, bodyId)` locks the body under Bob's control
 
-### What Alice Can No Longer Do
+**What Alice can no longer do**: Alice cannot call `decorateBannyWith` or `lockOutfitChangesFor` for that body -- she no longer owns it.
 
-Alice cannot call `decorateBannyWith` or `lockOutfitChangesFor` for that body -- she no longer owns it.
-
-### Edge Cases
-
-- **Alice equipped valuable outfits and forgot to undress before selling**: Bob receives full control of all equipped NFTs. This is the intended behavior but creates a seller gotcha. The lock mechanism exists to make this explicit (sellers lock, then sell at a higher price including outfits).
-- **Body transferred while locked**: Lock persists. Bob cannot change outfits until the lock expires.
-- **Body transferred to a contract**: The new contract owner must be able to call `decorateBannyWith`. If the contract does not implement this call, equipped outfits are effectively locked forever (until the contract is upgraded or has a function to make this call).
-- **Double transfer (Alice -> Bob -> Charlie)**: Only Charlie can interact with the body's outfits. Each transfer implicitly transfers outfit control.
+**Edge cases**:
+- **Alice equipped valuable outfits and forgot to undress before selling**: Bob receives full control of all equipped NFTs. This is the intended behavior but creates a seller gotcha. The lock mechanism exists to make this explicit (sellers lock, then sell at a higher price including outfits)
+- **Body transferred while locked**: Lock persists. Bob cannot change outfits until the lock expires
+- **Body transferred to a contract**: The new contract owner must be able to call `decorateBannyWith`. If the contract does not implement this call, equipped outfits are effectively locked forever (until the contract is upgraded or has a function to make this call)
+- **Double transfer (Alice -> Bob -> Charlie)**: Only Charlie can interact with the body's outfits. Each transfer implicitly transfers outfit control
 
 ---
 
@@ -287,31 +240,29 @@ Alice cannot call `decorateBannyWith` or `lockOutfitChangesFor` for that body --
 
 A user who owns multiple bodies can move an equipped outfit from one body to another in a single call.
 
-### Entry Point
-
-```solidity
-decorateBannyWith(hook, newBodyId, 0, [outfitId])
-```
+**Entry point**: `Banny721TokenUriResolver.decorateBannyWith(address hook, uint256 newBodyId, 0, [outfitId])`
 
 Where `outfitId` is currently equipped on `oldBodyId`, and the caller owns both bodies.
 
-### Prerequisites
+**Who can call**: An address that owns both `newBodyId` and the body currently wearing the outfit (`oldBodyId`).
 
-- Caller owns `newBodyId`.
-- Caller owns `oldBodyId` (which currently wears the outfit).
-- `newBodyId` is not locked.
+**Prerequisites**:
+- Caller owns `newBodyId`
+- Caller owns `oldBodyId` (which currently wears the outfit)
+- `newBodyId` is not locked
+- `oldBodyId` is not locked (enforced by `_revertIfBodyLocked`)
 
-### State Changes
+**State changes**:
+1. Authorization passes: caller does not own the outfit directly (resolver holds it), but caller owns `oldBodyId` which is the `wearerOf(hook, outfitId)`
+2. `_wearerOf[hook][outfitId]` updated to `newBodyId`
+3. The outfit is not transferred (resolver already holds it)
+4. `_attachedOutfitIdsOf[hook][newBodyId]` set to the new array including this outfit
+5. `_attachedOutfitIdsOf[hook][oldBodyId]` is NOT explicitly updated. However, `wearerOf(hook, outfitId)` now returns `newBodyId`, so `assetIdsOf(hook, oldBodyId)` will exclude this outfit from its filtered result
 
-1. Authorization passes: caller does not own the outfit directly (resolver holds it), but caller owns `oldBodyId` which is the `wearerOf(hook, outfitId)`.
-2. `_wearerOf[hook][outfitId]` is updated to `newBodyId` (line 1331).
-3. The outfit is not transferred (resolver already holds it, line 1335 check).
-4. `_attachedOutfitIdsOf[hook][newBodyId]` is set to the new array including this outfit.
-5. `_attachedOutfitIdsOf[hook][oldBodyId]` is NOT explicitly updated. However, `wearerOf(hook, outfitId)` will now return `newBodyId`, so `assetIdsOf(hook, oldBodyId)` will exclude this outfit from its filtered result.
+**Events**: `DecorateBanny(hook, newBodyId, 0, [outfitId], caller)`
 
-### Edge Cases
-
-- **Old body is locked**: Reverts `OutfitChangesLocked`. A locked source body keeps its currently equipped outfits and background until the lock expires, even if the caller owns both bodies.
+**Edge cases**:
+- **Old body is locked**: Reverts `Banny721TokenUriResolver_OutfitChangesLocked` via `_revertIfBodyLocked`. A locked source body keeps its outfits and background until the lock expires, even if the caller owns both bodies
 
 ---
 
@@ -319,53 +270,46 @@ Where `outfitId` is currently equipped on `oldBodyId`, and the caller owns both 
 
 ### Step 1: Commit Hashes
 
-**Entry Point**:
-```solidity
-function setSvgHashesOf(
-    uint256[] memory upcs,
-    bytes32[] memory svgHashes
-) external onlyOwner
-```
+**Entry point**: `Banny721TokenUriResolver.setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes)`
 
-Line 1130.
+**Who can call**: Contract owner only (`onlyOwner` modifier, from OpenZeppelin `Ownable`).
 
 **Parameters**:
-- `upcs`: Array of universal product codes to set hashes for.
-- `svgHashes`: Array of `keccak256` hashes of the SVG content strings.
+- `upcs` -- Array of universal product codes to set hashes for
+- `svgHashes` -- Array of `keccak256` hashes of the SVG content strings
 
-**State Changes**:
-- `svgHashOf[upc] = svgHash` for each pair.
-- Reverts `HashAlreadyStored` if any UPC already has a hash set.
-- Emits `SetSvgHash(upc, svgHash, caller)`.
+**State changes**:
+1. For each pair: `svgHashOf[upc] = svgHash`
+
+**Events**: `SetSvgHash(uint256 indexed upc, bytes32 indexed svgHash, address caller)` -- emitted once per UPC in the array
+
+**Edge cases**:
+- **UPC already has a hash**: Reverts `Banny721TokenUriResolver_HashAlreadyStored` (write-once)
+- **Array length mismatch**: Reverts `Banny721TokenUriResolver_ArrayLengthMismatch`
+- **Partial failure**: The entire call reverts if any single UPC fails
 
 ### Step 2: Upload Content
 
-**Entry Point**:
-```solidity
-function setSvgContentsOf(
-    uint256[] memory upcs,
-    string[] calldata svgContents
-) external
-```
+**Entry point**: `Banny721TokenUriResolver.setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents)`
 
-Line 1100. **Not restricted to owner** -- anyone can upload content as long as it matches the hash.
+**Who can call**: Anyone. Not restricted to owner -- anyone can upload content as long as it matches the committed hash.
 
 **Parameters**:
-- `upcs`: Array of universal product codes to upload content for.
-- `svgContents`: Array of SVG content strings (without wrapping `<svg>` tags).
+- `upcs` -- Array of universal product codes to upload content for
+- `svgContents` -- Array of SVG content strings (without wrapping `<svg>` tags)
 
-**State Changes**:
-- Reverts `ContentsAlreadyStored` if content already set for this UPC.
-- Reverts `HashNotFound` if no hash set for this UPC.
-- Reverts `ContentsMismatch` if `keccak256(abi.encodePacked(svgContent)) != svgHashOf[upc]`.
-- `_svgContentOf[upc] = svgContent`.
-- Emits `SetSvgContent(upc, svgContent, caller)`.
+**State changes**:
+1. For each pair: `_svgContentOf[upc] = svgContent`
 
-### Edge Cases
+**Events**: `SetSvgContent(uint256 indexed upc, string svgContent, address caller)` -- emitted once per UPC in the array
 
-- **Hash set but content never uploaded**: `_svgOf` falls back to IPFS resolution. Tokens render with IPFS images instead of on-chain SVG.
-- **Content with special characters**: Stored verbatim. No sanitization. A `<script>` tag in SVG content would be included in the data URI.
-- **Multiple UPCs in one call**: Array lengths must match or `ArrayLengthMismatch` reverts. The entire call reverts if any single UPC fails.
+**Edge cases**:
+- **Content already stored**: Reverts `Banny721TokenUriResolver_ContentsAlreadyStored` (write-once)
+- **No hash set for UPC**: Reverts `Banny721TokenUriResolver_HashNotFound`
+- **Content does not match hash**: Reverts `Banny721TokenUriResolver_ContentsMismatch` (checks `keccak256(abi.encodePacked(svgContent)) != svgHashOf[upc]`)
+- **Array length mismatch**: Reverts `Banny721TokenUriResolver_ArrayLengthMismatch`
+- **Hash set but content never uploaded**: `_svgOf` falls back to IPFS resolution. Tokens render with IPFS images instead of on-chain SVG
+- **Content with special characters**: Stored verbatim. No sanitization. A `<script>` tag in SVG content would be included in the data URI
 
 ---
 
@@ -373,110 +317,127 @@ Line 1100. **Not restricted to owner** -- anyone can upload content as long as i
 
 ### Set Metadata
 
-**Entry Point**:
-```solidity
-function setMetadata(
-    string calldata description,
-    string calldata url,
-    string calldata baseUri
-) external onlyOwner
-```
+**Entry point**: `Banny721TokenUriResolver.setMetadata(string calldata description, string calldata url, string calldata baseUri)`
 
-Line 1065.
+**Who can call**: Contract owner only (`onlyOwner` modifier).
 
-**State Changes**:
-- `svgDescription = description`
-- `svgExternalUrl = url`
-- `svgBaseUri = baseUri`
-- All three fields are always overwritten. Pass current values for fields you do not want to change. Pass `""` to clear.
+**Parameters**:
+- `description` -- The description to use in token metadata
+- `url` -- The external URL to use in token metadata
+- `baseUri` -- The base URI of the SVG files (used for IPFS fallback)
+
+**State changes**:
+1. `svgDescription = description`
+2. `svgExternalUrl = url`
+3. `svgBaseUri = baseUri`
+4. All three fields are always overwritten. Pass current values for fields you do not want to change. Pass `""` to clear
+
+**Events**: `SetMetadata(string description, string externalUrl, string baseUri, address caller)`
+
+**Edge cases**:
+- **Empty strings**: Valid. Clears the respective metadata field
+- **Non-owner caller**: Reverts with OpenZeppelin `OwnableUnauthorizedAccount`
 
 ### Set Product Names
 
-**Entry Point**:
-```solidity
-function setProductNames(
-    uint256[] memory upcs,
-    string[] memory names
-) external onlyOwner
-```
+**Entry point**: `Banny721TokenUriResolver.setProductNames(uint256[] memory upcs, string[] memory names)`
 
-Line 1084.
+**Who can call**: Contract owner only (`onlyOwner` modifier).
 
-**State Changes**:
-- `_customProductNameOf[upc] = name` for each pair.
-- Unlike SVG hashes and content, names are **not write-once**. Names can be overwritten.
-- Built-in names for UPCs 1-4 (Alien, Pink, Orange, Original) are hardcoded in `_productNameOf` (line 896-909) and cannot be overridden by this function. The `_productNameOf` function checks UPCs 1-4 first and returns the hardcoded name before checking `_customProductNameOf`.
+**Parameters**:
+- `upcs` -- Array of universal product codes to name
+- `names` -- Array of display names for each product
 
-### Edge Cases
+**State changes**:
+1. For each pair: `_customProductNameOf[upc] = name`
 
-- **Overwriting a product name**: No revert. The old name is replaced. This could change how existing NFTs display.
-- **Setting name for UPCs 1-4**: The `_customProductNameOf` mapping is written, but `_productNameOf` returns the hardcoded name first. The custom name is never read for these UPCs.
-- **Empty name string**: Valid. Sets the custom name to empty, causing `_productNameOf` to return `""` for that UPC.
+**Events**: `SetProductName(uint256 indexed upc, string name, address caller)` -- emitted once per UPC in the array
+
+**Edge cases**:
+- **Overwriting a product name**: No revert. The old name is replaced. This could change how existing NFTs display (names are mutable, unlike SVG hashes/content)
+- **Setting name for UPCs 1--4**: The `_customProductNameOf` mapping is written, but `_productNameOf` returns the hardcoded name first (Alien, Pink, Orange, Original). The custom name is never read for these UPCs
+- **Empty name string**: Valid. Sets the custom name to empty, causing `_productNameOf` to return `""` for that UPC
+- **Array length mismatch**: Reverts `Banny721TokenUriResolver_ArrayLengthMismatch`
 
 ---
 
 ## Journey 9: View Functions -- Query Banny State
 
+All view functions. No access restrictions, no state changes, no events.
+
 ### Get Attached Assets
 
-```solidity
-function assetIdsOf(
-    address hook,
-    uint256 bannyBodyId
-) public view returns (uint256 backgroundId, uint256[] memory outfitIds)
-```
+**Entry point**: `Banny721TokenUriResolver.assetIdsOf(address hook, uint256 bannyBodyId) public view returns (uint256 backgroundId, uint256[] memory outfitIds)`
 
-Line 356.
+**Who can call**: Anyone (view function).
+
+**Parameters**:
+- `hook` -- The hook address of the collection
+- `bannyBodyId` -- The banny body to query
 
 Returns the currently attached background and outfits. Filters by checking `wearerOf` and `userOf` for each stored ID, excluding outfits that have been moved to other bodies.
 
 ### Get Outfit Wearer
 
-```solidity
-function wearerOf(address hook, uint256 outfitId) public view returns (uint256)
-```
+**Entry point**: `Banny721TokenUriResolver.wearerOf(address hook, uint256 outfitId) public view returns (uint256)`
 
-Line 509. Returns the body ID wearing this outfit, or 0 if unworn. Verifies the outfit is still in the body's `_attachedOutfitIdsOf` array.
+**Who can call**: Anyone (view function).
+
+**Parameters**:
+- `hook` -- The hook address of the collection
+- `outfitId` -- The outfit token ID to query
+
+Returns the body ID wearing this outfit, or 0 if unworn. Verifies the outfit is still in the body's `_attachedOutfitIdsOf` array.
 
 ### Get Background User
 
-```solidity
-function userOf(address hook, uint256 backgroundId) public view returns (uint256)
-```
+**Entry point**: `Banny721TokenUriResolver.userOf(address hook, uint256 backgroundId) public view returns (uint256)`
 
-Line 494. Returns the body ID using this background, or 0 if unused. Verifies the background is still the body's `_attachedBackgroundIdOf` entry.
+**Who can call**: Anyone (view function).
+
+**Parameters**:
+- `hook` -- The hook address of the collection
+- `backgroundId` -- The background token ID to query
+
+Returns the body ID using this background, or 0 if unused. Verifies the background is still the body's `_attachedBackgroundIdOf` entry.
 
 ### Get SVG
 
-```solidity
-function svgOf(
-    address hook,
-    uint256 tokenId,
-    bool shouldDressBannyBody,
-    bool shouldIncludeBackgroundOnBannyBody
-) public view returns (string memory)
-```
+**Entry point**: `Banny721TokenUriResolver.svgOf(address hook, uint256 tokenId, bool shouldDressBannyBody, bool shouldIncludeBackgroundOnBannyBody) public view returns (string memory)`
 
-Line 434. Returns the composed SVG for any token. For bodies, can toggle dressing and background. For non-bodies, returns the outfit/background SVG alone.
+**Who can call**: Anyone (view function).
+
+**Parameters**:
+- `hook` -- The hook address of the collection
+- `tokenId` -- The token ID to render
+- `shouldDressBannyBody` -- Whether to include the banny body's attached outfits
+- `shouldIncludeBackgroundOnBannyBody` -- Whether to include the banny body's attached background
+
+Returns the composed SVG for any token. For bodies, can toggle dressing and background. For non-bodies, returns the outfit/background SVG alone.
 
 ### Get Names
 
-```solidity
-function namesOf(
-    address hook,
-    uint256 tokenId
-) public view returns (string memory, string memory, string memory)
-```
+**Entry point**: `Banny721TokenUriResolver.namesOf(address hook, uint256 tokenId) public view returns (string memory, string memory, string memory)`
 
-Line 406. Returns (fullName, categoryName, productName).
+**Who can call**: Anyone (view function).
+
+**Parameters**:
+- `hook` -- The hook address of the collection
+- `tokenId` -- The token ID to look up
+
+Returns `(fullName, categoryName, productName)`.
 
 ### Get Lock Status
 
-```solidity
-mapping(address hook => mapping(uint256 upc => uint256)) public outfitLockedUntil;
-```
+**Entry point**: `Banny721TokenUriResolver.outfitLockedUntil(address hook, uint256 upc) public returns (uint256)`
 
-Line 96. Directly readable. Returns the timestamp until which the body is locked, or 0 if never locked.
+**Who can call**: Anyone (public mapping).
+
+**Parameters**:
+- `hook` -- The hook address of the collection
+- `upc` -- The banny body token ID
+
+Returns the timestamp until which the body is locked, or 0 if never locked.
 
 ---
 
@@ -521,3 +482,42 @@ Line 96. Directly readable. Returns the timestamp until which the body is locked
 The lock state applies equally to dressed and naked bodies. A dressed body can be locked, preventing outfit changes. A naked body can be locked, preventing outfit additions.
 
 Body transfers do not change the resolver state. The new owner inherits the current state (dressed/naked, locked/unlocked) and all custody rights.
+
+---
+
+## Events Reference
+
+All events defined in `IBanny721TokenUriResolver`:
+
+| Event | Emitted by | Signature |
+|-------|-----------|-----------|
+| `DecorateBanny` | `decorateBannyWith` | `DecorateBanny(address indexed hook, uint256 indexed bannyBodyId, uint256 indexed backgroundId, uint256[] outfitIds, address caller)` |
+| `SetMetadata` | `setMetadata` | `SetMetadata(string description, string externalUrl, string baseUri, address caller)` |
+| `SetProductName` | `setProductNames` | `SetProductName(uint256 indexed upc, string name, address caller)` |
+| `SetSvgContent` | `setSvgContentsOf` | `SetSvgContent(uint256 indexed upc, string svgContent, address caller)` |
+| `SetSvgHash` | `setSvgHashesOf` | `SetSvgHash(uint256 indexed upc, bytes32 indexed svgHash, address caller)` |
+
+## Custom Errors Reference
+
+All custom errors defined in `Banny721TokenUriResolver`:
+
+| Error | Trigger |
+|-------|---------|
+| `Banny721TokenUriResolver_ArrayLengthMismatch` | `upcs` and values arrays have different lengths |
+| `Banny721TokenUriResolver_BannyBodyNotBodyCategory` | `bannyBodyId` is not a category 0 (body) token |
+| `Banny721TokenUriResolver_CantAccelerateTheLock` | New lock expiry would be earlier than current lock |
+| `Banny721TokenUriResolver_ContentsAlreadyStored` | SVG content already uploaded for this UPC |
+| `Banny721TokenUriResolver_ContentsMismatch` | SVG content hash does not match committed hash |
+| `Banny721TokenUriResolver_HashAlreadyStored` | SVG hash already committed for this UPC |
+| `Banny721TokenUriResolver_HashNotFound` | No hash committed for this UPC |
+| `Banny721TokenUriResolver_HeadAlreadyAdded` | Outfit conflicts with an already-equipped head item |
+| `Banny721TokenUriResolver_OutfitChangesLocked` | Body is locked and cannot change outfits |
+| `Banny721TokenUriResolver_SuitAlreadyAdded` | Outfit conflicts with an already-equipped suit item |
+| `Banny721TokenUriResolver_UnauthorizedBackground` | Caller does not own the background or the body using it |
+| `Banny721TokenUriResolver_UnauthorizedBannyBody` | Caller does not own the banny body |
+| `Banny721TokenUriResolver_UnauthorizedOutfit` | Caller does not own the outfit or the body wearing it |
+| `Banny721TokenUriResolver_UnauthorizedTransfer` | NFT received from an external sender (not this contract) |
+| `Banny721TokenUriResolver_UnorderedCategories` | Outfit categories are not in ascending order |
+| `Banny721TokenUriResolver_UnrecognizedBackground` | Token is not a valid background category |
+| `Banny721TokenUriResolver_UnrecognizedCategory` | Outfit category is not in the valid range (2--17) |
+| `Banny721TokenUriResolver_UnrecognizedProduct` | Token does not belong to a recognized product tier |
