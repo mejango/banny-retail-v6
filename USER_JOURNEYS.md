@@ -70,15 +70,15 @@ JB721TiersHook.tokenURI(tokenId)
 1. `_checkIfSenderIsOwner(hook, bannyBodyId)` -- verifies caller owns the body
 2. `_productOfTokenId(hook, bannyBodyId).category` must equal `_BODY_CATEGORY` (0)
 3. `outfitLockedUntil[hook][bannyBodyId]` must be `<= block.timestamp`
-4. Background processing (`_decorateBannyWithBackground`):
+4. Background processing (`_decorateBannyWithBackground`) -- only executes if the background is changing (new `backgroundId` differs from the current one, or the current background is no longer assigned to this body):
    - `_attachedBackgroundIdOf[hook][bannyBodyId]` updated to `backgroundId` (or cleared to 0)
-   - `_userOf[hook][backgroundId]` set to `bannyBodyId`
-   - Old background NFT returned to caller via `_tryTransferFrom` (silent failure OK)
-   - New background NFT transferred into the resolver via `_transferFrom` (reverts on failure)
+   - If `backgroundId != 0`: `_userOf[hook][backgroundId]` set to `bannyBodyId`
+   - If a previous background was assigned to this body: old background NFT returned to caller via `_tryTransferFrom` (silent failure OK)
+   - If `backgroundId != 0` and the resolver does not already hold the new background: new background NFT transferred into the resolver via `_transferFrom` (reverts on failure)
 5. Outfit processing (`_decorateBannyWithOutfits`):
-   - For each new outfit: `_wearerOf[hook][outfitId]` set to `bannyBodyId`
-   - Old outfits up to the current category are transferred out via `_tryTransferFrom`
-   - New outfits transferred into the resolver via `_transferFrom` (if not already held)
+   - For each new outfit not already worn by this body: `_wearerOf[hook][outfitId]` set to `bannyBodyId`
+   - If there are previous outfits in categories up to the current one: old outfits transferred out via `_tryTransferFrom`
+   - For each new outfit not already held by the resolver: transferred into the resolver via `_transferFrom`
    - `_attachedOutfitIdsOf[hook][bannyBodyId]` overwritten with the new `outfitIds` array
 
 **Events**: `DecorateBanny(address indexed hook, uint256 indexed bannyBodyId, uint256 indexed backgroundId, uint256[] outfitIds, address caller)` -- emitted before state changes, where `caller = _msgSender()`
@@ -141,10 +141,10 @@ Undressing is not a separate function. It is performed by calling `decorateBanny
 
 **State changes**:
 1. All checks pass (ownership, not locked, body category)
-2. `_attachedBackgroundIdOf[hook][bannyBodyId]` set to 0. Old background NFT returned to caller
-3. The new `outfitIds` array is empty, so the merge loop does not execute. The tail loop transfers out all previous outfits
+2. If a background was attached: `_attachedBackgroundIdOf[hook][bannyBodyId]` set to 0, and old background NFT returned to caller via `_tryTransferFrom` (silent failure if burned)
+3. The new `outfitIds` array is empty, so the merge loop does not execute. If there are previous outfits: the tail loop transfers out all previous outfits still assigned to this body via `_tryTransferFrom`
 4. `_attachedOutfitIdsOf[hook][bannyBodyId]` set to `[]`
-5. All outfit NFTs and the background NFT are returned to `_msgSender()`
+5. All previously equipped outfit and background NFTs that still exist are returned to `_msgSender()`
 
 **Events**: `DecorateBanny(hook, bannyBodyId, 0, [], caller)`
 
