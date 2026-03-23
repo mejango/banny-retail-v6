@@ -286,8 +286,8 @@ forge test --gas-report
 | `TestQALastMile.t.sol` | QA last-mile edge cases |
 
 **Untested areas** (potential audit additions):
-- Meta-transaction flows with a real forwarder (all tests use `address(0)`).
-- SVG content containing special characters or potential injection payloads.
+- Meta-transaction flows with a real forwarder (basic coverage exists in TestAuditGaps.sol; advanced scenarios with a real forwarder remain untested -- all tests use `address(0)`).
+- SVG content containing special characters or potential injection payloads (basic coverage exists in TestAuditGaps.sol for script tags, unicode, JSON-breaking chars, and long content; advanced payloads remain untested).
 - Gas consumption for `tokenUriOf` with maximum outfit count.
 - Ownership transfer of the resolver (`transferOwnership`) and continued admin access.
 - Product name overwriting (no write-once protection on `_customProductNameOf`).
