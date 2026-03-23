@@ -10,7 +10,7 @@
 ## 2. Economic / Manipulation Risks
 
 - **Outfit theft via banny body transfer.** Equipped outfits and backgrounds travel with the banny body NFT on transfer. If a banny body is sold with valuable outfits equipped, the buyer gains control of all equipped items. Sellers must unequip before selling. Marketplaces may not surface this risk.
-- **try-catch silent failures.** `_tryTransferFrom` silently catches all transfer failures. If an outfit NFT is burned or its tier removed, the transfer fails silently. The outfit remains logically "equipped" in state but the NFT is lost. This can create phantom outfits that show in SVG rendering but cannot be recovered.
+- **try-catch silent failures with retention.** `_tryTransferFrom` silently catches all transfer failures and returns `false`. When a transfer fails, the resolver preserves the attachment record instead of clearing state. For backgrounds, the entire background change is aborted. For outfits, failed-to-return items are retained in the attached list via `_storeOutfitsWithRetained`. This prevents NFT stranding — assets remain tracked and recoverable once the transfer issue is resolved (e.g., the owner contract becomes receivable). However, if an outfit NFT is burned or its tier removed, the retained record refers to a non-existent asset, creating a phantom entry in the SVG rendering.
 - **Lock griefing.** `lockOutfitChangesFor` extends the lock to `block.timestamp + 7 days`. Locking just before selling prevents the buyer from changing outfits for up to 7 days. The lock now also freezes reassignment of currently equipped outfits/backgrounds away from that body during the lock window.
 
 ## 3. Access Control
@@ -36,16 +36,24 @@
 - Every outfit held by this contract has a corresponding `_wearerOf[hook][outfitId]` pointing to a valid banny body.
 - Every background held by this contract has a corresponding `_userOf[hook][backgroundId]` pointing to a valid banny body.
 - `outfitLockedUntil[hook][bannyBodyId]` is monotonically non-decreasing per banny body (lock can only be extended, never shortened).
-- After `decorateBannyWith`, all previously equipped outfits not in the new set are transferred back to `_msgSender()` (or silently failed via try-catch).
-- `_attachedOutfitIdsOf[hook][bannyBodyId]` matches the outfitIds passed to the most recent `decorateBannyWith` call.
+- After `decorateBannyWith`, all previously equipped outfits not in the new set are either transferred back to `_msgSender()` or retained in the attached list if the transfer failed.
+- `_attachedOutfitIdsOf[hook][bannyBodyId]` contains the outfitIds passed to the most recent `decorateBannyWith` call, plus any retained outfits whose return transfer failed.
 - SVG content integrity: `keccak256(_svgContentOf[upc]) == svgHashOf[upc]` for all populated entries.
 - NFT custody balance: the number of outfit NFTs held by this contract (`IERC721(hook).balanceOf(address(this))`) equals the total number of outfits currently equipped across all banny bodies for that hook. Violations indicate phantom outfits (equipped in state but NFT lost via try-catch silent failure) or orphaned NFTs (held by contract but not tracked in `_wearerOf`).
 
 ## 7. Accepted Behaviors
 
-### 7.1 try-catch silent failures create phantom outfits (accepted trade-off)
+### 7.1 Failed transfers retain attachment records (anti-stranding)
 
-`_tryTransferFrom` catches all transfer failures silently. If an outfit NFT is burned or its tier removed, the transfer fails and the outfit remains logically "equipped" in state but the NFT is lost. The alternative — reverting on any failed transfer — would make `decorateBannyWith` fragile: a single burned outfit would prevent the banny owner from changing ANY outfits (since the old outfit return would revert). The phantom state is cosmetically incorrect (SVG shows an outfit that doesn't exist as an NFT) but not economically exploitable — phantom outfits cannot be transferred or sold.
+`_tryTransferFrom` catches all transfer failures and returns `false`. When returning a previously equipped item fails, the resolver preserves the attachment record rather than clearing state:
+
+- **Backgrounds**: If returning the old background fails, the entire background change is aborted (`return` in `_decorateBannyWithBackground`). The old background stays attached and the new one is not equipped.
+- **Background removal**: If returning the background fails during removal (backgroundId=0), `_attachedBackgroundIdOf` is not cleared. The background stays attached.
+- **Outfits**: Failed-to-return outfits remain non-zero in the `previousOutfitIds` array. `_storeOutfitsWithRetained` appends them to the new outfit list, preserving their attachment record.
+
+This prevents NFT stranding — assets held by the resolver stay tracked and recoverable. Once the transfer issue is resolved (e.g., the owner contract implements `IERC721Receiver`), a subsequent `decorateBannyWith` call will successfully return the retained items.
+
+For permanently unrecoverable assets (burned NFTs, removed tiers), the retained record creates a phantom entry in the SVG rendering and attached list. This is cosmetically incorrect but not economically exploitable — phantom entries cannot be transferred or sold. The alternative — reverting on any failed transfer — would make `decorateBannyWith` fragile: a single burned outfit would prevent the banny owner from changing ANY outfits.
 
 ### 7.2 Lock griefing window is bounded at 7 days
 

@@ -193,7 +193,7 @@ Deployed via Sphinx deterministic deployment (`script/Deploy.s.sol`).
 
 ## Risks
 
-- **Outfit custody:** Attached outfits and backgrounds are held by the resolver contract. If the contract has a bug in the return logic, assets could be stuck.
+- **Outfit custody:** Attached outfits and backgrounds are held by the resolver contract. If a return transfer fails (e.g., owner is a non-receiver contract), the asset is retained in the attached list rather than stranded — the owner can retry once the issue is resolved. Permanently unrecoverable assets (burned NFTs) create phantom entries in SVG rendering.
 - **7-day lock is fixed.** Cannot be shortened or cancelled once set. The lock duration is hardcoded.
 - **SVG immutability.** Once SVG content is stored on-chain for a UPC, it cannot be changed. A mistake in the content requires deploying a new resolver.
 - **Hash registration is owner-only, but content upload is not.** Anyone can call `setSvgContentsOf` as long as the content matches the registered hash. This is by design for lazy uploads.

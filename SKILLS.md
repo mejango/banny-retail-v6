@@ -23,7 +23,7 @@ On-chain composable NFT avatar system that renders Banny characters with layered
 
 | Function | What it does |
 |----------|-------------|
-| `decorateBannyWith(hook, bannyBodyId, backgroundId, outfitIds)` | Attaches background and outfits to a body. Transfers assets to contract custody. Validates ownership, lock status, category ordering, slot conflicts. Returns previously attached items to caller. Emits `DecorateBanny`. |
+| `decorateBannyWith(hook, bannyBodyId, backgroundId, outfitIds)` | Attaches background and outfits to a body. Transfers assets to contract custody. Validates ownership, lock status, category ordering, slot conflicts. Attempts to return previously attached items to caller — if a return fails, the item is retained (not stranded). Emits `DecorateBanny`. |
 | `lockOutfitChangesFor(hook, bannyBodyId)` | Locks a body's outfit for 7 days. Cannot accelerate an existing lock. Caller must own the body NFT. |
 
 ### Views
@@ -197,7 +197,7 @@ For non-body tokens (outfits, backgrounds), the item is rendered on a grayscale 
 5. **Strict ascending category order.** `decorateBannyWith` requires outfits passed in ascending category order. Reverts with `UnorderedCategories` if violated.
 6. **Slot conflicts block combinations.** Head (4) blocks eyes (5), glasses (6), mouth (7), and headtop (12). Full suit (9) blocks suit top (11) and suit bottom (10). These are enforced at decoration time.
 7. **Default injection.** If no explicit necklace, eyes, or mouth outfit is attached, the resolver auto-injects defaults during SVG rendering. Alien bodies get `DEFAULT_ALIEN_EYES`; others get `DEFAULT_STANDARD_EYES`.
-8. **Outfits are held in contract custody.** Attached outfits and backgrounds are transferred to `address(this)` via `safeTransferFrom`. They are returned to the caller when detached (by passing a new outfit set that excludes them).
+8. **Outfits are held in contract custody.** Attached outfits and backgrounds are transferred to `address(this)` via `safeTransferFrom`. They are returned to the caller when detached (by passing a new outfit set that excludes them). If the return transfer fails (e.g., owner is a non-receiver contract), the asset is **retained** in the attached list rather than stranded — the owner can retry once the transfer issue is resolved.
 9. **Complex outfit ownership rules.** If an outfit is unworn: only its owner can attach it. If already worn by another body: the caller must own THAT body to reassign the outfit. This allows body owners to swap outfits between their own bodies.
 10. **Token ID encoding.** `tokenId = upc * 1_000_000_000 + sequenceNumber`. The resolver extracts UPC via integer division and sequence via modulo to display inventory counts like "42/100".
 11. **`onERC721Received` only accepts self-transfers.** Reverts unless `operator == address(this)`. The contract calls `safeTransferFrom` on itself during decoration, triggering this callback.
