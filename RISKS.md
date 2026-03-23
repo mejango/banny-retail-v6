@@ -21,7 +21,7 @@
 
 ## 4. DoS Vectors
 
-- **Unbounded outfit iteration.** `_attachedOutfitIdsOf` array grows with each decoration and is never compacted. Over time with repeated equip/unequip cycles, gas costs increase.
+- **External call iteration scales with outfit count.** `_attachedOutfitIdsOf[hook][bannyBodyId]` is replaced wholesale on each `decorateBannyWith` call (not appended to), so the array is bounded by the number of currently equipped outfits, not cumulative history. However, `decorateBannyWith` iterates over both the previous and new outfit arrays to diff them (transferring removed outfits back and new outfits in), so gas cost scales with the number of outfits being equipped/unequipped in a single call.
 - **External hook calls in view functions.** `tokenUriOf` and `svgOf` call into the hook's store multiple times per outfit. A malicious hook that consumes excessive gas or reverts can make token metadata unretrievable. Measured: `tokenUriOf` with a well-behaved hook and 9 equipped outfits costs ~609k gas (see `test_tokenUri_gasSnapshot_9outfits`). The practical ceiling for a malicious hook is bounded only by the caller's gas limit — RPC nodes typically cap `eth_call` at 30M+ gas, so even expensive hooks won't fail for off-chain reads, but on-chain consumers (e.g., other contracts calling `tokenURI`) could revert.
 
 ## 5. Integration Risks
