@@ -266,7 +266,7 @@ RPC_ETHEREUM_MAINNET=<your-rpc-url> forge test --match-path test/Fork.t.sol -vvv
 forge test --gas-report
 ```
 
-**Test suite**: 13 test files, ~130+ tests.
+**Test suite**: 14 test files, ~230+ tests.
 
 | File | Purpose |
 |------|---------|
@@ -282,6 +282,7 @@ forge test --gas-report
 | `regression/BurnedTokenCheck.t.sol` | Burned token handling |
 | `regression/ClearMetadata.t.sol` | Metadata clearing |
 | `OutfitTransferLifecycle.t.sol` | Outfit transfer lifecycle flows |
+| `TestAuditGaps.sol` | Audit gap coverage: ERC-2771 meta-transaction flows (forwarder relay, spoofing prevention, owner-only relay), SVG rendering edge cases (special characters, script tags, unicode, long content, JSON-breaking chars), SVG composition validation (default decorations, alien vs standard eyes, background inclusion/exclusion) |
 | `TestQALastMile.t.sol` | QA last-mile edge cases |
 
 **Untested areas** (potential audit additions):
