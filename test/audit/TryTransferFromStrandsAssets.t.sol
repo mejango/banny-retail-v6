@@ -101,8 +101,9 @@ contract TryTransferFromStrandsAssetsTest is Test {
         hook = new StrandMockHook(address(store));
         ownerContract = new NonReceiverOwner();
 
-        resolver =
-            new Banny721TokenUriResolver("<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", address(this), address(0));
+        resolver = new Banny721TokenUriResolver(
+            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", address(this), address(0)
+        );
 
         _setupTier(BODY_TOKEN, 4, 0);
         _setupTier(BACKGROUND_TOKEN, 5, 1);

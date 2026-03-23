@@ -1212,14 +1212,9 @@ contract Banny721TokenUriResolver is
                 // Try to transfer the previous background back before updating state.
                 // If the transfer fails, the old background stays attached to prevent NFT stranding.
                 if (userOfPreviousBackground == bannyBodyId) {
-                    if (
-                        !_tryTransferFrom({
-                            hook: hook,
-                            from: address(this),
-                            to: _msgSender(),
-                            assetId: previousBackgroundId
-                        })
-                    ) {
+                    if (!_tryTransferFrom({
+                            hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId
+                        })) {
                         // Transfer failed — skip the background change entirely so the old background
                         // remains tracked and recoverable. The new background is not equipped.
                         return;
@@ -1239,14 +1234,9 @@ contract Banny721TokenUriResolver is
                 if (userOfPreviousBackground == bannyBodyId) {
                     // Only clear attachment state if the transfer succeeded. If it fails (e.g. recipient rejects
                     // ERC-721), the background stays attached so the owner can retry or recover.
-                    if (
-                        _tryTransferFrom({
-                            hook: hook,
-                            from: address(this),
-                            to: _msgSender(),
-                            assetId: previousBackgroundId
-                        })
-                    ) {
+                    if (_tryTransferFrom({
+                            hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId
+                        })) {
                         _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
                     }
                 } else {
@@ -1360,14 +1350,9 @@ contract Banny721TokenUriResolver is
                     // Use try-transfer: the previous outfit may have been burned or its tier removed.
                     // If transfer fails, zero is NOT written to previousOutfitIds — the entry is preserved
                     // so it can be retained in the attached list (preventing NFT stranding).
-                    if (
-                        _tryTransferFrom({
-                            hook: hook,
-                            from: address(this),
-                            to: _msgSender(),
-                            assetId: previousOutfitId
-                        })
-                    ) {
+                    if (_tryTransferFrom({
+                            hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId
+                        })) {
                         // Mark as successfully transferred so it won't be retained.
                         previousOutfitIds[previousOutfitIndex] = 0;
                     }
@@ -1417,14 +1402,7 @@ contract Banny721TokenUriResolver is
             } else if (wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {
                 // Use try-transfer: the previous outfit may have been burned or its tier removed.
                 // If transfer fails, the entry stays non-zero and is retained (preventing NFT stranding).
-                if (
-                    _tryTransferFrom({
-                        hook: hook,
-                        from: address(this),
-                        to: _msgSender(),
-                        assetId: previousOutfitId
-                    })
-                ) {
+                if (_tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId})) {
                     previousOutfitIds[previousOutfitIndex] = 0;
                 }
             } else {
@@ -1441,7 +1419,9 @@ contract Banny721TokenUriResolver is
         }
 
         // Store the outfits, merging in any retained outfits whose transfers failed.
-        _storeOutfitsWithRetained({hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds, previousOutfitIds: previousOutfitIds});
+        _storeOutfitsWithRetained({
+            hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds, previousOutfitIds: previousOutfitIds
+        });
     }
 
     /// @notice Store outfit IDs, merging in any retained outfits (failed transfers) from the previous list.
@@ -1450,7 +1430,8 @@ contract Banny721TokenUriResolver is
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
     /// @param outfitIds The new outfit IDs to store.
-    /// @param previousOutfitIds The previous outfit IDs array (zeroed entries were successfully transferred or handled).
+    /// @param previousOutfitIds The previous outfit IDs array (zeroed entries were successfully transferred or
+    /// handled).
     function _storeOutfitsWithRetained(
         address hook,
         uint256 bannyBodyId,

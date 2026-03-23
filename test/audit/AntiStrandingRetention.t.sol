@@ -171,9 +171,7 @@ contract AntiStrandingRetentionTest is Test {
         nonReceiver.decorate(resolver, address(hook), BODY_TOKEN, BG_TOKEN_2, empty);
 
         // Old background stays attached (return aborted the background change).
-        assertEq(
-            resolver.userOf(address(hook), BG_TOKEN_1), BODY_TOKEN, "bg1 still attached --change was aborted"
-        );
+        assertEq(resolver.userOf(address(hook), BG_TOKEN_1), BODY_TOKEN, "bg1 still attached --change was aborted");
 
         // New background was NOT equipped.
         (uint256 bgId,) = resolver.assetIdsOf(address(hook), BODY_TOKEN);
@@ -200,9 +198,7 @@ contract AntiStrandingRetentionTest is Test {
         nonReceiver.decorate(resolver, address(hook), BODY_TOKEN, 0, empty);
 
         // Background stays attached because the transfer failed and state was preserved.
-        assertEq(
-            resolver.userOf(address(hook), BG_TOKEN_1), BODY_TOKEN, "bg1 still attached --removal failed"
-        );
+        assertEq(resolver.userOf(address(hook), BG_TOKEN_1), BODY_TOKEN, "bg1 still attached --removal failed");
         (uint256 bgId,) = resolver.assetIdsOf(address(hook), BODY_TOKEN);
         assertEq(bgId, BG_TOKEN_1, "body still has bg1");
     }
@@ -226,9 +222,7 @@ contract AntiStrandingRetentionTest is Test {
         nonReceiver.decorate(resolver, address(hook), BODY_TOKEN, 0, empty);
 
         // Outfit retained in the attached list.
-        assertEq(
-            resolver.wearerOf(address(hook), NECKLACE_TOKEN), BODY_TOKEN, "necklace still worn --retained"
-        );
+        assertEq(resolver.wearerOf(address(hook), NECKLACE_TOKEN), BODY_TOKEN, "necklace still worn --retained");
         (, uint256[] memory currentOutfits) = resolver.assetIdsOf(address(hook), BODY_TOKEN);
         assertEq(currentOutfits.length, 1, "one outfit retained");
         assertEq(currentOutfits[0], NECKLACE_TOKEN, "retained outfit is the necklace");
@@ -265,12 +259,8 @@ contract AntiStrandingRetentionTest is Test {
         assertEq(currentOutfits.length, 2, "both outfits retained");
 
         // Order: retained items are appended after new (empty), so they appear in order.
-        assertEq(
-            resolver.wearerOf(address(hook), NECKLACE_TOKEN), BODY_TOKEN, "necklace still worn"
-        );
-        assertEq(
-            resolver.wearerOf(address(hook), HEAD_TOKEN), BODY_TOKEN, "head still worn"
-        );
+        assertEq(resolver.wearerOf(address(hook), NECKLACE_TOKEN), BODY_TOKEN, "necklace still worn");
+        assertEq(resolver.wearerOf(address(hook), HEAD_TOKEN), BODY_TOKEN, "head still worn");
     }
 
     // -----------------------------------------------------------------------
