@@ -44,7 +44,7 @@ Owner → setProductNames(upcs, names)
 Body Owner → decorateBannyWith(hook, bodyId, backgroundId, outfitIds)
   → Attach outfit and background NFTs to a body NFT
   → Outfit/background NFTs transferred to resolver contract
-  → Previous outfits returned to owner
+  → Previous outfits returned to owner (if transfer fails, retained in attached list)
   → Composite SVG generated from layered components
 
 Body Owner → lockOutfitChangesFor(hook, bodyId)

@@ -54,12 +54,19 @@ All `@bananapus/721-hook-v5` imports replaced with `@bananapus/721-hook-v6`:
 - **v6 adds:** A check that the `bannyBodyId` actually belongs to a body-category tier (`_BODY_CATEGORY == 0`). If not, reverts with `Banny721TokenUriResolver_BannyBodyNotBodyCategory()`.
 - **v5:** No such check existed; any token ID could be passed as a banny body.
 
-### `_tryTransferFrom()` -- Fault-Tolerant Transfers
-- **v6 adds:** `_tryTransferFrom(address hook, address from, address to, uint256 assetId)` -- wraps `safeTransferFrom` in a try-catch, silently succeeding if the transfer fails (e.g., if the token was burned or its tier removed).
+### `_tryTransferFrom()` -- Fault-Tolerant, Return-Aware Transfers
+- **v6 adds:** `_tryTransferFrom(address hook, address from, address to, uint256 assetId) returns (bool success)` -- wraps `safeTransferFrom` in a try-catch and returns whether the transfer succeeded.
 - Used in `_decorateBannyWithBackground()` and `_decorateBannyWithOutfits()` when returning previously equipped items.
+- When the return transfer fails, **state is preserved** instead of cleared — preventing NFT stranding:
+  - **Backgrounds**: Failed return aborts the entire background change (old background stays attached, new one is not equipped).
+  - **Outfits**: Failed-to-return outfits are retained in the attached list via `_storeOutfitsWithRetained()`.
 - **v5:** Used `_transferFrom()` (which reverts on failure) for all transfers, meaning a single burned/removed outfit could block the entire decoration operation.
 
 > **Why this mattered**: In v5, if a project owner removed a tier that contained an equipped outfit, the Banny body owner could never change decorations again — the `safeTransferFrom` for the removed item would revert, permanently blocking the `decorateBannyWith()` function. This was the most-reported user issue.
+
+### `_storeOutfitsWithRetained()` -- Anti-Stranding Merge
+- **v6 adds:** `_storeOutfitsWithRetained(address hook, uint256 bannyBodyId, uint256[] memory outfitIds, uint256[] memory previousOutfitIds)` -- stores the new outfit array, appending any previously equipped outfits whose return transfer failed (non-zero entries in `previousOutfitIds`).
+- This ensures that NFTs held by the resolver but not successfully returned to the owner remain tracked and recoverable in subsequent `decorateBannyWith` calls.
 
 ### `_isInArray()` Helper
 - **v6 adds:** `_isInArray(uint256 value, uint256[] memory array)` -- checks if a value is present in an array.
