@@ -22,7 +22,6 @@
 ## 4. DoS Vectors
 
 - **Unbounded outfit iteration.** `_attachedOutfitIdsOf` array grows with each decoration and is never compacted. Over time with repeated equip/unequip cycles, gas costs increase.
-- **On-chain SVG rendering gas.** `tokenUriOf` constructs full SVGs on-chain with string concatenation. Complex outfits with many layers can exceed block gas limits for `view` calls, making tokens unrenderable by off-chain indexers. Measured gas ceiling: ~609K gas for the worst case (9 non-conflicting outfits + background with on-chain SVG content), well within typical RPC node limits (30M+). Regression test: `test_tokenUri_gasSnapshot_9outfits` in `test/TestQALastMile.t.sol`.
 - **External hook calls in view functions.** `tokenUriOf` and `svgOf` call into the hook's store multiple times per outfit. A malicious hook that consumes excessive gas or reverts can make token metadata unretrievable. Measured: `tokenUriOf` with a well-behaved hook and 9 equipped outfits costs ~609k gas (see `test_tokenUri_gasSnapshot_9outfits`). The practical ceiling for a malicious hook is bounded only by the caller's gas limit — RPC nodes typically cap `eth_call` at 30M+ gas, so even expensive hooks won't fail for off-chain reads, but on-chain consumers (e.g., other contracts calling `tokenURI`) could revert.
 
 ## 5. Integration Risks
@@ -31,7 +30,6 @@
 - **Tier removal desync.** If a tier is removed from the 721 hook while an outfit from that tier is equipped, `_productOfTokenId` returns a product with `id == 0`. The outfit remains equipped but renders as empty. `_tryTransferFrom` may fail silently when trying to return it.
 - **Non-safe transfer loss.** Outfits sent directly to this contract via `transferFrom` (not `safeTransferFrom`) are permanently stuck since there is no rescue function.
 - **ReentrancyGuard.** `decorateBannyWith` uses `nonReentrant`, but `lockOutfitChangesFor` and view functions do not. Reentrancy through hook callbacks is possible but state updates follow CEI pattern.
-- **Reentrancy in non-guarded functions.** `decorateBannyWith` is protected by `nonReentrant`, but `lockOutfitChangesFor` and all view functions (`tokenUriOf`, `svgOf`) are not. A malicious hook's `STORE().tierOfTokenId()` could re-enter `lockOutfitChangesFor` during a `tokenUriOf` call, but this is harmless — `lockOutfitChangesFor` only extends the lock timestamp (monotonically non-decreasing) and has no state that could be corrupted by reentrancy. The view functions themselves are read-only at the contract level (no storage writes), so reentrancy through them cannot extract value.
 
 ## 6. Invariants to Verify
 
@@ -52,3 +50,11 @@
 ### 7.2 Lock griefing window is bounded at 7 days
 
 `lockOutfitChangesFor` extends the lock to `block.timestamp + 7 days`. A seller who locks just before transferring the banny forces the buyer to wait up to 7 days. This is accepted because: (1) marketplaces can check `outfitLockedUntil` before displaying the item, (2) the lock duration is fixed (not owner-configurable), and (3) the lock prevents a more severe attack where a buyer immediately strips valuable outfits — the lock gives the previous owner time to arrange the sale intentionally.
+
+### 7.3 On-chain SVG rendering gas is well within limits
+
+`tokenUriOf` constructs full SVGs on-chain with string concatenation. Measured gas ceiling: ~609K gas for the worst case (9 non-conflicting outfits + background with on-chain SVG content), well within typical RPC node limits (30M+). Regression test: `test_tokenUri_gasSnapshot_9outfits` in `test/TestQALastMile.t.sol`.
+
+### 7.4 Reentrancy in non-guarded functions is harmless
+
+`lockOutfitChangesFor` and all view functions (`tokenUriOf`, `svgOf`) are not protected by `nonReentrant`. A malicious hook's `STORE().tierOfTokenId()` could re-enter `lockOutfitChangesFor` during a `tokenUriOf` call, but this is harmless -- `lockOutfitChangesFor` only extends the lock timestamp (monotonically non-decreasing) and has no state that could be corrupted by reentrancy. The view functions themselves are read-only at the contract level (no storage writes), so reentrancy through them cannot extract value.
