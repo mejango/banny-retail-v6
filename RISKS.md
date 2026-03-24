@@ -37,7 +37,7 @@
 - Every background held by this contract has a corresponding `_userOf[hook][backgroundId]` pointing to a valid banny body.
 - `outfitLockedUntil[hook][bannyBodyId]` is monotonically non-decreasing per banny body (lock can only be extended, never shortened).
 - After `decorateBannyWith`, all previously equipped outfits not in the new set are either transferred back to `_msgSender()` or retained in the attached list if the transfer failed.
-- `_attachedOutfitIdsOf[hook][bannyBodyId]` contains the outfitIds passed to the most recent `decorateBannyWith` call, plus any retained outfits whose return transfer failed.
+- `_attachedOutfitIdsOf[hook][bannyBodyId]` contains the outfitIds passed to the most recent `decorateBannyWith` call, plus any retained outfits whose return transfer failed. Category exclusivity is enforced on the merged set (retained + new outfits), not just the new outfit set alone.
 - SVG content integrity: `keccak256(_svgContentOf[upc]) == svgHashOf[upc]` for all populated entries.
 - NFT custody balance: the number of outfit NFTs held by this contract (`IERC721(hook).balanceOf(address(this))`) equals the total number of outfits currently equipped across all banny bodies for that hook. Violations indicate phantom outfits (equipped in state but NFT lost via try-catch silent failure) or orphaned NFTs (held by contract but not tracked in `_wearerOf`).
 
