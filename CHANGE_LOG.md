@@ -16,7 +16,7 @@ This document describes all changes between `banny-retail` (v5) and `banny-retai
 
 ### Solidity Version Bump
 - **v5:** `pragma solidity 0.8.23;`
-- **v6:** `pragma solidity 0.8.26;`
+- **v6:** `pragma solidity ^0.8.26;`
 
 ### Dependency Imports Updated
 All `@bananapus/721-hook-v5` imports replaced with `@bananapus/721-hook-v6`:
@@ -238,6 +238,6 @@ No struct changes. Both versions use `JB721Tier` from the respective `721-hook` 
 | N/A | `_encodeTokenUri()` | Extracted from `tokenUriOf()` |
 | `_outfitContentsFor(hook, outfitIds)` | `_outfitContentsFor(hook, outfitIds, bodyUpc)` | Added `bodyUpc` param (bug fix) |
 | `@bananapus/721-hook-v5` | `@bananapus/721-hook-v6` | Dependency upgrade |
-| `pragma solidity 0.8.23` | `pragma solidity 0.8.26` | Compiler version bump |
+| `pragma solidity 0.8.23` | `pragma solidity ^0.8.26` | Compiler version bump |
 
 > **Cross-repo impact**: The `pricingContext()` return change (3 values → 2) is driven by the upstream `nana-721-hook-v6` `IJB721TiersHook` interface change. The `@bananapus/721-hook-v6` dependency brings in the new tier splits system, though Banny Retail does not use tier splits.
