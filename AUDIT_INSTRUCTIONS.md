@@ -11,7 +11,7 @@ Target: `Banny721TokenUriResolver` -- a single-contract system that manages on-c
 
 Inheritance chain: `Ownable`, `ERC2771Context`, `ReentrancyGuard`, `IJB721TokenUriResolver`, `IBanny721TokenUriResolver`, `IERC721Receiver`.
 
-Compiler: Solidity ^0.8.26, Cancun EVM, via-IR optimizer (200 runs).
+Compiler: Solidity 0.8.28, Cancun EVM, via-IR optimizer (200 runs).
 
 ## Architecture Overview
 
