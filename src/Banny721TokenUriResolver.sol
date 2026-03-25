@@ -1460,8 +1460,45 @@ contract Banny721TokenUriResolver is
                     mergedOutfitIds[mergeIndex++] = previousOutfitIds[i];
                 }
             }
+
+            // Revalidate category exclusivity on the merged set. Retained outfits may conflict with the new outfits
+            // (e.g., a retained HEAD outfit combined with new EYES/GLASSES/MOUTH/HEADTOP outfits).
+            _validateCategoryExclusivity({hook: hook, outfitIds: mergedOutfitIds});
+
             _attachedOutfitIdsOf[hook][bannyBodyId] = mergedOutfitIds;
         }
+    }
+
+    /// @notice Validate that an array of outfit IDs does not violate category exclusivity rules.
+    /// @dev HEAD is exclusive with EYES, GLASSES, MOUTH, and HEADTOP. SUIT is exclusive with SUIT_TOP and
+    /// SUIT_BOTTOM. The array does not need to be sorted.
+    /// @param hook The hook storing the assets.
+    /// @param outfitIds The outfit IDs to validate.
+    function _validateCategoryExclusivity(address hook, uint256[] memory outfitIds) internal view {
+        bool hasHead;
+        bool hasSuit;
+        bool hasHeadAccessory;
+        bool hasSuitPiece;
+
+        for (uint256 i; i < outfitIds.length; i++) {
+            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
+
+            if (category == _HEAD_CATEGORY) {
+                hasHead = true;
+            } else if (
+                category == _EYES_CATEGORY || category == _GLASSES_CATEGORY || category == _MOUTH_CATEGORY
+                    || category == _HEADTOP_CATEGORY
+            ) {
+                hasHeadAccessory = true;
+            } else if (category == _SUIT_CATEGORY) {
+                hasSuit = true;
+            } else if (category == _SUIT_TOP_CATEGORY || category == _SUIT_BOTTOM_CATEGORY) {
+                hasSuitPiece = true;
+            }
+        }
+
+        if (hasHead && hasHeadAccessory) revert Banny721TokenUriResolver_HeadAlreadyAdded();
+        if (hasSuit && hasSuitPiece) revert Banny721TokenUriResolver_SuitAlreadyAdded();
     }
 
     /// @notice Check if a value is present in an array.
