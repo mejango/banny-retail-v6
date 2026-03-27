@@ -90,30 +90,33 @@ library MigrationHelper {
             for (uint256 j = 0; j < tierIds.length; j++) {
                 uint256 tierId = tierIds[j];
 
-                // Check if this tier is owned by the fallback resolver in V4
-                // If so, skip verification (these are now owned by rightful owners in V5)
-                uint256 v4FallbackResolverBalance =
-                    v4Store.tierBalanceOf({hook: v4HookAddress, owner: v4FallbackResolverAddress, tierId: tierId});
-                if (v4FallbackResolverBalance > 0) {
-                    continue;
-                }
+                // If this owner is the fallback resolver, skip — its V4 NFTs were distributed to rightful
+                // owners in V5, so V4 and V5 balances are expected to differ.
+                if (owner == v4FallbackResolverAddress) continue;
 
-                // Get V4 and V5 tier balances for this owner and tier
+                // Get V4 and V5 tier balances for this owner and tier.
                 uint256 v4Balance = v4Store.tierBalanceOf({hook: v4HookAddress, owner: owner, tierId: tierId});
                 uint256 v5Balance = v5Store.tierBalanceOf({hook: hookAddress, owner: owner, tierId: tierId});
 
-                // Require that V5 balance is never greater than V4 balance
+                // Subtract the fallback resolver's V4 balance from the comparison. NFTs held by the fallback
+                // resolver in V4 were redistributed in V5, so V5 owners may legitimately hold more than their
+                // V4 balance by up to the resolver's share for this tier.
+                uint256 v4FallbackResolverBalance =
+                    v4Store.tierBalanceOf({hook: v4HookAddress, owner: v4FallbackResolverAddress, tierId: tierId});
+
                 require(
-                    v5Balance <= v4Balance,
+                    v5Balance <= v4Balance + v4FallbackResolverBalance,
                     string.concat(
-                        "V5 tier balance exceeds V4: owner=",
+                        "V5 tier balance exceeds V4 + fallback: owner=",
                         _addressToString(owner),
                         " tier=",
                         _uint256ToString(tierId),
                         " v4Balance=",
                         _uint256ToString(v4Balance),
                         " v5Balance=",
-                        _uint256ToString(v5Balance)
+                        _uint256ToString(v5Balance),
+                        " fallbackBalance=",
+                        _uint256ToString(v4FallbackResolverBalance)
                     )
                 );
             }

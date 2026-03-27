@@ -118,6 +118,10 @@ All `@bananapus/721-hook-v5` imports replaced with `@bananapus/721-hook-v6`:
 
 ## 3. Event Changes
 
+Indexer note:
+- metadata reconstruction should pivot from `SetSvgBaseUri` to `SetMetadata`;
+- decoration state should not assume every attempted replacement implies the previously attached asset was successfully returned, because v6 deliberately tolerates failed return transfers.
+
 ### Added
 | Event | Signature |
 |-------|-----------|
