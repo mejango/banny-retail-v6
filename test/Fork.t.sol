@@ -1903,7 +1903,6 @@ contract BannyForkTest is Test {
             tokenUriResolver: IJB721TokenUriResolver(address(resolver)),
             contractUri: "",
             tiersConfig: JB721InitTiersConfig({tiers: tiers, currency: JBCurrencyIds.ETH, decimals: 18}),
-            reserveBeneficiary: address(0),
             flags: JB721TiersHookFlags({
                 noNewTiersWithReserves: false,
                 noNewTiersWithVotes: false,
