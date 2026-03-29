@@ -27,7 +27,7 @@
         "@bananapus/suckers-v6": "^0.0.18",
         "@croptop/core-v6": "^0.0.23",
         "@openzeppelin/contracts": "^5.6.1",
-        "@rev-net/core-v6": "^0.0.18",
+        "@rev-net/core-v6": "^0.0.20",
         "keccak": "^3.0.4"
     },
     "devDependencies": {
