@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
-import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 
 import {BannyverseDeployment, BannyverseDeploymentLib} from "./helpers/BannyverseDeploymentLib.sol";
 import {
@@ -45,7 +44,7 @@ contract Drop1Script is Script, Sphinx {
         );
 
         // Get the hook address by using the deployer.
-        hook = JB721TiersHook(address(REVOwner(revnet.basic_deployer.OWNER()).tiered721HookOf(bannyverse.revnetId)));
+        hook = JB721TiersHook(address(revnet.owner.tiered721HookOf(bannyverse.revnetId)));
         deploy();
     }
 
