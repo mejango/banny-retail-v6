@@ -44,7 +44,7 @@ contract Drop1Script is Script, Sphinx {
         );
 
         // Get the hook address by using the deployer.
-        hook = JB721TiersHook(address(revnet.basic_deployer.tiered721HookOf(bannyverse.revnetId)));
+        hook = JB721TiersHook(address(revnet.owner.tiered721HookOf(bannyverse.revnetId)));
         deploy();
     }
 
