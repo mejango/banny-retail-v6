@@ -2,6 +2,34 @@
 
 Admin privileges and their scope in banny-retail-v6. The contract (`Banny721TokenUriResolver`) is a single-file system with one admin role (Ownable) and per-token owner privileges.
 
+## At A Glance
+
+| Item | Details |
+|------|---------|
+| Scope | Resolver-level metadata, SVG asset commitments/uploads, and body-level outfit management for Banny NFTs. |
+| Operators | The resolver owner for global metadata and asset commitments, body owners for decoration actions, and anyone for permissionless SVG uploads that match committed hashes. |
+| Highest-risk actions | Committing the wrong SVG hash, changing global metadata unexpectedly, or locking outfit changes while assets are held custodially in the resolver. |
+| Recovery posture | Write-once SVG commitments cannot be corrected in place. If resolver behavior is wrong, recovery usually means deploying a replacement resolver rather than editing stored content. |
+
+## Routine Operations
+
+- Commit SVG hashes only after verifying the exact UPC-to-content pairing, since the commitment is permanent.
+- Treat metadata and product-name changes as ecosystem-wide display changes that affect every token rendered through the resolver.
+- Remind users that equipped assets are held by the resolver contract until they are unequipped through the supported flow.
+- Use outfit locks deliberately, because they freeze body-level changes for the fixed lock window.
+
+## One-Way Or High-Risk Actions
+
+- `setSvgHashesOf` is write-once per UPC.
+- `setSvgContentsOf` is also write-once once valid content is uploaded.
+- `lockOutfitChangesFor` can only extend the active lock, never shorten it.
+- There is no admin rescue path for custodially held outfit NFTs.
+
+## Recovery Notes
+
+- If committed artwork is wrong, the practical recovery path is a new resolver or a new UPC strategy, not overwriting the existing entry.
+- If outfits become stuck because of a resolver bug, this contract exposes no owner rescue flow; recovery would require replacement infrastructure rather than an admin intervention.
+
 ## Roles
 
 | Role | How Assigned | Scope |

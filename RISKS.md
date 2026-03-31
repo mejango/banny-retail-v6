@@ -1,4 +1,21 @@
-# RISKS.md -- banny-retail-v6
+# Banny Retail Risk Register
+
+This file focuses on failure modes that can break NFT custody, let untrusted hook integrations bypass assumptions, or leave a rendered Banny in a state that does not match the assets users think they own.
+
+## How to use this file
+
+- Read `Priority risks` first; those are the highest-signal failure modes for operators, auditors, and integrators.
+- Use `Accepted Behaviors` to separate intentional tradeoffs from genuine bugs.
+- Treat `Invariants to Verify` as required test and audit targets.
+
+## Priority risks
+
+| Priority | Risk | Why it matters | Primary controls |
+|----------|------|----------------|------------------|
+| P0 | Untrusted `hook` or store integration | The caller chooses the hook, and the resolver trusts it for ownership checks, tier metadata, and transfers. A bad hook can fake authority or trap assets. | Operationally restrict supported hooks, scrutinize sections 1, 3, and 5, and test with hostile hook behavior. |
+| P1 | Silent transfer failure retention | Failed returns intentionally keep attachment records to avoid stranding NFTs, but this can leave phantom render state if the underlying asset is gone forever. | Explicit accepted-behavior rules, retained-item handling, and invariants around custody/state correspondence. |
+| P1 | Sale-time outfit lock griefing | A seller can transfer a locked body and force the buyer to wait up to 7 days before changing outfits. | Fixed-duration lock, marketplace disclosure, and user education before secondary sales. |
+
 
 ## 1. Trust Assumptions
 
