@@ -26,6 +26,8 @@ import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721Init
 import {JB721TiersHookFlags} from "@bananapus/721-hook-v6/src/structs/JB721TiersHookFlags.sol";
 import {JBDeploy721TiersHookConfig} from "@bananapus/721-hook-v6/src/structs/JBDeploy721TiersHookConfig.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
+import {JB721TierFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierFlags.sol";
+import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
@@ -865,11 +867,13 @@ contract BannyForkTest is Test {
                 encodedIPFSUri: bytes32(0),
                 category: 0, // body
                 discountPercent: 0,
-                allowOwnerMint: false,
-                transfersPausable: false,
-                cantBeRemoved: false,
-                cantIncreaseDiscountPercent: false,
-                cantBuyWithCredits: false,
+                flags: JB721TierFlags({
+                    allowOwnerMint: false,
+                    transfersPausable: false,
+                    cantBeRemoved: false,
+                    cantIncreaseDiscountPercent: false,
+                    cantBuyWithCredits: false
+                }),
                 splitPercent: 0,
                 resolvedUri: ""
             })
@@ -888,11 +892,13 @@ contract BannyForkTest is Test {
                 encodedIPFSUri: bytes32(0),
                 category: 3, // necklace
                 discountPercent: 0,
-                allowOwnerMint: false,
-                transfersPausable: false,
-                cantBeRemoved: false,
-                cantIncreaseDiscountPercent: false,
-                cantBuyWithCredits: false,
+                flags: JB721TierFlags({
+                    allowOwnerMint: false,
+                    transfersPausable: false,
+                    cantBeRemoved: false,
+                    cantIncreaseDiscountPercent: false,
+                    cantBuyWithCredits: false
+                }),
                 splitPercent: 0,
                 resolvedUri: ""
             })
@@ -1936,13 +1942,15 @@ contract BannyForkTest is Test {
             encodedIPFSUri: bytes32(0),
             category: category,
             discountPercent: 0,
-            allowOwnerMint: true,
-            useReserveBeneficiaryAsDefault: false,
-            transfersPausable: false,
-            useVotingUnits: false,
-            cantBeRemoved: false,
-            cantIncreaseDiscountPercent: false,
-            cantBuyWithCredits: false,
+            flags: JB721TierConfigFlags({
+                allowOwnerMint: true,
+                useReserveBeneficiaryAsDefault: false,
+                transfersPausable: false,
+                useVotingUnits: false,
+                cantBeRemoved: false,
+                cantIncreaseDiscountPercent: false,
+                cantBuyWithCredits: false
+            }),
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
