@@ -50,7 +50,6 @@ contract Banny721TokenUriResolver is
     error Banny721TokenUriResolver_UnrecognizedBackground();
     error Banny721TokenUriResolver_UnrecognizedCategory();
     error Banny721TokenUriResolver_UnrecognizedProduct();
-    error Banny721TokenUriResolver_BodyNotBurned();
 
     //*********************************************************************//
     // ------------------------ private constants ------------------------ //
@@ -1012,88 +1011,6 @@ contract Banny721TokenUriResolver is
 
         // Add the outfits.
         _decorateBannyWithOutfits({hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds});
-    }
-
-    /// @notice Recover outfits and background from a burned banny body. Anyone can call this for any burned body.
-    /// @dev The body NFT must have been burned (ownerOf reverts). All attached assets held by this contract are
-    /// transferred to the beneficiary and the attachment records are cleared.
-    /// @param hook The hook address of the collection.
-    /// @param bannyBodyId The ID of the burned banny body.
-    /// @param beneficiary The address that will receive the recovered assets.
-    function removeAssetsFromBurnedBody(
-        address hook,
-        uint256 bannyBodyId,
-        address beneficiary
-    )
-        external
-        override
-        nonReentrant
-    {
-        // Verify the body has been burned by checking that ownerOf reverts.
-        // solhint-disable-next-line no-empty-blocks
-        try IERC721(hook).ownerOf(bannyBodyId) returns (address owner) {
-            // If ownerOf succeeds (returns any address including address(0)), the body still exists.
-            // A burned token in the JB721 ERC721 implementation reverts with ERC721NonexistentToken,
-            // but we handle address(0) defensively in case other implementations return it instead.
-            if (owner != address(0)) revert Banny721TokenUriResolver_BodyNotBurned();
-        } catch {
-            // ownerOf reverted — the body has been burned. Continue with recovery.
-        }
-
-        // Recover the background if one is attached.
-        uint256 backgroundId = _attachedBackgroundIdOf[hook][bannyBodyId];
-        if (backgroundId != 0 && _userOf[hook][backgroundId] == bannyBodyId) {
-            // Clear the attachment records.
-            _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
-            _userOf[hook][backgroundId] = 0;
-
-            // Transfer the background to the beneficiary. Use try-transfer in case the token
-            // was also burned or is otherwise non-transferable.
-            _tryTransferFrom({hook: hook, from: address(this), to: beneficiary, assetId: backgroundId});
-        } else {
-            backgroundId = 0;
-        }
-
-        // Recover all attached outfits.
-        uint256[] memory storedOutfitIds = _attachedOutfitIdsOf[hook][bannyBodyId];
-        uint256[] memory recoveredOutfitIds = new uint256[](storedOutfitIds.length);
-        uint256 recoveredCount;
-
-        for (uint256 i; i < storedOutfitIds.length; i++) {
-            uint256 outfitId = storedOutfitIds[i];
-
-            // Only recover outfits that are still tracked as worn by this body.
-            if (_wearerOf[hook][outfitId] == bannyBodyId) {
-                // Clear the wearer record.
-                _wearerOf[hook][outfitId] = 0;
-
-                // Transfer the outfit to the beneficiary. Use try-transfer in case the outfit
-                // was also burned or is otherwise non-transferable.
-                _tryTransferFrom({hook: hook, from: address(this), to: beneficiary, assetId: outfitId});
-
-                recoveredOutfitIds[recoveredCount++] = outfitId;
-            }
-        }
-
-        // Clear the attached outfits array.
-        delete _attachedOutfitIdsOf[hook][bannyBodyId];
-
-        // Clear the outfit lock (no longer meaningful for a burned body).
-        delete outfitLockedUntil[hook][bannyBodyId];
-
-        // Resize the recovered array.
-        assembly {
-            mstore(recoveredOutfitIds, recoveredCount)
-        }
-
-        emit RemoveAssetsFromBurnedBody({
-            hook: hook,
-            bannyBodyId: bannyBodyId,
-            beneficiary: beneficiary,
-            backgroundId: backgroundId,
-            outfitIds: recoveredOutfitIds,
-            caller: _msgSender()
-        });
     }
 
     /// @notice Locks a banny body ID so that it can't change its outfit for a period of time.

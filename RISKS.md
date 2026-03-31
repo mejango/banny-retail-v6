@@ -63,6 +63,10 @@ For permanently unrecoverable assets (burned NFTs, removed tiers), the retained 
 
 `tokenUriOf` constructs full SVGs on-chain with string concatenation. Measured gas ceiling: ~609K gas for the worst case (9 non-conflicting outfits + background with on-chain SVG content), well within typical RPC node limits (30M+). Regression test: `test_tokenUri_gasSnapshot_9outfits` in `test/TestQALastMile.t.sol`.
 
-### 7.4 Reentrancy in non-guarded functions is harmless
+### 7.4 Outfits burn alongside the body
+
+When a banny body NFT is burned (e.g. via cash-out), any equipped outfits and backgrounds held by the resolver are permanently unrecoverable. The resolver has no recovery function and this is intentional — outfits are part of the body's identity and share its fate. Users who want to preserve outfits must unequip them before burning the body.
+
+### 7.5 Reentrancy in non-guarded functions is harmless
 
 `lockOutfitChangesFor` and all view functions (`tokenUriOf`, `svgOf`) are not protected by `nonReentrant`. A malicious hook's `STORE().tierOfTokenId()` could re-enter `lockOutfitChangesFor` during a `tokenUriOf` call, but this is harmless -- `lockOutfitChangesFor` only extends the lock timestamp (monotonically non-decreasing) and has no state that could be corrupted by reentrancy. The view functions themselves are read-only at the contract level (no storage writes), so reentrancy through them cannot extract value.
