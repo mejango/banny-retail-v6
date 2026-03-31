@@ -869,6 +869,7 @@ contract BannyForkTest is Test {
                 transfersPausable: false,
                 cannotBeRemoved: false,
                 cannotIncreaseDiscountPercent: false,
+                cantBuyWithCredits: false,
                 splitPercent: 0,
                 resolvedUri: ""
             })
@@ -891,6 +892,7 @@ contract BannyForkTest is Test {
                 transfersPausable: false,
                 cannotBeRemoved: false,
                 cannotIncreaseDiscountPercent: false,
+                cantBuyWithCredits: false,
                 splitPercent: 0,
                 resolvedUri: ""
             })
@@ -1940,6 +1942,7 @@ contract BannyForkTest is Test {
             useVotingUnits: false,
             cannotBeRemoved: false,
             cannotIncreaseDiscountPercent: false,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
