@@ -867,8 +867,8 @@ contract BannyForkTest is Test {
                 discountPercent: 0,
                 allowOwnerMint: false,
                 transfersPausable: false,
-                cannotBeRemoved: false,
-                cannotIncreaseDiscountPercent: false,
+                cantBeRemoved: false,
+                cantIncreaseDiscountPercent: false,
                 cantBuyWithCredits: false,
                 splitPercent: 0,
                 resolvedUri: ""
@@ -890,8 +890,8 @@ contract BannyForkTest is Test {
                 discountPercent: 0,
                 allowOwnerMint: false,
                 transfersPausable: false,
-                cannotBeRemoved: false,
-                cannotIncreaseDiscountPercent: false,
+                cantBeRemoved: false,
+                cantIncreaseDiscountPercent: false,
                 cantBuyWithCredits: false,
                 splitPercent: 0,
                 resolvedUri: ""
@@ -1940,8 +1940,8 @@ contract BannyForkTest is Test {
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false,
-            cannotIncreaseDiscountPercent: false,
+            cantBeRemoved: false,
+            cantIncreaseDiscountPercent: false,
             cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)

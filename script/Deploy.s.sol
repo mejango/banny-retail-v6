@@ -229,13 +229,13 @@ contract DeployScript is Script, Sphinx {
             encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             cantBuyWithCredits: false,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -248,13 +248,13 @@ contract DeployScript is Script, Sphinx {
             encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             cantBuyWithCredits: false,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -267,13 +267,13 @@ contract DeployScript is Script, Sphinx {
             encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             cantBuyWithCredits: false,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -286,13 +286,13 @@ contract DeployScript is Script, Sphinx {
             encodedIPFSUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             cantBuyWithCredits: false,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
