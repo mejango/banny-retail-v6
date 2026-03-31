@@ -66,13 +66,13 @@ contract Drop1Script is Script, Sphinx {
             encodedIPFSUri: bytes32(0x233dd4173ef4ed0f60822a469277bb328b5ae056d8980301f7bd7ad9df780099),
             category: 1,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: false,
+            cantIncreaseDiscountPercent: false,
             cantBuyWithCredits: false,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: false,
+            cantBeRemoved: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
