@@ -46,8 +46,8 @@
 **Success:** token URIs render complete art instead of placeholders or missing layers.
 
 **Flow**
-1. Register the content hashes for bodies, outfits, or backgrounds.
-2. Upload or repair the corresponding SVG payloads through the repo's content-management surface.
+1. Register the content hashes for bodies, outfits, or backgrounds with `setSvgHashesOf(...)`.
+2. Upload or repair the corresponding SVG payloads with `setSvgContentsOf(...)`.
 3. Re-resolve token URIs to confirm the on-chain composition now renders correctly.
 
 **Failure cases that matter:** publishing content that does not match the registered hash, forgetting to set product names for new pieces, and assuming the 721 hook owns the art payload when this repo owns the rendered output.
@@ -59,8 +59,8 @@
 **Success:** token URIs and collection-level presentation reflect the intended description, external URL, base URI, and product naming.
 
 **Flow**
-1. Update collection metadata through the resolver's metadata-management surface.
-2. Set or repair product names for the UPCs the renderer should expose.
+1. Update collection metadata with `setMetadata(...)`.
+2. Set or repair product names for the UPCs the renderer should expose with `setProductNames(...)`.
 3. Re-check token URI output so the rendered Banny and its catalog labels agree.
 
 ## Journey 6: Unequip And Recover Custodied Accessories
