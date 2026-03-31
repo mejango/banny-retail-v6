@@ -50,7 +50,20 @@
 2. Upload or repair the corresponding SVG payloads through the repo's content-management surface.
 3. Re-resolve token URIs to confirm the on-chain composition now renders correctly.
 
-## Journey 5: Unequip And Recover Custodied Accessories
+**Failure cases that matter:** publishing content that does not match the registered hash, forgetting to set product names for new pieces, and assuming the 721 hook owns the art payload when this repo owns the rendered output.
+
+## Journey 5: Update Collection Metadata And Product Catalog Entries
+
+**Starting state:** the collection exists, but its descriptive metadata or UPC-to-name catalog needs to change.
+
+**Success:** token URIs and collection-level presentation reflect the intended description, external URL, base URI, and product naming.
+
+**Flow**
+1. Update collection metadata through the resolver's metadata-management surface.
+2. Set or repair product names for the UPCs the renderer should expose.
+3. Re-check token URI output so the rendered Banny and its catalog labels agree.
+
+## Journey 6: Unequip And Recover Custodied Accessories
 
 **Starting state:** a body has attached pieces held by the resolver and the owner wants to rearrange or transfer them.
 
