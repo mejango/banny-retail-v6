@@ -168,6 +168,30 @@ interface IBanny721TokenUriResolver {
     /// @param svgContents The SVG contents to store (must match stored hashes).
     function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external;
 
+    /// @notice Emitted when assets are recovered from a burned banny body.
+    /// @param hook The hook address of the collection.
+    /// @param bannyBodyId The ID of the burned banny body.
+    /// @param beneficiary The address that received the recovered assets.
+    /// @param backgroundId The ID of the background that was recovered (0 if none).
+    /// @param outfitIds The IDs of the outfits that were recovered.
+    /// @param caller The address that triggered the recovery.
+    event RemoveAssetsFromBurnedBody(
+        address indexed hook,
+        uint256 indexed bannyBodyId,
+        address indexed beneficiary,
+        uint256 backgroundId,
+        uint256[] outfitIds,
+        address caller
+    );
+
+    /// @notice Recover outfits and background from a burned banny body. Anyone can call this for any burned body.
+    /// @dev The body NFT must have been burned (ownerOf reverts). All attached assets held by this contract are
+    /// transferred to the beneficiary and the attachment records are cleared.
+    /// @param hook The hook address of the collection.
+    /// @param bannyBodyId The ID of the burned banny body.
+    /// @param beneficiary The address that will receive the recovered assets.
+    function removeAssetsFromBurnedBody(address hook, uint256 bannyBodyId, address beneficiary) external;
+
     /// @notice Store SVG content hashes for products. Only the contract owner can call this.
     /// @param upcs The universal product codes to store SVG hashes for.
     /// @param svgHashes The SVG content hashes to store.
