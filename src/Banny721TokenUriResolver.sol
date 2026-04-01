@@ -1464,8 +1464,33 @@ contract Banny721TokenUriResolver is
             // Revalidate category exclusivity on the merged set. Retained outfits may conflict with the new outfits
             // (e.g., a retained HEAD outfit combined with new EYES/GLASSES/MOUTH/HEADTOP outfits).
             _validateCategoryExclusivity({hook: hook, outfitIds: mergedOutfitIds});
+            _sortOutfitsByCategory({hook: hook, outfitIds: mergedOutfitIds});
 
             _attachedOutfitIdsOf[hook][bannyBodyId] = mergedOutfitIds;
+        }
+    }
+
+    /// @notice Sort outfit IDs in ascending category order.
+    /// @dev Retained outfits are merged back in after failed transfers, so the merged list can become unsorted even
+    /// when the caller provided the new outfits in canonical order. Rendering logic depends on category progression.
+    function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
+        for (uint256 i = 1; i < outfitIds.length; i++) {
+            uint256 outfitId = outfitIds[i];
+            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitId}).category;
+            uint256 j = i;
+
+            while (j != 0) {
+                uint256 previousId = outfitIds[j - 1];
+                uint256 previousCategory = _productOfTokenId({hook: hook, tokenId: previousId}).category;
+                if (previousCategory <= category) break;
+
+                outfitIds[j] = previousId;
+                unchecked {
+                    --j;
+                }
+            }
+
+            outfitIds[j] = outfitId;
         }
     }
 

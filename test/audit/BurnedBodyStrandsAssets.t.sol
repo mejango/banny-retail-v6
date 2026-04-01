@@ -72,6 +72,7 @@ contract MockBurnableStore {
         return tiers[hook][tokenId];
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function encodedIPFSUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
