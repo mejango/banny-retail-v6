@@ -1464,8 +1464,11 @@ contract Banny721TokenUriResolver is
             // Revalidate category exclusivity on the merged set. Retained outfits may conflict with the new outfits
             // (e.g., a retained HEAD outfit combined with new EYES/GLASSES/MOUTH/HEADTOP outfits).
             _validateCategoryExclusivity({hook: hook, outfitIds: mergedOutfitIds});
+            // Restore canonical category ordering before persisting, since retained outfits are appended after the
+            // caller-supplied set.
             _sortOutfitsByCategory({hook: hook, outfitIds: mergedOutfitIds});
 
+            // Persist the merged-and-sorted attachment list so later reads and redecorations see a stable order.
             _attachedOutfitIdsOf[hook][bannyBodyId] = mergedOutfitIds;
         }
     }
@@ -1474,22 +1477,32 @@ contract Banny721TokenUriResolver is
     /// @dev Retained outfits are merged back in after failed transfers, so the merged list can become unsorted even
     /// when the caller provided the new outfits in canonical order. Rendering logic depends on category progression.
     function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
+        // Treat each element after index 0 as the next value to insert into the already-sorted prefix.
         for (uint256 i = 1; i < outfitIds.length; i++) {
+            // Cache the current outfit ID so we can shift larger-category entries to the right around it.
             uint256 outfitId = outfitIds[i];
+            // Look up the current outfit's category once and compare against earlier entries while inserting it.
             uint256 category = _productOfTokenId({hook: hook, tokenId: outfitId}).category;
+            // Walk backward through the sorted prefix until the insertion point is found.
             uint256 j = i;
 
             while (j != 0) {
+                // Load the previous outfit that may need to move one slot to the right.
                 uint256 previousId = outfitIds[j - 1];
+                // Compare by category because canonical outfit ordering is category order, not token ID order.
                 uint256 previousCategory = _productOfTokenId({hook: hook, tokenId: previousId}).category;
+                // Stop once the previous category is already ordered before or equal to the current one.
                 if (previousCategory <= category) break;
 
+                // Shift the larger-category outfit right to make room for the current outfit.
                 outfitIds[j] = previousId;
                 unchecked {
+                    // Safe because the loop guard ensures `j` is non-zero before decrementing.
                     --j;
                 }
             }
 
+            // Write the cached outfit into the insertion point that preserves ascending category order.
             outfitIds[j] = outfitId;
         }
     }

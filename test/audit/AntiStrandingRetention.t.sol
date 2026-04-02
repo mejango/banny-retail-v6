@@ -266,6 +266,31 @@ contract AntiStrandingRetentionTest is Test {
     }
 
     // -----------------------------------------------------------------------
+    // Test 4b: Retained outfits are re-sorted before being stored
+    // -----------------------------------------------------------------------
+    function test_retainedOutfitsAreResortedBeforeStorage() public {
+        // Give the rejecting contract ownership so returns to the owner will fail and force retention.
+        _setOwnerForAll(address(nonReceiver));
+        nonReceiver.approveResolver(hook, address(resolver));
+
+        // Equip a lower-category outfit first so it becomes the retained item in the next decoration.
+        uint256[] memory necklaceOnly = new uint256[](1);
+        necklaceOnly[0] = NECKLACE_TOKEN;
+        nonReceiver.decorate(resolver, address(hook), BODY_TOKEN, 0, necklaceOnly);
+
+        // Add a higher-category outfit while the necklace return fails, forcing the stored list to be merged.
+        uint256[] memory headOnly = new uint256[](1);
+        headOnly[0] = HEAD_TOKEN;
+        nonReceiver.decorate(resolver, address(hook), BODY_TOKEN, 0, headOnly);
+
+        // The merged list should be stored in ascending category order, not append order.
+        (, uint256[] memory currentOutfits) = resolver.assetIdsOf(address(hook), BODY_TOKEN);
+        assertEq(currentOutfits.length, 2, "both outfits should remain attached");
+        assertEq(currentOutfits[0], NECKLACE_TOKEN, "lower-category retained outfit should stay first");
+        assertEq(currentOutfits[1], HEAD_TOKEN, "higher-category new outfit should stay second");
+    }
+
+    // -----------------------------------------------------------------------
     // Test 5: Recovery path --make contract receivable, retry decoration
     // -----------------------------------------------------------------------
     function test_recoveryAfterMakingContractReceivable() public {
