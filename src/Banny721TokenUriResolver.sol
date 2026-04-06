@@ -748,6 +748,16 @@ contract Banny721TokenUriResolver is
         name = string.concat(name, "UPC #", uint256(product.id).toString());
     }
 
+    /// @notice Check if a value is present in an array.
+    /// @param value The value to search for.
+    /// @param array The array to search in.
+    /// @return found True if the value was found.
+    function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
+        for (uint256 i; i < array.length; i++) {
+            if (array[i] == value) return true;
+        }
+    }
+
     /// @notice Returns the standard dimension SVG containing dynamic contents and SVG metadata.
     /// @param contents The contents of the SVG
     /// @return svg The SVG contents.
@@ -923,6 +933,52 @@ contract Banny721TokenUriResolver is
         return _storeOf(hook).tierOfTokenId({hook: hook, tokenId: tokenId, includeResolvedUri: false});
     }
 
+    /// @notice Revert if an equipped asset is being reassigned away from a locked source body.
+    /// @param hook The hook storing the assets.
+    /// @param bannyBodyId The body currently using the asset.
+    /// @param exemptBodyId The destination body currently being decorated.
+    function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
+        if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
+            revert Banny721TokenUriResolver_OutfitChangesLocked();
+        }
+    }
+
+    /// @notice Sort outfit IDs in ascending category order.
+    /// @dev Retained outfits are merged back in after failed transfers, so the merged list can become unsorted even
+    /// when the caller provided the new outfits in canonical order. Rendering logic depends on category progression.
+    /// @param hook The 721 hook whose tier categories determine sort order.
+    /// @param outfitIds The outfit token IDs to sort in-place by ascending category.
+    function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
+        // Treat each element after index 0 as the next value to insert into the already-sorted prefix.
+        for (uint256 i = 1; i < outfitIds.length; i++) {
+            // Cache the current outfit ID so we can shift larger-category entries to the right around it.
+            uint256 outfitId = outfitIds[i];
+            // Look up the current outfit's category once and compare against earlier entries while inserting it.
+            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitId}).category;
+            // Walk backward through the sorted prefix until the insertion point is found.
+            uint256 j = i;
+
+            while (j != 0) {
+                // Load the previous outfit that may need to move one slot to the right.
+                uint256 previousId = outfitIds[j - 1];
+                // Compare by category because canonical outfit ordering is category order, not token ID order.
+                uint256 previousCategory = _productOfTokenId({hook: hook, tokenId: previousId}).category;
+                // Stop once the previous category is already ordered before or equal to the current one.
+                if (previousCategory <= category) break;
+
+                // Shift the larger-category outfit right to make room for the current outfit.
+                outfitIds[j] = previousId;
+                unchecked {
+                    // Safe because the loop guard ensures `j` is non-zero before decrementing.
+                    --j;
+                }
+            }
+
+            // Write the cached outfit into the insertion point that preserves ascending category order.
+            outfitIds[j] = outfitId;
+        }
+    }
+
     /// @notice The store of the hook.
     /// @param hook The hook to get the store of.
     /// @return store The store of the hook.
@@ -946,6 +1002,48 @@ contract Banny721TokenUriResolver is
             }),
             '" width="400" height="400"/>'
         );
+    }
+
+    /// @notice Validate that an array of outfit IDs does not violate category exclusivity rules.
+    /// @dev HEAD is exclusive with EYES, GLASSES, MOUTH, and HEADTOP. SUIT is exclusive with SUIT_TOP and
+    /// SUIT_BOTTOM. The array does not need to be sorted.
+    /// @param hook The hook storing the assets.
+    /// @param outfitIds The outfit IDs to validate.
+    function _validateCategoryExclusivity(address hook, uint256[] memory outfitIds) internal view {
+        // Track whether a full-coverage item has been seen for each exclusive group.
+        bool hasHead;
+        bool hasSuit;
+        // Track whether a partial/accessory item has been seen for each exclusive group.
+        bool hasHeadAccessory;
+        bool hasSuitPiece;
+
+        // Scan every outfit and classify it into one of the two exclusive groups.
+        for (uint256 i; i < outfitIds.length; i++) {
+            // Look up the tier category for this outfit token.
+            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
+
+            if (category == _HEAD_CATEGORY) {
+                // A full HEAD covers the entire head area (eyes, glasses, mouth, headtop).
+                hasHead = true;
+            } else if (
+                category == _EYES_CATEGORY || category == _GLASSES_CATEGORY || category == _MOUTH_CATEGORY
+                    || category == _HEADTOP_CATEGORY
+            ) {
+                // Individual face/head accessories that would be hidden by a full HEAD.
+                hasHeadAccessory = true;
+            } else if (category == _SUIT_CATEGORY) {
+                // A full SUIT covers both the top and bottom body areas.
+                hasSuit = true;
+            } else if (category == _SUIT_TOP_CATEGORY || category == _SUIT_BOTTOM_CATEGORY) {
+                // Individual top or bottom pieces that would conflict with a full SUIT.
+                hasSuitPiece = true;
+            }
+        }
+
+        // A full HEAD and individual head accessories cannot coexist — the head would hide the accessories.
+        if (hasHead && hasHeadAccessory) revert Banny721TokenUriResolver_HeadAlreadyAdded();
+        // A full SUIT and individual suit pieces cannot coexist — the suit would hide the pieces.
+        if (hasSuit && hasSuitPiece) revert Banny721TokenUriResolver_SuitAlreadyAdded();
     }
 
     //*********************************************************************//
@@ -1155,16 +1253,6 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
     // ---------------------- internal transactions ---------------------- //
     //*********************************************************************//
-
-    /// @notice Revert if an equipped asset is being reassigned away from a locked source body.
-    /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The body currently using the asset.
-    /// @param exemptBodyId The destination body currently being decorated.
-    function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
-        if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
-            revert Banny721TokenUriResolver_OutfitChangesLocked();
-        }
-    }
 
     /// @notice Add a background to a banny body.
     /// @param hook The hook storing the assets.
@@ -1470,82 +1558,6 @@ contract Banny721TokenUriResolver is
 
             // Persist the merged-and-sorted attachment list so later reads and redecorations see a stable order.
             _attachedOutfitIdsOf[hook][bannyBodyId] = mergedOutfitIds;
-        }
-    }
-
-    /// @notice Sort outfit IDs in ascending category order.
-    /// @dev Retained outfits are merged back in after failed transfers, so the merged list can become unsorted even
-    /// when the caller provided the new outfits in canonical order. Rendering logic depends on category progression.
-    function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
-        // Treat each element after index 0 as the next value to insert into the already-sorted prefix.
-        for (uint256 i = 1; i < outfitIds.length; i++) {
-            // Cache the current outfit ID so we can shift larger-category entries to the right around it.
-            uint256 outfitId = outfitIds[i];
-            // Look up the current outfit's category once and compare against earlier entries while inserting it.
-            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitId}).category;
-            // Walk backward through the sorted prefix until the insertion point is found.
-            uint256 j = i;
-
-            while (j != 0) {
-                // Load the previous outfit that may need to move one slot to the right.
-                uint256 previousId = outfitIds[j - 1];
-                // Compare by category because canonical outfit ordering is category order, not token ID order.
-                uint256 previousCategory = _productOfTokenId({hook: hook, tokenId: previousId}).category;
-                // Stop once the previous category is already ordered before or equal to the current one.
-                if (previousCategory <= category) break;
-
-                // Shift the larger-category outfit right to make room for the current outfit.
-                outfitIds[j] = previousId;
-                unchecked {
-                    // Safe because the loop guard ensures `j` is non-zero before decrementing.
-                    --j;
-                }
-            }
-
-            // Write the cached outfit into the insertion point that preserves ascending category order.
-            outfitIds[j] = outfitId;
-        }
-    }
-
-    /// @notice Validate that an array of outfit IDs does not violate category exclusivity rules.
-    /// @dev HEAD is exclusive with EYES, GLASSES, MOUTH, and HEADTOP. SUIT is exclusive with SUIT_TOP and
-    /// SUIT_BOTTOM. The array does not need to be sorted.
-    /// @param hook The hook storing the assets.
-    /// @param outfitIds The outfit IDs to validate.
-    function _validateCategoryExclusivity(address hook, uint256[] memory outfitIds) internal view {
-        bool hasHead;
-        bool hasSuit;
-        bool hasHeadAccessory;
-        bool hasSuitPiece;
-
-        for (uint256 i; i < outfitIds.length; i++) {
-            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
-
-            if (category == _HEAD_CATEGORY) {
-                hasHead = true;
-            } else if (
-                category == _EYES_CATEGORY || category == _GLASSES_CATEGORY || category == _MOUTH_CATEGORY
-                    || category == _HEADTOP_CATEGORY
-            ) {
-                hasHeadAccessory = true;
-            } else if (category == _SUIT_CATEGORY) {
-                hasSuit = true;
-            } else if (category == _SUIT_TOP_CATEGORY || category == _SUIT_BOTTOM_CATEGORY) {
-                hasSuitPiece = true;
-            }
-        }
-
-        if (hasHead && hasHeadAccessory) revert Banny721TokenUriResolver_HeadAlreadyAdded();
-        if (hasSuit && hasSuitPiece) revert Banny721TokenUriResolver_SuitAlreadyAdded();
-    }
-
-    /// @notice Check if a value is present in an array.
-    /// @param value The value to search for.
-    /// @param array The array to search in.
-    /// @return found True if the value was found.
-    function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
-        for (uint256 i; i < array.length; i++) {
-            if (array[i] == value) return true;
         }
     }
 
