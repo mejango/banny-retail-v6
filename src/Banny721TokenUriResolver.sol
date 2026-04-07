@@ -250,18 +250,21 @@ contract Banny721TokenUriResolver is
 
             extraMetadata = '"outfitIds": [';
 
-            for (uint256 i; i < outfitIds.length; i++) {
+            for (uint256 i; i < outfitIds.length;) {
                 extraMetadata = string.concat(extraMetadata, outfitIds[i].toString());
 
                 // Add a comma if it's not the last outfit.
                 if (i < outfitIds.length - 1) {
                     extraMetadata = string.concat(extraMetadata, ",");
                 }
+                unchecked {
+                    ++i;
+                }
             }
 
             extraMetadata = string.concat(extraMetadata, "],");
 
-            for (uint256 i; i < outfitIds.length; i++) {
+            for (uint256 i; i < outfitIds.length;) {
                 JB721Tier memory outfitProduct = _productOfTokenId({hook: hook, tokenId: outfitIds[i]});
 
                 attributes = string.concat(
@@ -272,6 +275,9 @@ contract Banny721TokenUriResolver is
                     _productNameOf(outfitProduct.id),
                     '"},'
                 );
+                unchecked {
+                    ++i;
+                }
             }
 
             if (backgroundId != 0) {
@@ -378,13 +384,16 @@ contract Banny721TokenUriResolver is
         uint256 storedOutfitId;
 
         // Return the outfit's that are still being worn by the banny body.
-        for (uint256 i; i < storedOutfitIds.length; i++) {
+        for (uint256 i; i < storedOutfitIds.length;) {
             // Set the stored outfit ID being iterated on.
             storedOutfitId = storedOutfitIds[i];
 
             // If the stored outfit is still being worn, return it.
             if (wearerOf({hook: hook, outfitId: storedOutfitId}) == bannyBodyId) {
                 outfitIds[numberOfIncludedOutfits++] = storedOutfitId;
+            }
+            unchecked {
+                ++i;
             }
         }
 
@@ -519,9 +528,12 @@ contract Banny721TokenUriResolver is
         // Keep a reference to the outfit IDs currently attached to a banny body.
         uint256[] memory attachedOutfitIds = _attachedOutfitIdsOf[hook][bannyBodyId];
 
-        for (uint256 i; i < attachedOutfitIds.length; i++) {
+        for (uint256 i; i < attachedOutfitIds.length;) {
             // If the outfit is still attached, return the banny body ID.
             if (attachedOutfitIds[i] == outfitId) return bannyBodyId;
+            unchecked {
+                ++i;
+            }
         }
 
         // If the outfit is no longer attached, return 0.
@@ -753,8 +765,11 @@ contract Banny721TokenUriResolver is
     /// @param array The array to search in.
     /// @return found True if the value was found.
     function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
-        for (uint256 i; i < array.length; i++) {
+        for (uint256 i; i < array.length;) {
             if (array[i] == value) return true;
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -772,23 +787,8 @@ contract Banny721TokenUriResolver is
     /// @notice The SVG contents for a mannequin banny.
     /// @return contents The SVG contents of the mannequin banny.
     function _mannequinBannySvg() internal view returns (string memory) {
-        string memory fillNoneString = string.concat("{fill:none;}");
         return string.concat(
-            "<style>.o{fill:#808080;}.b1",
-            fillNoneString,
-            ".b2",
-            fillNoneString,
-            ".b3",
-            fillNoneString,
-            ".b4",
-            fillNoneString,
-            ".a1",
-            fillNoneString,
-            ".a2",
-            fillNoneString,
-            ".a3",
-            fillNoneString,
-            "</style>",
+            "<style>.o{fill:#808080;}.b1{fill:none;}.b2{fill:none;}.b3{fill:none;}.b4{fill:none;}.a1{fill:none;}.a2{fill:none;}.a3{fill:none;}</style>",
             BANNY_BODY
         );
     }
@@ -834,7 +834,7 @@ contract Banny721TokenUriResolver is
 
         // For each outfit, add the SVG layer if it's owned by the same owner as the banny body being dressed.
         // Loop once more to make sure all default outfits are added.
-        for (uint256 i; i < numberOfOutfits + 1; i++) {
+        for (uint256 i; i < numberOfOutfits + 1;) {
             // Keep a reference to the outfit ID being iterated on.
             uint256 outfitId;
 
@@ -903,6 +903,9 @@ contract Banny721TokenUriResolver is
             if (outfitId != 0 && category != _NECKLACE_CATEGORY) {
                 contents = string.concat(contents, _svgOf({hook: hook, upc: upc}));
             }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -949,33 +952,35 @@ contract Banny721TokenUriResolver is
     /// @param hook The 721 hook whose tier categories determine sort order.
     /// @param outfitIds The outfit token IDs to sort in-place by ascending category.
     function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
-        // Treat each element after index 0 as the next value to insert into the already-sorted prefix.
-        for (uint256 i = 1; i < outfitIds.length; i++) {
-            // Cache the current outfit ID so we can shift larger-category entries to the right around it.
+        uint256 length = outfitIds.length;
+        if (length < 2) return;
+
+        // Pre-compute all categories to avoid repeated external STATICCALL during sort comparisons.
+        uint256[] memory categories = new uint256[](length);
+        for (uint256 i; i < length;) {
+            categories[i] = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
+            unchecked {
+                ++i;
+            }
+        }
+
+        // Insertion sort using cached categories.
+        for (uint256 i = 1; i < length;) {
             uint256 outfitId = outfitIds[i];
-            // Look up the current outfit's category once and compare against earlier entries while inserting it.
-            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitId}).category;
-            // Walk backward through the sorted prefix until the insertion point is found.
+            uint256 category = categories[i];
             uint256 j = i;
-
-            while (j != 0) {
-                // Load the previous outfit that may need to move one slot to the right.
-                uint256 previousId = outfitIds[j - 1];
-                // Compare by category because canonical outfit ordering is category order, not token ID order.
-                uint256 previousCategory = _productOfTokenId({hook: hook, tokenId: previousId}).category;
-                // Stop once the previous category is already ordered before or equal to the current one.
-                if (previousCategory <= category) break;
-
-                // Shift the larger-category outfit right to make room for the current outfit.
-                outfitIds[j] = previousId;
+            while (j != 0 && categories[j - 1] > category) {
+                outfitIds[j] = outfitIds[j - 1];
+                categories[j] = categories[j - 1];
                 unchecked {
-                    // Safe because the loop guard ensures `j` is non-zero before decrementing.
                     --j;
                 }
             }
-
-            // Write the cached outfit into the insertion point that preserves ascending category order.
             outfitIds[j] = outfitId;
+            categories[j] = category;
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -1018,7 +1023,7 @@ contract Banny721TokenUriResolver is
         bool hasSuitPiece;
 
         // Scan every outfit and classify it into one of the two exclusive groups.
-        for (uint256 i; i < outfitIds.length; i++) {
+        for (uint256 i; i < outfitIds.length;) {
             // Look up the tier category for this outfit token.
             uint256 category = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
 
@@ -1037,6 +1042,9 @@ contract Banny721TokenUriResolver is
             } else if (category == _SUIT_TOP_CATEGORY || category == _SUIT_BOTTOM_CATEGORY) {
                 // Individual top or bottom pieces that would conflict with a full SUIT.
                 hasSuitPiece = true;
+            }
+            unchecked {
+                ++i;
             }
         }
 
@@ -1088,7 +1096,10 @@ contract Banny721TokenUriResolver is
         override
         nonReentrant
     {
-        _checkIfSenderIsOwner({hook: hook, upc: bannyBodyId});
+        // Cache the sender once to avoid repeated ERC-2771 context reads throughout the call chain.
+        address sender = _msgSender();
+
+        if (IERC721(hook).ownerOf(bannyBodyId) != sender) revert Banny721TokenUriResolver_UnauthorizedBannyBody();
 
         // Make sure the bannyBodyId belongs to a body-category tier.
         if (_productOfTokenId({hook: hook, tokenId: bannyBodyId}).category != _BODY_CATEGORY) {
@@ -1101,14 +1112,14 @@ contract Banny721TokenUriResolver is
         }
 
         emit DecorateBanny({
-            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: _msgSender()
+            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: sender
         });
 
         // Add the background.
-        _decorateBannyWithBackground({hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId});
+        _decorateBannyWithBackground({hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, sender: sender});
 
         // Add the outfits.
-        _decorateBannyWithOutfits({hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds});
+        _decorateBannyWithOutfits({hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds, sender: sender});
     }
 
     /// @notice Locks a banny body ID so that it can't change its outfit for a period of time.
@@ -1190,13 +1201,17 @@ contract Banny721TokenUriResolver is
     function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
         if (upcs.length != names.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
 
-        for (uint256 i; i < upcs.length; i++) {
+        address sender = _msgSender();
+        for (uint256 i; i < upcs.length;) {
             uint256 upc = upcs[i];
             string memory name = names[i];
 
             _customProductNameOf[upc] = name;
 
-            emit SetProductName({upc: upc, name: name, caller: _msgSender()});
+            emit SetProductName({upc: upc, name: name, caller: sender});
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -1206,7 +1221,8 @@ contract Banny721TokenUriResolver is
     function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
         if (upcs.length != svgContents.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
 
-        for (uint256 i; i < upcs.length; i++) {
+        address sender = _msgSender();
+        for (uint256 i; i < upcs.length;) {
             uint256 upc = upcs[i];
             string memory svgContent = svgContents[i];
 
@@ -1225,7 +1241,10 @@ contract Banny721TokenUriResolver is
             // Store the svg contents.
             _svgContentOf[upc] = svgContent;
 
-            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: _msgSender()});
+            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: sender});
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -1236,7 +1255,8 @@ contract Banny721TokenUriResolver is
     function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
         if (upcs.length != svgHashes.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
 
-        for (uint256 i; i < upcs.length; i++) {
+        address sender = _msgSender();
+        for (uint256 i; i < upcs.length;) {
             uint256 upc = upcs[i];
             bytes32 svgHash = svgHashes[i];
 
@@ -1246,7 +1266,10 @@ contract Banny721TokenUriResolver is
             // Store the svg contents.
             svgHashOf[upc] = svgHash;
 
-            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: _msgSender()});
+            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: sender});
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -1258,7 +1281,15 @@ contract Banny721TokenUriResolver is
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body being dressed.
     /// @param backgroundId The ID of the background that'll be associated with the specified banny.
-    function _decorateBannyWithBackground(address hook, uint256 bannyBodyId, uint256 backgroundId) internal {
+    /// @param sender The cached msg sender.
+    function _decorateBannyWithBackground(
+        address hook,
+        uint256 bannyBodyId,
+        uint256 backgroundId,
+        address sender
+    )
+        internal
+    {
         // Keep a reference to the previous background attached.
         uint256 previousBackgroundId = _attachedBackgroundIdOf[hook][bannyBodyId];
 
@@ -1273,7 +1304,7 @@ contract Banny721TokenUriResolver is
                 address owner = IERC721(hook).ownerOf(backgroundId);
 
                 // Check if the call is being made by the background's owner, or the owner of a banny body using it.
-                if (_msgSender() != owner) {
+                if (sender != owner) {
                     // Get the banny body currently using this background.
                     uint256 userId = userOf({hook: hook, backgroundId: backgroundId});
 
@@ -1281,7 +1312,7 @@ contract Banny721TokenUriResolver is
                     if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
 
                     // If the background is used, the banny body's owner can also authorize its use.
-                    if (_msgSender() != IERC721(hook).ownerOf(userId)) {
+                    if (sender != IERC721(hook).ownerOf(userId)) {
                         revert Banny721TokenUriResolver_UnauthorizedBackground();
                     }
 
@@ -1300,9 +1331,8 @@ contract Banny721TokenUriResolver is
                 // Try to transfer the previous background back before updating state.
                 // If the transfer fails, the old background stays attached to prevent NFT stranding.
                 if (userOfPreviousBackground == bannyBodyId) {
-                    if (!_tryTransferFrom({
-                            hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId
-                        })) {
+                    if (!_tryTransferFrom({hook: hook, from: address(this), to: sender, assetId: previousBackgroundId}))
+                    {
                         // Transfer failed — skip the background change entirely so the old background
                         // remains tracked and recoverable. The new background is not equipped.
                         return;
@@ -1315,16 +1345,15 @@ contract Banny721TokenUriResolver is
 
                 // Transfer the new background to this contract if it's not already owned by this contract.
                 if (owner != address(this)) {
-                    _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: backgroundId});
+                    _transferFrom({hook: hook, from: sender, to: address(this), assetId: backgroundId});
                 }
             } else {
                 // Try to transfer the previous background back before clearing state.
                 if (userOfPreviousBackground == bannyBodyId) {
                     // Only clear attachment state if the transfer succeeded. If it fails (e.g. recipient rejects
                     // ERC-721), the background stays attached so the owner can retry or recover.
-                    if (_tryTransferFrom({
-                            hook: hook, from: address(this), to: _msgSender(), assetId: previousBackgroundId
-                        })) {
+                    if (_tryTransferFrom({hook: hook, from: address(this), to: sender, assetId: previousBackgroundId}))
+                    {
                         _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
                     }
                 } else {
@@ -1341,7 +1370,15 @@ contract Banny721TokenUriResolver is
     /// @param bannyBodyId The ID of the banny body being dressed.
     /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny. Only one outfit per
     /// outfit category allowed at a time and they must be passed in order.
-    function _decorateBannyWithOutfits(address hook, uint256 bannyBodyId, uint256[] memory outfitIds) internal {
+    /// @param sender The cached msg sender.
+    function _decorateBannyWithOutfits(
+        address hook,
+        uint256 bannyBodyId,
+        uint256[] memory outfitIds,
+        address sender
+    )
+        internal
+    {
         // Keep track of certain outfits being used along the way to prevent conflicting outfits.
         bool hasHead;
         bool hasSuit;
@@ -1369,14 +1406,14 @@ contract Banny721TokenUriResolver is
 
         // Iterate through each outfit, transfering them in and adding them to the banny if needed, while transfering
         // out and removing old outfits no longer being worn.
-        for (uint256 i; i < outfitIds.length; i++) {
+        for (uint256 i; i < outfitIds.length;) {
             // Set the outfit ID being iterated on.
             uint256 outfitId = outfitIds[i];
 
             // Check if the call is being made either by the outfit's owner or the owner of the banny body currently
             // wearing it.
             // slither-disable-next-line calls-loop
-            if (_msgSender() != IERC721(hook).ownerOf(outfitId)) {
+            if (sender != IERC721(hook).ownerOf(outfitId)) {
                 // Get the banny body currently wearing this outfit.
                 uint256 wearerId = wearerOf({hook: hook, outfitId: outfitId});
 
@@ -1385,7 +1422,7 @@ contract Banny721TokenUriResolver is
 
                 // If the outfit is worn, the banny body's owner can also authorize its use.
                 // slither-disable-next-line calls-loop
-                if (_msgSender() != IERC721(hook).ownerOf(wearerId)) {
+                if (sender != IERC721(hook).ownerOf(wearerId)) {
                     revert Banny721TokenUriResolver_UnauthorizedOutfit();
                 }
 
@@ -1438,9 +1475,7 @@ contract Banny721TokenUriResolver is
                     // Use try-transfer: the previous outfit may have been burned or its tier removed.
                     // If transfer fails, zero is NOT written to previousOutfitIds — the entry is preserved
                     // so it can be retained in the attached list (preventing NFT stranding).
-                    if (_tryTransferFrom({
-                            hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId
-                        })) {
+                    if (_tryTransferFrom({hook: hook, from: address(this), to: sender, assetId: previousOutfitId})) {
                         // Mark as successfully transferred so it won't be retained.
                         previousOutfitIds[previousOutfitIndex] = 0;
                     }
@@ -1468,12 +1503,15 @@ contract Banny721TokenUriResolver is
                 // Transfer the outfit to this contract.
                 // slither-disable-next-line reentrancy-no-eth,calls-loop
                 if (IERC721(hook).ownerOf(outfitId) != address(this)) {
-                    _transferFrom({hook: hook, from: _msgSender(), to: address(this), assetId: outfitId});
+                    _transferFrom({hook: hook, from: sender, to: address(this), assetId: outfitId});
                 }
             }
 
             // Keep a reference to the last outfit's category.
             lastAssetCategory = outfitProductCategory;
+            unchecked {
+                ++i;
+            }
         }
 
         // Remove and transfer out any remaining assets no longer being worn.
@@ -1490,7 +1528,7 @@ contract Banny721TokenUriResolver is
             } else if (wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {
                 // Use try-transfer: the previous outfit may have been burned or its tier removed.
                 // If transfer fails, the entry stays non-zero and is retained (preventing NFT stranding).
-                if (_tryTransferFrom({hook: hook, from: address(this), to: _msgSender(), assetId: previousOutfitId})) {
+                if (_tryTransferFrom({hook: hook, from: address(this), to: sender, assetId: previousOutfitId})) {
                     previousOutfitIds[previousOutfitIndex] = 0;
                 }
             } else {
@@ -1530,8 +1568,11 @@ contract Banny721TokenUriResolver is
     {
         // Count how many previous outfits failed to transfer (non-zero entries remain).
         uint256 retainedCount;
-        for (uint256 i; i < previousOutfitIds.length; i++) {
+        for (uint256 i; i < previousOutfitIds.length;) {
             if (previousOutfitIds[i] != 0) retainedCount++;
+            unchecked {
+                ++i;
+            }
         }
 
         if (retainedCount == 0) {
@@ -1539,13 +1580,19 @@ contract Banny721TokenUriResolver is
         } else {
             // Merge new outfits with retained outfits that couldn't be transferred back.
             uint256[] memory mergedOutfitIds = new uint256[](outfitIds.length + retainedCount);
-            for (uint256 i; i < outfitIds.length; i++) {
+            for (uint256 i; i < outfitIds.length;) {
                 mergedOutfitIds[i] = outfitIds[i];
+                unchecked {
+                    ++i;
+                }
             }
             uint256 mergeIndex = outfitIds.length;
-            for (uint256 i; i < previousOutfitIds.length; i++) {
+            for (uint256 i; i < previousOutfitIds.length;) {
                 if (previousOutfitIds[i] != 0) {
                     mergedOutfitIds[mergeIndex++] = previousOutfitIds[i];
+                }
+                unchecked {
+                    ++i;
                 }
             }
 
