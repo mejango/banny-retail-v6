@@ -78,14 +78,14 @@ contract MigrationHelperHarness {
 }
 
 contract MockHook {
-    address internal immutable _store;
+    address internal immutable _STORE;
 
     constructor(address store) {
-        _store = store;
+        _STORE = store;
     }
 
     function STORE() external view returns (IJB721TiersHookStore) {
-        return IJB721TiersHookStore(_store);
+        return IJB721TiersHookStore(_STORE);
     }
 }
 

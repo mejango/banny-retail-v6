@@ -37,6 +37,7 @@ contract Banny721TokenUriResolver is
     error Banny721TokenUriResolver_CantAccelerateTheLock();
     error Banny721TokenUriResolver_ContentsAlreadyStored();
     error Banny721TokenUriResolver_ContentsMismatch();
+    error Banny721TokenUriResolver_DuplicateCategory();
     error Banny721TokenUriResolver_HashAlreadyStored();
     error Banny721TokenUriResolver_HashNotFound();
     error Banny721TokenUriResolver_HeadAlreadyAdded();
@@ -1602,6 +1603,20 @@ contract Banny721TokenUriResolver is
             // Restore canonical category ordering before persisting, since retained outfits are appended after the
             // caller-supplied set.
             _sortOutfitsByCategory({hook: hook, outfitIds: mergedOutfitIds});
+
+            // After sorting, verify no two outfits share the same category. A retained outfit whose transfer
+            // failed could duplicate a category supplied in the new outfit set.
+            for (uint256 i = 1; i < mergedOutfitIds.length;) {
+                if (
+                    _productOfTokenId({hook: hook, tokenId: mergedOutfitIds[i]}).category
+                        == _productOfTokenId({hook: hook, tokenId: mergedOutfitIds[i - 1]}).category
+                ) {
+                    revert Banny721TokenUriResolver_DuplicateCategory();
+                }
+                unchecked {
+                    ++i;
+                }
+            }
 
             // Persist the merged-and-sorted attachment list so later reads and redecorations see a stable order.
             _attachedOutfitIdsOf[hook][bannyBodyId] = mergedOutfitIds;
