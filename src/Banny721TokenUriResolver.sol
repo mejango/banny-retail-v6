@@ -198,6 +198,7 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
 
     /// @notice Returns the SVG showing a dressed banny body in a background.
+    /// @param hook The hook storing the assets.
     /// @param tokenId The ID of the token to show. If the ID belongs to a banny body, it will be shown with its
     /// current outfits in its current background.
     /// @return tokenUri The URI representing the SVG.
@@ -359,7 +360,7 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
 
     /// @notice The assets currently attached to each banny body.
-    /// @custom:param hook The hook address of the collection.
+    /// @param hook The hook address of the collection.
     /// @param bannyBodyId The ID of the banny body shown with the associated assets.
     /// @return backgroundId The background attached to the banny body.
     /// @return outfitIds The outfits attached to the banny body.
@@ -629,7 +630,9 @@ contract Banny721TokenUriResolver is
         if (IERC721(hook).ownerOf(upc) != _msgSender()) revert Banny721TokenUriResolver_UnauthorizedBannyBody();
     }
 
+    /// @notice The length of the context suffix appended by a trusted forwarder.
     /// @dev ERC-2771 specifies the context as being a single address (20 bytes).
+    /// @return The suffix length in bytes.
     function _contextSuffixLength() internal view virtual override(ERC2771Context, Context) returns (uint256) {
         return super._contextSuffixLength();
     }
@@ -638,6 +641,11 @@ contract Banny721TokenUriResolver is
     // Metadata strings (name, description, external_url) are set by the contract owner, not by users.
     // No JSON escaping is applied — the owner is trusted to provide valid values. On-chain JSON is consumed
     // by off-chain indexers and UIs, not rendered in a browser context where XSS would apply.
+    /// @param tokenId The ID of the token.
+    /// @param product The tier product for the token.
+    /// @param extraMetadata Additional JSON metadata fields to include.
+    /// @param imageContents The base64-encoded SVG image contents.
+    /// @return The fully encoded data URI string.
     function _encodeTokenUri(
         uint256 tokenId,
         JB721Tier memory product,
@@ -953,6 +961,7 @@ contract Banny721TokenUriResolver is
     /// @param hook The 721 hook whose tier categories determine sort order.
     /// @param outfitIds The outfit token IDs to sort in-place by ascending category.
     function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
+        // Cache array length and skip sorting when fewer than 2 elements.
         uint256 length = outfitIds.length;
         if (length < 2) return;
 
@@ -967,9 +976,12 @@ contract Banny721TokenUriResolver is
 
         // Insertion sort using cached categories.
         for (uint256 i = 1; i < length;) {
+            // Cache the current element so it can be inserted into the correct sorted position.
             uint256 outfitId = outfitIds[i];
             uint256 category = categories[i];
             uint256 j = i;
+
+            // Shift larger-category entries right until the insertion point is found.
             while (j != 0 && categories[j - 1] > category) {
                 outfitIds[j] = outfitIds[j - 1];
                 categories[j] = categories[j - 1];
@@ -977,6 +989,8 @@ contract Banny721TokenUriResolver is
                     --j;
                 }
             }
+
+            // Place the cached element at its sorted position.
             outfitIds[j] = outfitId;
             categories[j] = category;
             unchecked {
@@ -995,6 +1009,7 @@ contract Banny721TokenUriResolver is
     /// @notice The banny body and outfit SVG files.
     /// @param hook The 721 contract that the product belongs to.
     /// @param upc The universal product code of the product that the SVG contents represent.
+    /// @return The SVG content string, either from storage or decoded from IPFS.
     function _svgOf(address hook, uint256 upc) internal view returns (string memory) {
         // Keep a reference to the stored svg contents.
         string memory svgContents = _svgContentOf[upc];
@@ -1143,6 +1158,7 @@ contract Banny721TokenUriResolver is
         outfitLockedUntil[hook][bannyBodyId] = newLockUntil;
     }
 
+    /// @notice Handles the receipt of an ERC-721 token, only accepting transfers initiated by this contract.
     /// @dev Make sure tokens can be received if the transaction was initiated by this contract.
     // NFTs sent via transferFrom (not safeTransferFrom) bypass onERC721Received and cannot be
     // tracked or recovered. This is an inherent ERC-721 limitation — the contract cannot prevent non-safe
@@ -1151,6 +1167,7 @@ contract Banny721TokenUriResolver is
     /// @param from The address that initiated the transfer.
     /// @param tokenId The ID of the token being transferred.
     /// @param data The data of the transfer.
+    /// @return The ERC-721 receiver selector.
     function onERC721Received(
         address operator,
         address from,
@@ -1523,7 +1540,7 @@ contract Banny721TokenUriResolver is
             // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
             // decorated.
             // Skip outfits that are being re-equipped in the new outfit set.
-            if (_isInArray(previousOutfitId, outfitIds)) {
+            if (_isInArray({value: previousOutfitId, array: outfitIds})) {
                 // This outfit is being re-equipped — mark as handled.
                 previousOutfitIds[previousOutfitIndex] = 0;
             } else if (wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {

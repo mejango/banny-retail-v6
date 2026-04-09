@@ -23,6 +23,8 @@ This file describes the verified change from `banny-retail-v5` to the current `b
 - `pricingContext()` consumption changed with the v6 721 hook and now uses the two-value return shape.
 - The resolver adds explicit `Banny721TokenUriResolver_ArrayLengthMismatch()` and `Banny721TokenUriResolver_BannyBodyNotBodyCategory()` errors.
 - Outfit and background handling now includes logic intended to preserve attachment state when a previously equipped asset cannot be returned cleanly.
+- (L-1) `_storeOutfitsWithRetained` now verifies that no two merged outfits share the same category after sorting. A retained outfit whose transfer failed could previously duplicate a category supplied in the new outfit set, leading to rendering artifacts. The new `Banny721TokenUriResolver_DuplicateCategory()` error prevents this.
+- Gas optimizations: all `for` loops use `unchecked { ++i; }` increments, `_sortOutfitsByCategory` pre-computes categories to avoid repeated external calls during sort comparisons, `_msgSender()` is cached once per entry point to avoid repeated ERC-2771 context reads, and the mannequin SVG style string is inlined to remove redundant `string.concat` overhead.
 
 ## Migration notes
 
