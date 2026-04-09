@@ -54,7 +54,7 @@ This file focuses on failure modes that can break NFT custody, let untrusted hoo
 - Every background held by this contract has a corresponding `_userOf[hook][backgroundId]` pointing to a valid banny body.
 - `outfitLockedUntil[hook][bannyBodyId]` is monotonically non-decreasing per banny body (lock can only be extended, never shortened).
 - After `decorateBannyWith`, all previously equipped outfits not in the new set are either transferred back to `_msgSender()` or retained in the attached list if the transfer failed.
-- `_attachedOutfitIdsOf[hook][bannyBodyId]` contains the outfitIds passed to the most recent `decorateBannyWith` call, plus any retained outfits whose return transfer failed. Category exclusivity is enforced on the merged set (retained + new outfits), not just the new outfit set alone.
+- `_attachedOutfitIdsOf[hook][bannyBodyId]` contains the outfitIds passed to the most recent `decorateBannyWith` call, plus any retained outfits whose return transfer failed. Category exclusivity is enforced on the merged set (retained + new outfits), not just the new outfit set alone. Additionally, duplicate categories in the merged set are rejected with `Banny721TokenUriResolver_DuplicateCategory()` to prevent retained outfits from silently duplicating a category supplied in the new set.
 - SVG content integrity: `keccak256(_svgContentOf[upc]) == svgHashOf[upc]` for all populated entries.
 - NFT custody balance: the number of outfit NFTs held by this contract (`IERC721(hook).balanceOf(address(this))`) equals the total number of outfits currently equipped across all banny bodies for that hook. Violations indicate phantom outfits (equipped in state but NFT lost via try-catch silent failure) or orphaned NFTs (held by contract but not tracked in `_wearerOf`).
 
@@ -66,7 +66,7 @@ This file focuses on failure modes that can break NFT custody, let untrusted hoo
 
 - **Backgrounds**: If returning the old background fails, the entire background change is aborted (`return` in `_decorateBannyWithBackground`). The old background stays attached and the new one is not equipped.
 - **Background removal**: If returning the background fails during removal (backgroundId=0), `_attachedBackgroundIdOf` is not cleared. The background stays attached.
-- **Outfits**: Failed-to-return outfits remain non-zero in the `previousOutfitIds` array. `_storeOutfitsWithRetained` appends them to the new outfit list, preserving their attachment record.
+- **Outfits**: Failed-to-return outfits remain non-zero in the `previousOutfitIds` array. `_storeOutfitsWithRetained` appends them to the new outfit list, preserving their attachment record. After merging, the resolver verifies no two outfits share the same category (reverts with `DuplicateCategory` if a retained outfit conflicts with a newly supplied one).
 
 This prevents NFT stranding — assets held by the resolver stay tracked and recoverable. Once the transfer issue is resolved (e.g., the owner contract implements `IERC721Receiver`), a subsequent `decorateBannyWith` call will successfully return the retained items.
 
