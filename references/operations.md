@@ -21,5 +21,5 @@
 
 ## Useful Proof Points
 
-- [`test/audit/`](../test/audit/) for security-sensitive assumptions.
-- [`script/helpers/`](../script/helpers/) when a deployment issue is really a script/config problem.
+- [`test/BannyAttacks.t.sol`](../test/BannyAttacks.t.sol) and [`test/TestAuditGaps.sol`](../test/TestAuditGaps.sol) for security-sensitive assumptions.
+- [`script/Drop1.s.sol`](../script/Drop1.s.sol) and [`script/Add.Denver.s.sol`](../script/Add.Denver.s.sol) when a deployment issue is really a script/config problem.
