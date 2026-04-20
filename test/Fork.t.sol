@@ -1835,8 +1835,9 @@ contract BannyForkTest is Test {
         JBAddressRegistry addressRegistry = new JBAddressRegistry();
         JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
 
-        JB721TiersHook hookImpl =
-            new JB721TiersHook(jbDirectory, jbPermissions, jbPrices, jbRulesets, store, jbSplits, checkpointsDeployer, trustedForwarder);
+        JB721TiersHook hookImpl = new JB721TiersHook(
+            jbDirectory, jbPermissions, jbPrices, jbRulesets, store, jbSplits, checkpointsDeployer, trustedForwarder
+        );
 
         hookDeployer = new JB721TiersHookDeployer(hookImpl, store, addressRegistry, trustedForwarder);
     }
