@@ -2,75 +2,100 @@
 
 ## Purpose
 
-`banny-retail-v6` provides the metadata layer for Banny collections. The repo does not mint or own the NFTs itself. Instead, a Juicebox 721 hook points at `Banny721TokenUriResolver`, and the resolver composes body, background, and outfit NFTs into a single on-chain representation.
+`banny-retail-v6` is the Banny-specific metadata and attachment layer for Juicebox 721 collections. It does not mint the NFTs or own treasury logic. It owns attachment custody, outfit-lock rules, and final token rendering.
 
-## Boundaries
+## System Overview
 
-- The repo owns Banny-specific composition logic, asset registration, and outfit locking.
-- `nana-721-hook-v6` still owns token minting, transfers, and collection-level ERC-721 behavior.
-- The resolver is intentionally application-specific. Generic 721 hook behavior should stay in `nana-721-hook-v6`.
+The repo is centered on `Banny721TokenUriResolver`. A 721 hook from `nana-721-hook-v6` points to this resolver for `tokenURI(...)`, while bodies, outfits, and backgrounds remain separate NFTs at the collection layer. The resolver escrows equipped accessories, records which assets are attached to each body, and composes the final SVG and JSON metadata on demand.
 
-## Main Components
+## Core Invariants
 
-| Component | Responsibility |
-| --- | --- |
-| `Banny721TokenUriResolver` | Stores SVG content references, tracks equipped assets per body, enforces outfit-lock windows, and returns composed token metadata |
-| `IBanny721TokenUriResolver` | Integration surface for the 721 hook or external tooling |
+- A body can only reference accessories that are currently escrowed by the resolver.
+- Replacing an equipped item must atomically return the old item and escrow the new item.
+- Outfit locks must block both explicit removal and implicit replacement until the lock expires.
+- Equipped assets travel with the body NFT on transfer until the new owner unequips them.
+- Registered SVG payloads must match their pre-registered content hash before they become renderable.
+- Rendering must stay deterministic for the same stored body state.
 
-## Runtime Model
+## Modules
 
-### Decoration
+| Module | Responsibility | Notes |
+| --- | --- | --- |
+| `Banny721TokenUriResolver` | Escrow, attachment state, lock windows, and metadata rendering | Main contract; application-specific |
+| `IBanny721TokenUriResolver` | External integration surface | Used by hooks and offchain tooling |
+
+## Trust Boundaries
+
+- Minting, ownership transfer, and collection-level ERC-721 semantics live in `nana-721-hook-v6`.
+- This repo is trusted for rendering correctness and custody of equipped assets.
+- Asset content upload is controlled by the registered content owner, but the contract verifies the uploaded bytes against the stored hash.
+
+## Critical Flows
+
+### Decorate
 
 ```text
 body owner
   -> calls decorateBannyWith(...)
-  -> resolver verifies ownership of the body token
-  -> resolver pulls the chosen background and outfit NFTs into escrow
-  -> resolver records which assets are attached to the body
-  -> resolver returns any replaced assets to the owner
+  -> resolver verifies body ownership and lock status
+  -> resolver pulls new accessories into escrow
+  -> resolver updates equipped slots
+  -> resolver returns replaced accessories to the owner
 ```
 
-### Rendering
+### Render
 
 ```text
 tokenURI(bodyId)
-  -> resolve body, background, and equipped outfit slots
-  -> fetch registered SVG fragments
-  -> compose layered SVG
-  -> return base64 JSON metadata
+  -> resolver loads body, background, and equipped slot state
+  -> fetches registered SVG fragments
+  -> composes layered SVG in Banny-specific order
+  -> returns base64 JSON metadata
 ```
 
-### Locking
+### Lock Outfit
 
 ```text
-owner
-  -> lockOutfitChangesFor(...)
-  -> body enters a temporary no-change window
-  -> decoration and removal paths must respect the lock
+body owner
+  -> calls lockOutfitChangesFor(...)
+  -> resolver stores a no-change window
+  -> later decoration and removal paths must respect it
 ```
 
-## Critical Invariants
+## Accounting Model
 
-- A body can only point at assets currently escrowed by the resolver.
-- Slot replacement must be one-for-one. Replacing an equipped item returns the old item instead of orphaning it.
-- Outfit locks must block both direct edits and indirect attempts to reclaim an equipped item through another decoration call.
-- Asset registration is split between hash registration and content upload so content can be trustlessly verified before it is stored on-chain.
+This repo does not own treasury accounting. Its critical state is custody accounting: which NFTs are escrowed, which body they belong to, and when a body is locked against changes.
 
-## Where Complexity Lives
+That custody model uses lazy reconciliation for some stale attachment records. Read paths filter against current ownership and attachment state instead of eagerly rewriting storage on every external transfer.
 
-- Escrow bookkeeping and slot replacement must stay synchronized.
-- Lock enforcement has to cover both explicit removal and implicit replacement paths.
-- SVG composition order is application logic, not a cosmetic detail.
+## Security Model
 
-## Dependencies
-
-- `nana-721-hook-v6` for collection ownership and transfer semantics
-- Juicebox metadata resolver patterns for token URI integration
+- The main failure mode is custody drift between slot state and actual escrowed NFTs.
+- Rendering order is part of application semantics, not cosmetic output.
+- Lazy reconciliation is intentional. Changes that assume attachment arrays are perfectly clean in storage can strand assets or mis-render bodies.
+- Any new asset category adds both a rendering concern and a custody concern.
 
 ## Safe Change Guide
 
-- Put new generic 721 behavior in `nana-721-hook-v6`, not here.
-- Treat slot accounting and escrow transfers as coupled logic. Changing one without the other is how equipment duplication bugs appear.
-- Changes to `tokenURI` should preserve deterministic output for the same body state.
-- If adding new asset categories, verify render order and replacement semantics together.
-- If a change touches both metadata composition and escrow state, test transfer lifecycle behavior, not just rendered output.
+- Keep generic ERC-721 behavior in `nana-721-hook-v6`, not here.
+- Review escrow writes and transfer behavior together whenever changing attachment logic.
+- If transfer or cleanup behavior changes, re-check lazy reconciliation assumptions alongside body-transfer inheritance of equipped assets.
+- If `tokenURI(...)` changes, test stable output for unchanged state and replacement behavior for changed state.
+- If adding slots or asset classes, update rendering order, slot replacement, and lock enforcement in one change.
+
+## Canonical Checks
+
+- accessory escrow, replacement, and decoration flow:
+  `test/DecorateFlow.t.sol`
+- burned-body custody edge cases:
+  `test/audit/BurnedBodyStrandsAssets.t.sol`
+- transfer-path protection against stranded attachments:
+  `test/audit/TryTransferFromStrandsAssets.t.sol`
+
+## Source Map
+
+- `src/Banny721TokenUriResolver.sol`
+- `test/DecorateFlow.t.sol`
+- `test/audit/BurnedBodyStrandsAssets.t.sol`
+- `test/audit/TryTransferFromStrandsAssets.t.sol`
+- `script/Deploy.s.sol`
