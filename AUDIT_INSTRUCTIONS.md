@@ -1,87 +1,75 @@
 # Audit Instructions
 
-This repo is the Banny avatar composition layer. Its runtime surface is small, but it directly custodizes NFTs and decides what a Banny body can wear.
+This repo is the Banny avatar composition layer. It does not mint the base NFTs, but it does custody equipped accessories and define the metadata users see.
 
-## Objective
+## Audit Objective
 
 Find issues that:
-- strand body, outfit, or background NFTs in the resolver
-- let the wrong actor equip, unequip, steal, or overwrite accessories
-- bypass outfit-lock timing or freeze users longer than intended
-- return incorrect metadata for bodies, outfits, or backgrounds
-- break category exclusivity or layering assumptions
+- strand outfits or backgrounds in resolver custody
+- let the wrong actor equip, unequip, overwrite, or recover accessories
+- break outfit-lock timing or freeze a body longer than intended
+- return metadata that does not match stored attachment state
+- bypass category or layering constraints
 
 ## Scope
 
 In scope:
 - `src/Banny721TokenUriResolver.sol`
 - `src/interfaces/IBanny721TokenUriResolver.sol`
-- deployment scripts in `script/`
+- all deployment helpers in `script/`
 
-Primary integration assumptions to verify:
-- the resolver is used as a token URI resolver for a `JB721TiersHook`
-- the underlying 721 hook remains the token contract and tier source
+## Start Here
+
+1. `src/Banny721TokenUriResolver.sol`
+2. accessory receipt and release paths
+3. deployment wiring in `script/`
+
+## Security Model
+
+The resolver is an attachment and rendering layer around a `JB721TiersHook` collection.
+- the underlying 721 hook remains the token contract and source of body ownership
 - the resolver temporarily holds accessory NFTs while they are equipped
+- body ownership should be the only authority that changes equipped state
+- accessory contracts may be hostile or malformed, so receipt and release ordering matters
 
-## System Model
+## Roles And Privileges
 
-The resolver does not mint project NFTs. It:
-- reads tier and token metadata from the attached 721 hook
-- receives outfit and background NFTs through safe transfers
-- records which body currently has which attachments
-- enforces category and conflict rules
-- renders composed metadata and SVG output
+| Role | Powers | How constrained |
+|------|--------|-----------------|
+| Body owner | Equip, unequip, and lock accessories | Must be derived from the current hook-reported owner |
+| Resolver owner | Update metadata and SVG-related admin state | Must not control equipped-state authorization |
+| Accessory NFT contract | Execute callbacks during custody changes | Must not corrupt bookkeeping or steal custody |
 
-The critical custody model is:
-- body owner controls decoration
-- resolver holds equipped accessories
-- on unequip or invalidation, assets must become recoverable by the rightful owner
+## Integration Assumptions
+
+| Dependency | Assumption | What breaks if wrong |
+|------------|------------|----------------------|
+| `JB721TiersHook` | Reports authentic body ownership and tier metadata | Unauthorized decoration or incorrect rendering |
+| Accessory ERC-721s | Behave like standard transferable NFTs | Custody or release flows fail unexpectedly |
 
 ## Critical Invariants
 
-1. No asset loss in custody
-Every outfit or background transferred into the resolver must remain attributable to exactly one body or be withdrawable back to the rightful owner.
+1. Every accessory transferred into the resolver remains attributable to one body or is recoverable by the rightful owner.
+2. Only the current body owner or an intended delegate can change that body's equipped state.
+3. Conflicting categories cannot be equipped together, including through replacement or invalidation edge paths.
+4. Outfit-lock state only affects the intended body for the intended duration.
+5. Metadata and SVG generation reflect current state and do not expose impossible combinations.
 
-2. Body ownership gates decoration
-Only an authorized actor for the body may change its equipped state.
+## Attack Surfaces
 
-3. Category exclusivity
-Conflicting categories must not be equipped together, and categories that are forbidden as accessories must never become equipped through edge paths.
-
-4. Lock correctness
-`lockOutfitChangesFor` must only prevent changes for the intended body and duration. It must not be bypassable, extendable by unauthorized actors, or accidentally permanent.
-
-5. Metadata coherence
-`tokenURI` and related rendering helpers must reflect actual equipped state and should not expose stale or impossible compositions.
-
-## Threat Model
-
-Prioritize adversaries that:
-- transfer unexpected NFTs into the resolver
-- try to decorate using burned, removed, or mismatched token IDs
-- exploit reentrancy on NFT receipt or withdrawal
-- use invalid category order or duplicate categories to desync state
-- attempt to steal accessories by redecorating around lock windows
-
-## Hotspots
-
-- `decorateBannyWith`: ownership checks, state replacement, and asset movement ordering
-- any path that accepts NFT transfers into resolver custody
-- outfit/background release paths after redecorating, burning, or invalid token states
+- decoration entrypoints that replace one accessory with another
+- ERC-721 receipt hooks and any path that accepts custody
+- release paths after redecorating, burning, or invalid token state
 - category validation and conflict checks
-- lock timestamp handling
-- token URI generation that assumes on-chain SVG data exists or remains consistent
+- metadata assembly that assumes on-chain assets or tier data remain available
 
-## Build And Verification
+## Accepted Risks Or Behaviors
 
-Standard workflow:
+- Equipped accessories intentionally follow the body unless they are unequipped first.
+- Preserving attribution on failed transfer-out is safer than dropping custody state.
+
+## Verification
+
 - `npm install`
 - `forge build`
 - `forge test`
-
-The current test tree emphasizes:
-- attack and regression coverage around stranding and exclusivity
-- decoration lifecycle flows
-- fork and QA scenarios
-
-Prefer proofs that show a body or accessory becoming inaccessible, transferable by the wrong party, or rendered inconsistently with stored state.

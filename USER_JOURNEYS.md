@@ -1,78 +1,167 @@
 # User Journeys
 
-## Who This Repo Serves
+## Repo Purpose
 
-- Banny collection operators publishing body, outfit, and background tiers
-- collectors minting avatars and equipping accessories
-- teams managing on-chain art payloads and metadata composition
+This repo is the Banny-specific composition and metadata layer on top of a Juicebox 721 collection.
+It owns attachment custody, compatibility rules, outfit locks, and rendered token metadata. It does not own tier
+pricing, treasury accounting, or mint eligibility outside the resolver-specific checks.
+
+## Primary Actors
+
+- collection operators publishing bodies, outfits, backgrounds, and metadata
+- collectors equipping and unequipping avatar pieces
+- auditors reviewing custody, lock, and rendering behavior
+
+## Key Surfaces
+
+- `Banny721TokenUriResolver`: custody, compatibility, locks, and rendered SVG metadata
+- `decorateBannyWith(...)`: equips outfits and a background to a body and returns no-longer-equipped items when possible
+- `lockOutfitChangesFor(...)`: freezes appearance changes for the fixed lock window
+- `setSvgHashesOf(...)` / `setSvgContentsOf(...)`: publish or repair art payloads
+- `setMetadata(...)` / `setProductNames(...)`: update collection metadata and UPC naming
 
 ## Journey 1: Mint A Body, Outfit, And Background Set
 
-**Starting state:** the Banny collection is live through the 721 hook and the relevant tiers exist.
+**Actor:** collector.
 
-**Success:** the collector owns the pieces needed to build a composed avatar.
+**Intent:** acquire the pieces needed to build a composed Banny.
 
-**Flow**
-1. Mint the body, outfit, and background NFTs through the underlying Juicebox 721 project.
-2. Keep pricing, issuance, and treasury assumptions anchored in the 721 hook rather than this resolver.
-3. Treat this repo as the composition layer that activates once the user owns the right pieces.
+**Preconditions**
+- the Banny collection is live through the 721 hook
+- the required body, outfit, and background tiers exist
+
+**Main Flow**
+1. Mint the body, outfit, and background NFTs through the underlying 721 project.
+2. Keep mint pricing and issuance assumptions anchored in the 721 hook, not this repo.
+3. Move to this resolver only once the user actually owns compatible pieces.
+
+**Failure Modes**
+- the wrong tiers are minted or the pieces are not compatible
+- teams misread this repo as the minting or accounting surface
+
+**Postconditions**
+- the user holds the components needed for later composition
+- mint pricing, reserves, and treasury effects still belong to the underlying 721 project rather than this resolver
 
 ## Journey 2: Dress A Banny And Put Accessories Into Resolver Custody
 
-**Starting state:** the collector owns a body plus compatible accessories.
+**Actor:** body owner.
 
-**Success:** the chosen outfit and background are attached to the body and the resolver renders the combined look.
+**Intent:** equip a body with a background and outfits so the resolver serves the composed avatar.
 
-**Flow**
+**Preconditions**
+- the caller controls the body and the accessories being equipped
+- no active outfit lock blocks the change
+- the selected pieces are compatible by category and collection rules
+
+**Main Flow**
 1. Call `decorateBannyWith(...)` for the target body.
-2. `Banny721TokenUriResolver` checks compatibility rules and takes custody of the attached accessory NFTs while they are equipped.
-3. The body's token URI now resolves to a layered SVG and metadata payload reflecting the active composition.
+2. The resolver checks compatibility and diffs old versus new attachments.
+3. Equipped accessories move into resolver custody while attached.
+4. The token URI for the body now reflects the combined SVG and metadata.
+
+**Failure Modes**
+- duplicate outfit categories or incompatible combinations are provided
+- a transfer-back of previously attached items fails, leaving retained custody state that must be recovered later
+- reviewers forget that the resolver, not the user wallet, holds equipped accessories while active
+
+**Postconditions**
+- the body renders with the newly attached composition
+- attached accessories remain in resolver custody until replaced or cleared
 
 ## Journey 3: Lock A Banny's Appearance For A Period
 
-**Starting state:** the collector likes the current look and does not want it changed immediately.
+**Actor:** body owner.
 
-**Success:** the avatar's appearance is frozen for the lock window and later equipment changes must wait.
+**Intent:** freeze the current appearance for the fixed lock window.
 
-**Flow**
-1. Call `lockOutfitChangesFor(...)` on the resolver.
-2. The resolver records the lock period for that body.
-3. Future decorate or removal actions respect the lock until it expires.
+**Preconditions**
+- the body already has a state worth freezing
+- the caller understands the lock is intentionally fixed-duration
+
+**Main Flow**
+1. Call `lockOutfitChangesFor(...)`.
+2. The resolver extends the lock for that body.
+3. Future decoration or removal attempts must wait until the lock expires.
+
+**Failure Modes**
+- a seller locks just before transfer and the buyer cannot re-style immediately
+- integrations fail to surface lock state before listing or sale
+
+**Postconditions**
+- appearance changes are blocked until the lock expires
 
 ## Journey 4: Publish Or Repair On-Chain Art Assets
 
-**Starting state:** the collection's visual payloads are referenced by content hashes but the actual SVG payloads still need to be made available.
+**Actor:** collection operator or art publisher.
 
-**Success:** token URIs render complete art instead of placeholders or missing layers.
+**Intent:** make token URIs render complete onchain art.
 
-**Flow**
-1. Register the content hashes for bodies, outfits, or backgrounds with `setSvgHashesOf(...)`.
-2. Upload or repair the corresponding SVG payloads with `setSvgContentsOf(...)`.
-3. Re-resolve token URIs to confirm the on-chain composition now renders correctly.
+**Preconditions**
+- the relevant UPCs and content hashes are known
+- the operator understands hashes are the commitment and SVG content must match them exactly
 
-**Failure cases that matter:** publishing content that does not match the registered hash, forgetting to set product names for new pieces, and assuming the 721 hook owns the art payload when this repo owns the rendered output.
+**Main Flow**
+1. Register hashes with `setSvgHashesOf(...)`.
+2. Upload matching payloads with `setSvgContentsOf(...)`.
+3. Re-check token URI output after publication or repair.
+
+**Failure Modes**
+- the uploaded SVG does not match the committed hash
+- product names are missing or stale
+- teams assume the 721 hook owns rendered output when this repo does
+
+**Postconditions**
+- token URIs can render the intended onchain art payloads for published UPCs
 
 ## Journey 5: Update Collection Metadata And Product Catalog Entries
 
-**Starting state:** the collection exists, but its descriptive metadata or UPC-to-name catalog needs to change.
+**Actor:** collection operator.
 
-**Success:** token URIs and collection-level presentation reflect the intended description, external URL, base URI, and product naming.
+**Intent:** change collection-level metadata and human-readable product labels.
 
-**Flow**
+**Preconditions**
+- the operator has authority over the resolver metadata surface
+
+**Main Flow**
 1. Update collection metadata with `setMetadata(...)`.
-2. Set or repair product names for the UPCs the renderer should expose with `setProductNames(...)`.
-3. Re-check token URI output so the rendered Banny and its catalog labels agree.
+2. Set or repair UPC names with `setProductNames(...)`.
+3. Re-check a representative token URI so labels and art agree.
+
+**Failure Modes**
+- metadata and SVG state drift apart
+- operators update catalog labels without checking already-minted assets
+
+**Postconditions**
+- collection-level metadata and UPC names line up with the currently published art set
 
 ## Journey 6: Unequip And Recover Custodied Accessories
 
-**Starting state:** a body has attached pieces held by the resolver and the owner wants to rearrange or transfer them.
+**Actor:** body owner.
 
-**Success:** the accessories leave resolver custody and can be reused or transferred independently.
+**Intent:** recover attached accessories from resolver custody.
 
-**Flow**
-1. Remove or replace the equipped items once no lock blocks the change.
-2. The resolver releases custody of the old accessory NFTs.
-3. The owner can now transfer, burn, or re-equip those pieces elsewhere.
+**Preconditions**
+- the current lock window, if any, has expired
+- the owner understands old pieces may only be returned as part of a later decoration update
+
+**Main Flow**
+1. Replace or clear the equipped items through `decorateBannyWith(...)`.
+2. The resolver attempts to return no-longer-equipped accessories.
+3. Once returned, those NFTs can be transferred or re-used independently.
+
+**Failure Modes**
+- previously equipped pieces remain retained because transfer-back failed
+- burned or otherwise unrecoverable pieces leave cosmetic phantom state until corrected
+
+**Postconditions**
+- no-longer-equipped accessories are either returned to the owner or remain explicitly retained pending recovery
+
+## Trust Boundaries
+
+- this repo is trusted for custody of equipped accessories while attached
+- the underlying 721 hook remains the source of mint pricing, tier issuance, and treasury behavior
+- metadata correctness depends on operators publishing the intended SVG hashes and contents
 
 ## Hand-Offs
 

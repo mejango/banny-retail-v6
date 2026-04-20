@@ -24,4 +24,4 @@
 - [`test/DecorateFlow.t.sol`](../test/DecorateFlow.t.sol) for the main equip/unequip lifecycle.
 - [`test/OutfitTransferLifecycle.t.sol`](../test/OutfitTransferLifecycle.t.sol) for custody and return behavior.
 - [`test/BannyAttacks.t.sol`](../test/BannyAttacks.t.sol) for adversarial flows.
-- [`test/TestQALastMile.t.sol`](../test/TestQALastMile.t.sol) and [`test/regression/`](../test/regression/) for pinned edge cases.
+- [`test/Fork.t.sol`](../test/Fork.t.sol), [`test/TestAuditGaps.sol`](../test/TestAuditGaps.sol), and [`test/TestQALastMile.t.sol`](../test/TestQALastMile.t.sol) for integration and pinned edge cases.
