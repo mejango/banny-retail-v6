@@ -1,10 +1,11 @@
 # Audit Instructions
 
-This repo is the Banny avatar composition layer. It does not mint the base NFTs, but it does custody equipped accessories and define the metadata users see.
+This repo is the Banny avatar composition layer. It does not mint the base NFTs, but it does hold equipped accessories and define the metadata users see.
 
 ## Audit Objective
 
 Find issues that:
+
 - strand outfits or backgrounds in resolver custody
 - let the wrong actor equip, unequip, overwrite, or recover accessories
 - break outfit-lock timing or freeze a body longer than intended
@@ -14,9 +15,10 @@ Find issues that:
 ## Scope
 
 In scope:
+
 - `src/Banny721TokenUriResolver.sol`
 - `src/interfaces/IBanny721TokenUriResolver.sol`
-- all deployment helpers in `script/`
+- deployment helpers in `script/`
 
 ## Start Here
 
@@ -27,6 +29,7 @@ In scope:
 ## Security Model
 
 The resolver is an attachment and rendering layer around a `JB721TiersHook` collection.
+
 - the underlying 721 hook remains the token contract and source of body ownership
 - the resolver temporarily holds accessory NFTs while they are equipped
 - body ownership should be the only authority that changes equipped state
@@ -53,7 +56,7 @@ The resolver is an attachment and rendering layer around a `JB721TiersHook` coll
 2. Only the current body owner or an intended delegate can change that body's equipped state.
 3. Conflicting categories cannot be equipped together, including through replacement or invalidation edge paths.
 4. Outfit-lock state only affects the intended body for the intended duration.
-5. Metadata and SVG generation reflect current state and do not expose impossible combinations.
+5. Metadata and SVG generation reflect current state and do not show impossible combinations.
 
 ## Attack Surfaces
 
@@ -61,7 +64,7 @@ The resolver is an attachment and rendering layer around a `JB721TiersHook` coll
 - ERC-721 receipt hooks and any path that accepts custody
 - release paths after redecorating, burning, or invalid token state
 - category validation and conflict checks
-- metadata assembly that assumes on-chain assets or tier data remain available
+- metadata assembly that assumes onchain assets or tier data remain available
 
 ## Accepted Risks Or Behaviors
 
