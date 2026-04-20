@@ -3,7 +3,7 @@
 ## Use This File For
 
 - Use this file when the task involves Banny outfit attachment, layered SVG rendering, token URI composition, or asset custody and lock behavior.
-- Start here, then decide whether the issue is custody state, lock semantics, stored SVG content, or final token-URI composition. Those problems often look similar from the outside.
+- Start here, then decide whether the issue is custody state, lock timing, stored SVG content, or final token-URI composition.
 
 ## Read This Next
 
@@ -26,17 +26,17 @@
 
 ## Purpose
 
-Application-layer token URI resolver for Juicebox 721 collections that lets Banny body NFTs equip outfit and background NFTs, custody them while equipped, and render fully on-chain layered SVG metadata.
+App-layer token URI resolver for Juicebox 721 collections. It lets Banny body NFTs equip outfit and background NFTs, holds them while equipped, and renders fully onchain layered SVG metadata.
 
 ## Reference Files
 
-- Open [`references/runtime.md`](./references/runtime.md) when you need attachment and custody behavior, rendering order, or the main invariants that protect equipped assets.
-- Open [`references/operations.md`](./references/operations.md) when you need upload and metadata-management behavior, deployment breadcrumbs, or the common stale-data traps around SVG content and scripts.
+- Open [`references/runtime.md`](./references/runtime.md) for attachment and custody behavior, rendering order, and the main invariants that protect equipped assets.
+- Open [`references/operations.md`](./references/operations.md) for upload and metadata-management behavior, deployment breadcrumbs, and common stale-data traps around SVG content.
 
 ## Working Rules
 
-- Start in [`src/Banny721TokenUriResolver.sol`](./src/Banny721TokenUriResolver.sol) for both rendering and attachment behavior. This repo is mostly one contract with several tightly coupled responsibilities.
+- Start in [`src/Banny721TokenUriResolver.sol`](./src/Banny721TokenUriResolver.sol) for both rendering and attachment behavior.
 - Treat custody, stale attachment cleanup, and lock timing as high-risk. Rendering bugs are visible, but custody bugs are worse.
-- Equipped outfits and backgrounds travel with the body NFT. Treat that inheritance behavior as intentional before calling it a custody bug.
+- Equipped outfits and backgrounds travel with the body NFT. Treat that inheritance as intentional before calling it a bug.
 - When a task mentions minting, pricing, or terminal accounting, verify that the problem is not actually in the upstream 721 hook repo.
 - If you touch SVG or metadata behavior, check whether the issue is in stored content, rendering composition, or the hook-to-resolver integration point before patching.

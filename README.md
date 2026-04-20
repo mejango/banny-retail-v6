@@ -1,6 +1,6 @@
 # Banny Retail
 
-Banny Retail is an on-chain avatar system for Juicebox 721 collections. A body NFT can wear outfit NFTs, sit on a background NFT, and resolve to a base64-encoded JSON token URI whose image field contains an on-chain SVG.
+Banny Retail is an onchain avatar system for Juicebox 721 collections. A body NFT can wear outfit NFTs, use a background NFT, and resolve to a base64 JSON token URI whose image is an onchain SVG.
 
 Docs: <https://docs.juicebox.money>
 Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)  
@@ -12,34 +12,32 @@ Audit instructions: [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md)
 
 ## Overview
 
-This is a resolver-centric application built on top of [`@bananapus/721-hook-v6`](https://www.npmjs.com/package/@bananapus/721-hook-v6). The resolver owns attached outfit and background NFTs while a body is decorated, then composes the active layers into a single token URI response.
+This is a resolver-centric app built on top of [`@bananapus/721-hook-v6`](https://www.npmjs.com/package/@bananapus/721-hook-v6). The resolver holds attached outfit and background NFTs while a body is decorated, then composes the active layers into a single token URI response.
 
 The main user flows are:
 
 - mint body, outfit, and background NFTs through a Juicebox 721 hook
 - attach accessories to a body with `decorateBannyWith`
-- optionally freeze the current look for seven days with `lockOutfitChangesFor`
-- upload SVG payloads lazily after an owner registers their content hashes
+- optionally freeze the look for seven days with `lockOutfitChangesFor`
+- upload SVG payloads after an owner registers the content hashes
 
-Use this repo when you need collection-specific, fully on-chain metadata composition on top of Juicebox NFTs. Do not use it as a generic 721 hook; it is an application-layer resolver, not a protocol NFT primitive.
-
-If a bug changes tier pricing, mint eligibility, or treasury flow, it is probably not here first. Start in the 721 hook repo and only come here once the issue is clearly in attachment, custody, or rendering behavior.
+Use this repo when you need collection-specific, fully onchain metadata composition on top of Juicebox NFTs. Do not use it as a generic 721 hook. It is an app-layer resolver, not a protocol NFT primitive.
 
 ## Key Contract
 
 | Contract | Role |
 | --- | --- |
-| `Banny721TokenUriResolver` | Resolves token metadata, stores equipped accessories, enforces outfit locks, and renders layered SVG output for Banny collections. |
+| `Banny721TokenUriResolver` | Resolves metadata, stores equipped accessories, enforces outfit locks, and renders layered SVG output for Banny collections. |
 
 ## Mental Model
 
 This repo owns three things:
 
-1. custody of attached outfit and background NFTs while equipped
-2. rules around what a body can wear and when that can change
-3. rendering of the final token metadata payload
+1. custody of outfit and background NFTs while they are equipped
+2. rules for what a body can wear and when that can change
+3. rendering of the final metadata payload
 
-It does not own mint pricing, tier issuance, or project accounting.
+It does not own mint pricing, tier issuance, or treasury accounting.
 
 ## Read These Files First
 
@@ -58,12 +56,11 @@ It does not own mint pricing, tier issuance, or project accounting.
 
 ## Integration Traps
 
-- the resolver custodies equipped assets, so transfer edge cases matter as much as rendering output
-- transferred bodies carry their equipped assets, so a new body holder can inherit control of those items
-- burned bodies and non-safe transfer patterns can strand expectations around resolver-held assets unless integrations model the attachment lifecycle correctly
-- outfit locks persist across body transfers until expiry, so a new holder can inherit a still-locked body
-- metadata quality depends on lazily uploaded asset payloads, not only on the token state
-- collection logic here assumes a Juicebox 721 hook upstream and should not be read as a generic NFT renderer
+- the resolver holds equipped assets, so transfer edge cases matter as much as rendering output
+- transferred bodies carry their equipped assets, so a new body holder can inherit control of them
+- burned bodies and non-safe transfer patterns can strand expectations around resolver-held assets
+- outfit locks survive body transfers until expiry
+- metadata quality depends on lazily uploaded asset payloads, not only token state
 
 ## Where State Lives
 
@@ -96,7 +93,7 @@ Useful scripts:
 
 ## Deployment Notes
 
-Deployments are handled through Sphinx using the environments configured in `script/Deploy.s.sol`. The resolver is intended to be plugged into a Juicebox 721 hook as that hook's token URI resolver.
+Deployments are handled through Sphinx using the environments configured in `script/Deploy.s.sol`. The resolver is meant to be plugged into a Juicebox 721 hook as that hook's token URI resolver.
 
 ## Repository Layout
 
@@ -115,14 +112,14 @@ script/
 
 ## Risks And Notes
 
-- attached outfits and backgrounds are custodied by the resolver while equipped
+- attached outfits and backgrounds are held by the resolver while equipped
 - outfit locks are fixed-duration and cannot be shortened once set
-- on-chain SVG content is immutable once uploaded for a given registered hash
-- ERC-721 `transferFrom` paths that bypass safe-receive checks can still create asset-tracking surprises around resolver custody
-- rendering quality and metadata correctness depend on the integrity of uploaded SVG assets
+- onchain SVG content is immutable once uploaded for a committed hash
+- plain `transferFrom` can still create asset-tracking surprises around resolver custody
+- rendering quality depends on the integrity of uploaded SVG assets
 
 ## For AI Agents
 
-- Treat this repo as an application-layer resolver, not as the NFT issuance primitive.
+- Treat this repo as an app-layer resolver, not as the NFT issuance primitive.
 - Start with `Banny721TokenUriResolver` and the lifecycle tests before summarizing attachment behavior.
-- If the question is about mint economics or tier availability, inspect `nana-721-hook-v6` instead of inferring from this repo.
+- If the question is about mint economics or tier availability, inspect `nana-721-hook-v6` instead.
