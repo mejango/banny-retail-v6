@@ -90,21 +90,26 @@ library MigrationHelper {
             for (uint256 j = 0; j < tierIds.length; j++) {
                 uint256 tierId = tierIds[j];
 
-                // Check if this tier is owned by the fallback resolver in V4
-                // If so, skip verification (these are now owned by rightful owners in V5)
-                uint256 v4FallbackResolverBalance =
-                    v4Store.tierBalanceOf({hook: v4HookAddress, owner: v4FallbackResolverAddress, tierId: tierId});
-                if (v4FallbackResolverBalance > 0) {
+                // Skip verification for the fallback resolver itself — its tokens were redistributed to rightful
+                // owners in V5.
+                if (owner == v4FallbackResolverAddress) {
                     continue;
                 }
+
+                // Check how many tokens the fallback resolver held in V4 for this tier.
+                // These tokens were redistributed to rightful owners in V5, so each owner's V5 balance
+                // may exceed their V4 balance by up to this amount.
+                uint256 v4FallbackResolverBalance =
+                    v4Store.tierBalanceOf({hook: v4HookAddress, owner: v4FallbackResolverAddress, tierId: tierId});
 
                 // Get V4 and V5 tier balances for this owner and tier
                 uint256 v4Balance = v4Store.tierBalanceOf({hook: v4HookAddress, owner: owner, tierId: tierId});
                 uint256 v5Balance = v5Store.tierBalanceOf({hook: hookAddress, owner: owner, tierId: tierId});
 
-                // Require that V5 balance is never greater than V4 balance
+                // Require that V5 balance is never greater than V4 balance + the fallback resolver's held tokens
+                // (since those tokens may have been rightfully returned to this owner in V5).
                 require(
-                    v5Balance <= v4Balance,
+                    v5Balance <= v4Balance + v4FallbackResolverBalance,
                     string.concat(
                         "V5 tier balance exceeds V4: owner=",
                         _addressToString(owner),
