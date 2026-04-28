@@ -4,6 +4,12 @@ pragma solidity ^0.8.0;
 /// @notice Manages Banny NFT assets -- bodies, backgrounds, and outfits -- and resolves on-chain SVG token URIs for
 /// dressed Banny compositions.
 interface IBanny721TokenUriResolver {
+    /// @notice Emitted when equipped assets are burned along with a burned banny body.
+    /// @param hook The hook address of the collection.
+    /// @param bannyBodyId The ID of the burned banny body whose assets were burned.
+    /// @param caller The address that triggered the burn cleanup.
+    event BurnEquippedAssets(address indexed hook, uint256 indexed bannyBodyId, address caller);
+
     /// @notice Emitted when a banny body is decorated with a background and outfits.
     /// @param hook The hook address of the collection.
     /// @param bannyBodyId The ID of the banny body that was decorated.
@@ -55,6 +61,12 @@ interface IBanny721TokenUriResolver {
         external
         view
         returns (uint256 backgroundId, uint256[] memory outfitIds);
+
+    /// @notice Burns all equipped outfits and backgrounds associated with a burned banny body.
+    /// @dev Callable by anyone after a body has been burned. Prevents accessories from being permanently stranded.
+    /// @param hook The hook address of the collection.
+    /// @param bannyBodyId The ID of the burned banny body whose equipped assets should be burned.
+    function burnEquippedAssetsFor(address hook, uint256 bannyBodyId) external;
 
     /// @notice The base SVG content for a banny body.
     /// @return The SVG string.

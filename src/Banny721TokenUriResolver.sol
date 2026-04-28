@@ -46,6 +46,7 @@ contract Banny721TokenUriResolver is
     error Banny721TokenUriResolver_UnauthorizedBackground();
     error Banny721TokenUriResolver_UnauthorizedBannyBody();
     error Banny721TokenUriResolver_UnauthorizedOutfit();
+    error Banny721TokenUriResolver_BodyNotBurned();
     error Banny721TokenUriResolver_UnauthorizedTransfer();
     error Banny721TokenUriResolver_UnorderedCategories();
     error Banny721TokenUriResolver_UnrecognizedBackground();
@@ -59,6 +60,10 @@ contract Banny721TokenUriResolver is
     /// @notice Just a kind reminder to our readers.
     /// @dev Used in 721 token ID generation.
     uint256 private constant _ONE_BILLION = 1_000_000_000;
+
+    /// @notice Address used to permanently dispose of NFTs when a body is burned.
+    /// @dev Standard burn address since ERC-721 transferFrom rejects address(0).
+    address private constant _BURN_ADDRESS = address(0xdEaD);
 
     /// @notice The duration that banny bodies can be locked for.
     uint256 private constant _LOCK_DURATION = 7 days;
@@ -1131,6 +1136,60 @@ contract Banny721TokenUriResolver is
 
         // Add the outfits.
         _decorateBannyWithOutfits({hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds, sender: sender});
+    }
+
+    /// @notice Burns all equipped outfits and backgrounds associated with a burned banny body.
+    /// @dev Callable by anyone after a body has been burned. Since the body no longer exists, the equipped
+    /// assets held in custody by this contract would otherwise be permanently stranded. This function sends
+    /// them to a dead address and cleans up all mapping state.
+    /// @param hook The hook address of the collection.
+    /// @param bannyBodyId The ID of the burned banny body whose equipped assets should be burned.
+    function burnEquippedAssetsFor(address hook, uint256 bannyBodyId) external override nonReentrant {
+        // Verify the body is actually burned by checking that ownerOf reverts.
+        bool isBurned;
+        try IERC721(hook).ownerOf(bannyBodyId) returns (address owner) {
+            // If ownerOf returns address(0), the token is burned (some implementations do this).
+            if (owner == address(0)) isBurned = true;
+        } catch {
+            // ownerOf reverted, meaning the token no longer exists.
+            isBurned = true;
+        }
+        if (!isBurned) revert Banny721TokenUriResolver_BodyNotBurned();
+
+        // Burn the background if one is equipped.
+        uint256 backgroundId = _attachedBackgroundIdOf[hook][bannyBodyId];
+        if (backgroundId != 0) {
+            // Clear the background mappings.
+            delete _attachedBackgroundIdOf[hook][bannyBodyId];
+            delete _userOf[hook][backgroundId];
+
+            // Transfer the background to the burn address (try-pattern in case it was already burned externally).
+            _tryTransferFrom({hook: hook, from: address(this), to: _BURN_ADDRESS, assetId: backgroundId});
+        }
+
+        // Burn all equipped outfits.
+        uint256[] memory outfitIds = _attachedOutfitIdsOf[hook][bannyBodyId];
+        for (uint256 i; i < outfitIds.length;) {
+            uint256 outfitId = outfitIds[i];
+            if (outfitId != 0) {
+                // Clear the wearer mapping.
+                delete _wearerOf[hook][outfitId];
+
+                // Transfer the outfit to the burn address (try-pattern in case it was already burned externally).
+                _tryTransferFrom({hook: hook, from: address(this), to: _BURN_ADDRESS, assetId: outfitId});
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        // Clear the outfits array.
+        delete _attachedOutfitIdsOf[hook][bannyBodyId];
+
+        // Clear the lock if any.
+        delete outfitLockedUntil[hook][bannyBodyId];
+
+        emit BurnEquippedAssets({hook: hook, bannyBodyId: bannyBodyId, caller: _msgSender()});
     }
 
     /// @notice Locks a banny body ID so that it can't change its outfit for a period of time.
