@@ -3,12 +3,6 @@
     "rev": "dcbf852ba545b3d15de0ac0ef88dce934c090c8e"
   },
   "lib/forge-std": {
-    "rev": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
-  },
-  "lib/sphinx": {
-    "branch": {
-      "name": "v0.23.0",
-      "rev": "5fb24a825f46bd6ae0b5359fe0da1d2346126b09"
-    }
+    "rev": "0844d7e1fc5e60d77b68e469bff60265f236c398"
   }
 }
