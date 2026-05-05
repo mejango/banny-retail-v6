@@ -74,5 +74,5 @@ The resolver is an attachment and rendering layer around a `JB721TiersHook` coll
 ## Verification
 
 - `npm install`
-- `forge build`
-- `forge test`
+- `forge build --deny notes`
+- `forge test --deny notes`

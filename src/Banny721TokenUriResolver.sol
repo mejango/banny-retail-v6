@@ -291,6 +291,8 @@ contract Banny721TokenUriResolver is
 
             // If the token has an owner, check if the owner has locked the token.
             uint256 lockedUntil = outfitLockedUntil[hook][tokenId];
+            // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
+            // forge-lint: disable-next-line(block-timestamp)
             if (lockedUntil > block.timestamp) {
                 extraMetadata = string.concat(extraMetadata, '"changesLockedUntil": ', lockedUntil.toString(), ",");
                 attributes = string.concat(
@@ -945,6 +947,8 @@ contract Banny721TokenUriResolver is
     /// @param bannyBodyId The body currently using the asset.
     /// @param exemptBodyId The destination body currently being decorated.
     function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
+        // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
+        // forge-lint: disable-next-line(block-timestamp)
         if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
             revert Banny721TokenUriResolver_OutfitChangesLocked();
         }
@@ -1118,6 +1122,8 @@ contract Banny721TokenUriResolver is
         }
 
         // Can't decorate a banny that's locked.
+        // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
+        // forge-lint: disable-next-line(block-timestamp)
         if (outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
             revert Banny721TokenUriResolver_OutfitChangesLocked();
         }
