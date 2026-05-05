@@ -151,12 +151,12 @@ contract Banny721TokenUriResolver is
     /// @custom:param upc The universal product code that the SVG contents represent.
     mapping(uint256 upc => string) internal _svgContentOf;
 
-    /// @notice The ID of the banny body each background is being used by.
+    /// @notice The ID of the banny body each background is used by.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param backgroundId The ID of the background.
     mapping(address hook => mapping(uint256 backgroundId => uint256)) internal _userOf;
 
-    /// @notice The ID of the banny body each outfit is being worn by.
+    /// @notice The ID of the banny body each outfit is worn by.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param outfitId The ID of the outfit.
     mapping(address hook => mapping(uint256 outfitId => uint256)) internal _wearerOf;
@@ -503,7 +503,7 @@ contract Banny721TokenUriResolver is
 
     /// @notice Checks to see which banny body is currently using a particular background.
     /// @param hook The hook address of the collection.
-    /// @param backgroundId The ID of the background being used.
+    /// @param backgroundId The ID of the background to check.
     /// @return The ID of the banny body using the background.
     function userOf(address hook, uint256 backgroundId) public view override returns (uint256) {
         // Get a reference to the banny body using the background.
@@ -518,7 +518,7 @@ contract Banny721TokenUriResolver is
 
     /// @notice Checks to see which banny body is currently wearing a particular outfit.
     /// @param hook The hook address of the collection.
-    /// @param outfitId The ID of the outfit being worn.
+    /// @param outfitId The ID of the outfit to check.
     /// @return The ID of the banny body wearing the outfit.
     function wearerOf(address hook, uint256 outfitId) public view override returns (uint256) {
         // Get a reference to the banny body wearing the outfit.
@@ -547,7 +547,7 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
 
     /// @notice The SVG contents for a banny body.
-    /// @param upc The ID of the token whose product's SVG is being returned.
+    /// @param upc The ID of the token whose product's SVG to return.
     /// @return contents The SVG contents of the banny body.
     function _bannyBodySvgOf(uint256 upc) internal view returns (string memory) {
         (
@@ -580,7 +580,7 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice The name of each token's category.
-    /// @param category The category of the token being named.
+    /// @param category The category of the token to name.
     /// @return name The token's category name.
     function _categoryNameOf(uint256 category) internal pure returns (string memory) {
         if (category == _BODY_CATEGORY) {
@@ -691,7 +691,7 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice The fills for a product.
-    /// @param upc The ID of the token whose product's fills are being returned.
+    /// @param upc The ID of the token whose product's fills to return.
     /// @return fills The fills for the product.
     function _fillsFor(uint256 upc)
         internal
@@ -720,8 +720,8 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice The full name of each product, including category and inventory.
-    /// @param tokenId The ID of the token being named.
-    /// @param product The product of the token being named.
+    /// @param tokenId The ID of the token to name.
+    /// @param product The product of the token to name.
     /// @return name The full name.
     function _fullNameOf(uint256 tokenId, JB721Tier memory product) internal view returns (string memory name) {
         // Start with the item's name.
@@ -817,7 +817,7 @@ contract Banny721TokenUriResolver is
     /// @notice The SVG contents for a list of outfit IDs.
     /// @param hook The 721 contract that the product belongs to.
     /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny.
-    /// @param bodyUpc The UPC of the banny body being dressed (used for default eyes selection).
+    /// @param bodyUpc The UPC of the banny body to dress (used for default eyes selection).
     /// @return contents The SVG contents of the outfits.
     function _outfitContentsFor(
         address hook,
@@ -919,7 +919,7 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice The name of each token's product type.
-    /// @param upc The ID of the token whose product type is being named.
+    /// @param upc The ID of the token whose product type to name.
     /// @return name The item's product name.
     function _productNameOf(uint256 upc) internal view returns (string memory) {
         // Get the token's name.
@@ -945,10 +945,10 @@ contract Banny721TokenUriResolver is
         return _storeOf(hook).tierOfTokenId({hook: hook, tokenId: tokenId, includeResolvedUri: false});
     }
 
-    /// @notice Revert if an equipped asset is being reassigned away from a locked source body.
+    /// @notice Revert if an equipped asset is reassigned away from a locked source body.
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The body currently using the asset.
-    /// @param exemptBodyId The destination body currently being decorated.
+    /// @param exemptBodyId The destination body currently decorated.
     function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
         // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
         // forge-lint: disable-next-line(block-timestamp)
@@ -1100,7 +1100,7 @@ contract Banny721TokenUriResolver is
     /// NFTs) or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
     ///
     /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The ID of the banny body being dressed.
+    /// @param bannyBodyId The ID of the banny body to dress.
     /// @param backgroundId The ID of the background that'll be associated with the specified banny.
     /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny. Only one outfit per
     /// outfit category allowed at a time and they must be passed in order.
@@ -1169,7 +1169,7 @@ contract Banny721TokenUriResolver is
     // transfers. Users and UIs should always use safeTransferFrom.
     /// @param operator The address that initiated the transaction.
     /// @param from The address that initiated the transfer.
-    /// @param tokenId The ID of the token being transferred.
+    /// @param tokenId The ID of the token to transfer.
     /// @param data The data of the transfer.
     /// @return The ERC-721 receiver selector.
     function onERC721Received(
@@ -1239,7 +1239,7 @@ contract Banny721TokenUriResolver is
 
     /// @notice The owner of this contract can store SVG files for product IDs.
     /// @param upcs The universal product codes of the products having SVGs stored.
-    /// @param svgContents The svg contents being stored, not including the parent <svg></svg> element.
+    /// @param svgContents The svg contents to store, not including the parent <svg></svg> element.
     function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
         if (upcs.length != svgContents.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
 
@@ -1273,7 +1273,7 @@ contract Banny721TokenUriResolver is
     /// @notice Allows the owner of this contract to upload the hash of an svg file for a universal product code.
     /// @dev This allows anyone to lazily upload the correct svg file.
     /// @param upcs The universal product codes of the products having SVG hashes stored.
-    /// @param svgHashes The svg hashes being stored, not including the parent <svg></svg> element.
+    /// @param svgHashes The svg hashes to store, not including the parent <svg></svg> element.
     function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
         if (upcs.length != svgHashes.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
 
@@ -1301,7 +1301,7 @@ contract Banny721TokenUriResolver is
 
     /// @notice Add a background to a banny body.
     /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The ID of the banny body being dressed.
+    /// @param bannyBodyId The ID of the banny body to dress.
     /// @param backgroundId The ID of the background that'll be associated with the specified banny.
     /// @param sender The cached msg sender.
     function _decorateBannyWithBackground(
@@ -1387,9 +1387,9 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Add outfits to a banny body.
-    /// @dev The caller must own the banny body being dressed and all outfits being worn.
+    /// @dev The caller must own the banny body to dress and all outfits to wear.
     /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The ID of the banny body being dressed.
+    /// @param bannyBodyId The ID of the banny body to dress.
     /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny. Only one outfit per
     /// outfit category allowed at a time and they must be passed in order.
     /// @param sender The cached msg sender.
@@ -1576,7 +1576,7 @@ contract Banny721TokenUriResolver is
     /// @dev Entries in `previousOutfitIds` that are still non-zero represent outfits whose transfer back to the
     /// owner failed. These are appended to `outfitIds` so the attachment record is preserved and the owner can retry.
     /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The ID of the banny body being dressed.
+    /// @param bannyBodyId The ID of the banny body to dress.
     /// @param outfitIds The new outfit IDs to store.
     /// @param previousOutfitIds The previous outfit IDs array (zeroed entries were successfully transferred or
     /// handled).
@@ -1645,7 +1645,7 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Transfer a token from one address to another.
-    /// @param hook The 721 contract of the token being transferred.
+    /// @param hook The 721 contract of the token to transfer.
     /// @param from The address to transfer the token from.
     /// @param to The address to transfer the token to.
     /// @param assetId The ID of the token to transfer.
@@ -1655,7 +1655,7 @@ contract Banny721TokenUriResolver is
 
     /// @notice Try to transfer a token, returning whether the transfer succeeded.
     /// @dev Used when returning previously equipped items that may no longer exist.
-    /// @param hook The 721 contract of the token being transferred.
+    /// @param hook The 721 contract of the token to transfer.
     /// @param from The address to transfer the token from.
     /// @param to The address to transfer the token to.
     /// @param assetId The ID of the token to transfer.
