@@ -80,8 +80,8 @@ The contract stack relies on `via_ir = true` in `foundry.toml`.
 
 ```bash
 npm install
-forge build
-forge test
+forge build --deny notes
+forge test --deny notes
 ```
 
 Useful scripts:
