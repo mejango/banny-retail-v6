@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Manages Banny NFT assets -- bodies, backgrounds, and outfits -- and resolves on-chain SVG token URIs for
-/// dressed Banny compositions.
+/// @notice Manages Banny NFT assets — bodies, backgrounds, and outfits — and resolves on-chain SVG token URIs for
+/// dressed Banny compositions. Owners dress their banny bodies with outfits and backgrounds; the resolver composes
+/// all attached assets into a single SVG returned as a base64-encoded data URI.
 interface IBanny721TokenUriResolver {
     /// @notice Emitted when a banny body is decorated with a background and outfits.
     /// @param hook The hook address of the collection.

@@ -17,7 +17,10 @@ import {Base64} from "lib/base64/base64.sol";
 
 import {IBanny721TokenUriResolver} from "./interfaces/IBanny721TokenUriResolver.sol";
 
-/// @notice Banny asset manager. Stores and shows banny bodies in backgrounds with outfits on.
+/// @notice Manages Banny NFT composition — stores SVG assets (bodies, backgrounds, outfits), dresses banny bodies
+/// with wearable outfits, and resolves fully on-chain SVG token URIs for the composed result. Each banny body can
+/// have one background and multiple outfits attached; outfits can be locked for a duration. Asset SVGs are stored
+/// on-chain and validated against pre-committed hashes.
 contract Banny721TokenUriResolver is
     Ownable,
     ERC2771Context,
