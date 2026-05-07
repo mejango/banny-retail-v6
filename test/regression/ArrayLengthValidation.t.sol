@@ -26,7 +26,9 @@ contract ArrayLengthValidationTest is Test {
         names[0] = "Only One";
 
         vm.prank(deployer);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector, 2, 1)
+        );
         resolver.setProductNames(upcs, names);
     }
 
@@ -38,7 +40,9 @@ contract ArrayLengthValidationTest is Test {
         string[] memory contents = new string[](1);
         contents[0] = "only one";
 
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector, 2, 1)
+        );
         resolver.setSvgContentsOf(upcs, contents);
     }
 
@@ -51,7 +55,9 @@ contract ArrayLengthValidationTest is Test {
         hashes[0] = keccak256("test");
 
         vm.prank(deployer);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector, 2, 1)
+        );
         resolver.setSvgHashesOf(upcs, hashes);
     }
 }
