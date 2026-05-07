@@ -129,7 +129,9 @@ contract DuplicateCategoryRetentionTest is Test {
         replacement[0] = NECKLACE_TWO;
 
         // After the fix, the duplicate category is detected and the call reverts.
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_DuplicateCategory.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_DuplicateCategory.selector, 3)
+        );
         rejector.decorate(resolver, address(hook), BODY_TOKEN, 0, replacement);
     }
 
