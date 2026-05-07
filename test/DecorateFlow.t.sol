@@ -204,7 +204,15 @@ contract DecorateFlowTests is Test {
         outfits[0] = NECKLACE_1;
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector,
+                address(hook),
+                NECKLACE_1,
+                bob,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
 
         // Verify: necklace was NOT stolen.
@@ -221,7 +229,15 @@ contract DecorateFlowTests is Test {
         outfits[0] = NECKLACE_1;
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector,
+                address(hook),
+                NECKLACE_1,
+                bob,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
     }
 
@@ -305,7 +321,15 @@ contract DecorateFlowTests is Test {
         charlieOutfits[0] = NECKLACE_1;
 
         vm.prank(charlie);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector,
+                address(hook),
+                NECKLACE_1,
+                charlie,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_C, 0, charlieOutfits);
 
         // Necklace still on body A.
@@ -332,7 +356,15 @@ contract DecorateFlowTests is Test {
         uint256[] memory empty = new uint256[](0);
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBackground.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBackground.selector,
+                address(hook),
+                BACKGROUND_1,
+                bob,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_A, BACKGROUND_1, empty);
 
         // Background must NOT be stolen.
@@ -346,7 +378,15 @@ contract DecorateFlowTests is Test {
         uint256[] memory empty = new uint256[](0);
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBackground.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBackground.selector,
+                address(hook),
+                BACKGROUND_1,
+                bob,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_A, BACKGROUND_1, empty);
     }
 
@@ -683,7 +723,15 @@ contract DecorateFlowTests is Test {
         uint256[] memory empty = new uint256[](0);
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector,
+                address(hook),
+                BODY_A,
+                bob,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_A, 0, empty);
     }
 
@@ -697,7 +745,15 @@ contract DecorateFlowTests is Test {
         outfits[0] = NECKLACE_1;
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector,
+                address(hook),
+                NECKLACE_1,
+                bob,
+                charlie
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_C, 0, outfits);
     }
 
@@ -717,7 +773,15 @@ contract DecorateFlowTests is Test {
         bobOutfits[0] = NECKLACE_1;
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedOutfit.selector,
+                address(hook),
+                NECKLACE_1,
+                bob,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_C, 0, bobOutfits);
     }
 
@@ -749,9 +813,17 @@ contract DecorateFlowTests is Test {
 
         uint256[] memory outfits = new uint256[](1);
         outfits[0] = NECKLACE_1;
+        uint256 lockedUntil = resolver.outfitLockedUntil(address(hook), BODY_A);
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector,
+                address(hook),
+                BODY_A,
+                lockedUntil
+            )
+        );
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
     }
 
@@ -786,8 +858,16 @@ contract DecorateFlowTests is Test {
 
         // Bob can't undress during lock.
         uint256[] memory empty = new uint256[](0);
+        uint256 lockedUntil = resolver.outfitLockedUntil(address(hook), BODY_A);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector,
+                address(hook),
+                BODY_A,
+                lockedUntil
+            )
+        );
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, empty);
 
         // After lock expires, bob can undress.
@@ -807,8 +887,16 @@ contract DecorateFlowTests is Test {
         vm.prank(alice);
         resolver.lockOutfitChangesFor(address(hook), BODY_A);
 
+        uint256 lockedUntil = resolver.outfitLockedUntil(address(hook), BODY_A);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector,
+                address(hook),
+                BODY_A,
+                lockedUntil
+            )
+        );
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
         resolver.decorateBannyWith(address(hook), BODY_B, BACKGROUND_1, new uint256[](0));
     }
 
@@ -824,8 +912,16 @@ contract DecorateFlowTests is Test {
         vm.prank(alice);
         resolver.lockOutfitChangesFor(address(hook), BODY_A);
 
+        uint256 lockedUntil = resolver.outfitLockedUntil(address(hook), BODY_A);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector,
+                address(hook),
+                BODY_A,
+                lockedUntil
+            )
+        );
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
         resolver.decorateBannyWith(address(hook), BODY_B, 0, outfits);
     }
 
@@ -969,7 +1065,9 @@ contract DecorateFlowTests is Test {
         outfits[1] = GLASSES; // cat 6
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector, 6)
+        );
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
     }
 
@@ -980,7 +1078,9 @@ contract DecorateFlowTests is Test {
         outfits[1] = HEADTOP; // cat 12
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector, 12)
+        );
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
     }
 

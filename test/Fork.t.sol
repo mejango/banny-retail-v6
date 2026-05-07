@@ -436,7 +436,7 @@ contract BannyForkTest is Test {
         uint256[] memory empty = new uint256[](0);
 
         vm.prank(attacker);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, empty);
     }
 
@@ -482,7 +482,7 @@ contract BannyForkTest is Test {
 
     function test_fork_auth_nonOwnerCantLock() public {
         vm.prank(attacker);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
         resolver.lockOutfitChangesFor(address(bannyHook), ORIGINAL_BODY_1);
     }
 
@@ -492,7 +492,7 @@ contract BannyForkTest is Test {
         outfits[0] = ORIGINAL_BODY_2;
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -501,7 +501,7 @@ contract BannyForkTest is Test {
         outfits[0] = BACKGROUND_1; // cat 1
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -510,7 +510,7 @@ contract BannyForkTest is Test {
         uint256[] memory empty = new uint256[](0);
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_BannyBodyNotBodyCategory.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_BannyBodyNotBodyCategory.selector);
         resolver.decorateBannyWith(address(bannyHook), NECKLACE_1, 0, empty);
     }
 
@@ -524,7 +524,7 @@ contract BannyForkTest is Test {
 
         uint256[] memory empty = new uint256[](0);
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, empty);
     }
 
@@ -587,7 +587,7 @@ contract BannyForkTest is Test {
 
         uint256[] memory empty = new uint256[](0);
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, empty);
 
         // After lock expires, bob can decorate.
@@ -607,7 +607,7 @@ contract BannyForkTest is Test {
         outfits[1] = EYES_1; // cat 5
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -617,7 +617,7 @@ contract BannyForkTest is Test {
         outfits[1] = GLASSES_1; // cat 6
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -627,7 +627,7 @@ contract BannyForkTest is Test {
         outfits[1] = MOUTH_1; // cat 7
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -637,7 +637,7 @@ contract BannyForkTest is Test {
         outfits[1] = HEADTOP_1; // cat 12
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -647,7 +647,7 @@ contract BannyForkTest is Test {
         outfits[1] = SUIT_BOTTOM_1; // cat 10
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -657,7 +657,7 @@ contract BannyForkTest is Test {
         outfits[1] = SUIT_TOP_1; // cat 11
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -667,7 +667,7 @@ contract BannyForkTest is Test {
         outfits[1] = NECKLACE_1; // cat 3 — out of order!
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnorderedCategories.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnorderedCategories.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -724,7 +724,7 @@ contract BannyForkTest is Test {
         string[] memory contents = new string[](1);
         contents[0] = "wrong";
 
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsMismatch.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsMismatch.selector);
         resolver.setSvgContentsOf(upcs, contents);
     }
 
@@ -737,7 +737,7 @@ contract BannyForkTest is Test {
         vm.startPrank(multisig);
         resolver.setSvgHashesOf(upcs, hashes);
 
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HashAlreadyStored.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HashAlreadyStored.selector);
         resolver.setSvgHashesOf(upcs, hashes);
         vm.stopPrank();
     }
@@ -756,7 +756,7 @@ contract BannyForkTest is Test {
         contents[0] = content;
         resolver.setSvgContentsOf(upcs, contents);
 
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsAlreadyStored.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsAlreadyStored.selector);
         resolver.setSvgContentsOf(upcs, contents);
     }
 
@@ -777,7 +777,7 @@ contract BannyForkTest is Test {
         string[] memory contents = new string[](1);
         contents[0] = "anything";
 
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HashNotFound.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HashNotFound.selector);
         resolver.setSvgContentsOf(upcs, contents);
     }
 
@@ -823,7 +823,7 @@ contract BannyForkTest is Test {
 
     function test_fork_render_nonexistentTierReverts() public {
         // A token ID that doesn't belong to any tier should revert with UnrecognizedProduct.
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedProduct.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedProduct.selector);
         resolver.tokenUriOf(address(bannyHook), 999_000_000_001);
     }
 
@@ -995,7 +995,7 @@ contract BannyForkTest is Test {
         // Charlie has no body or outfit — any interaction should fail.
         uint256[] memory empty = new uint256[](0);
         vm.prank(charlie);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, empty);
     }
 
@@ -1006,7 +1006,7 @@ contract BannyForkTest is Test {
     function test_fork_edge_onERC721ReceivedRejectsDirectTransfer() public {
         // Direct transfer to resolver should revert (only self-transfers allowed).
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedTransfer.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedTransfer.selector);
         IERC721(address(bannyHook)).safeTransferFrom(alice, address(resolver), NECKLACE_2);
     }
 
@@ -1068,7 +1068,7 @@ contract BannyForkTest is Test {
         hashes[0] = keccak256("test");
 
         vm.prank(multisig);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector);
         resolver.setSvgHashesOf(upcs, hashes);
     }
 
@@ -1142,7 +1142,7 @@ contract BannyForkTest is Test {
         outfits[1] = necklace3; // cat 3
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnorderedCategories.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnorderedCategories.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, outfits);
     }
 
@@ -1208,7 +1208,7 @@ contract BannyForkTest is Test {
         // Alice can't strip during lock period.
         uint256[] memory empty = new uint256[](0);
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
         resolver.decorateBannyWith(address(bannyHook), ORIGINAL_BODY_1, 0, empty);
 
         // Transfer to bob — body still has outfit.

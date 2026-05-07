@@ -260,7 +260,7 @@ contract OutfitTransferLifecycleTest is Test {
         // Alice tries to undress body A. Should revert because alice no longer owns the body.
         uint256[] memory empty = new uint256[](0);
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
         resolver.decorateBannyWith(address(hook), BODY_A, 0, empty);
     }
 
