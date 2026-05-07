@@ -188,7 +188,7 @@ contract MergedOutfitExclusivityTest is Test {
         eyesOutfit[0] = EYES_TOKEN;
 
         // Expect revert because the merged set has both HEAD (retained) and EYES (new).
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
         // Attempt to decorate with EYES -- should revert due to exclusivity.
         rejector.decorate(resolver, address(hook), BODY_TOKEN, 0, eyesOutfit);
     }

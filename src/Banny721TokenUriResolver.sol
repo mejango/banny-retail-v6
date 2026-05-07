@@ -35,25 +35,31 @@ contract Banny721TokenUriResolver is
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
 
-    error Banny721TokenUriResolver_ArrayLengthMismatch();
-    error Banny721TokenUriResolver_BannyBodyNotBodyCategory();
-    error Banny721TokenUriResolver_CantAccelerateTheLock();
-    error Banny721TokenUriResolver_ContentsAlreadyStored();
-    error Banny721TokenUriResolver_ContentsMismatch();
-    error Banny721TokenUriResolver_DuplicateCategory();
-    error Banny721TokenUriResolver_HashAlreadyStored();
-    error Banny721TokenUriResolver_HashNotFound();
-    error Banny721TokenUriResolver_HeadAlreadyAdded();
-    error Banny721TokenUriResolver_OutfitChangesLocked();
-    error Banny721TokenUriResolver_SuitAlreadyAdded();
-    error Banny721TokenUriResolver_UnauthorizedBackground();
-    error Banny721TokenUriResolver_UnauthorizedBannyBody();
-    error Banny721TokenUriResolver_UnauthorizedOutfit();
-    error Banny721TokenUriResolver_UnauthorizedTransfer();
-    error Banny721TokenUriResolver_UnorderedCategories();
-    error Banny721TokenUriResolver_UnrecognizedBackground();
-    error Banny721TokenUriResolver_UnrecognizedCategory();
-    error Banny721TokenUriResolver_UnrecognizedProduct();
+    error Banny721TokenUriResolver_ArrayLengthMismatch(uint256 firstLength, uint256 secondLength);
+    error Banny721TokenUriResolver_BannyBodyNotBodyCategory(address hook, uint256 bannyBodyId, uint256 category);
+    error Banny721TokenUriResolver_CantAccelerateTheLock(
+        address hook, uint256 bannyBodyId, uint256 currentLockedUntil, uint256 newLockUntil
+    );
+    error Banny721TokenUriResolver_ContentsAlreadyStored(uint256 upc);
+    error Banny721TokenUriResolver_ContentsMismatch(uint256 upc, bytes32 expectedHash, bytes32 actualHash);
+    error Banny721TokenUriResolver_DuplicateCategory(uint256 category);
+    error Banny721TokenUriResolver_HashAlreadyStored(uint256 upc, bytes32 existingHash);
+    error Banny721TokenUriResolver_HashNotFound(uint256 upc);
+    error Banny721TokenUriResolver_HeadAlreadyAdded(uint256 category);
+    error Banny721TokenUriResolver_OutfitChangesLocked(address hook, uint256 bannyBodyId, uint256 lockedUntil);
+    error Banny721TokenUriResolver_SuitAlreadyAdded(uint256 category);
+    error Banny721TokenUriResolver_UnauthorizedBackground(
+        address hook, uint256 backgroundId, address sender, address owner
+    );
+    error Banny721TokenUriResolver_UnauthorizedBannyBody(
+        address hook, uint256 bannyBodyId, address sender, address owner
+    );
+    error Banny721TokenUriResolver_UnauthorizedOutfit(address hook, uint256 outfitId, address sender, address owner);
+    error Banny721TokenUriResolver_UnauthorizedTransfer(address operator, address expectedOperator);
+    error Banny721TokenUriResolver_UnorderedCategories(uint256 previousCategory, uint256 nextCategory);
+    error Banny721TokenUriResolver_UnrecognizedBackground(address hook, uint256 backgroundId, uint256 category);
+    error Banny721TokenUriResolver_UnrecognizedCategory(uint256 category);
+    error Banny721TokenUriResolver_UnrecognizedProduct(uint256 upc);
 
     //*********************************************************************//
     // ------------------------ private constants ------------------------ //
@@ -112,10 +118,19 @@ contract Banny721TokenUriResolver is
     /// @custom:param upc The universal product code that the SVG hash represent.
     mapping(uint256 upc => bytes32) public override svgHashOf;
 
+    /// @notice The default alien-eye SVG fragment used when rendering a Banny without custom alien eyes.
     string public override DEFAULT_ALIEN_EYES;
+
+    /// @notice The default mouth SVG fragment used when rendering a Banny without a custom mouth.
     string public override DEFAULT_MOUTH;
+
+    /// @notice The default necklace SVG fragment used when rendering a Banny without a custom necklace.
     string public override DEFAULT_NECKLACE;
+
+    /// @notice The default standard-eye SVG fragment used when rendering a Banny without custom standard eyes.
     string public override DEFAULT_STANDARD_EYES;
+
+    /// @notice The base Banny body SVG fragment used as the starting layer for token rendering.
     string public override BANNY_BODY;
 
     //*********************************************************************//
@@ -317,7 +332,6 @@ contract Banny721TokenUriResolver is
         }
 
         // Get a reference to the pricing context.
-        // slither-disable-next-line unused-return
         (uint256 currency, uint256 decimals) = IJB721TiersHook(hook).pricingContext();
 
         attributes = string.concat(
@@ -627,7 +641,12 @@ contract Banny721TokenUriResolver is
     /// @param hook The 721 contract of the token having ownership checked.
     /// @param upc The product's UPC to check ownership of.
     function _checkIfSenderIsOwner(address hook, uint256 upc) internal view {
-        if (IERC721(hook).ownerOf(upc) != _msgSender()) revert Banny721TokenUriResolver_UnauthorizedBannyBody();
+        address owner = IERC721(hook).ownerOf(upc);
+        if (owner != _msgSender()) {
+            revert Banny721TokenUriResolver_UnauthorizedBannyBody({
+                hook: hook, bannyBodyId: upc, sender: _msgSender(), owner: owner
+            });
+        }
     }
 
     /// @notice The length of the context suffix appended by a trusted forwarder.
@@ -656,7 +675,6 @@ contract Banny721TokenUriResolver is
         view
         returns (string memory)
     {
-        // slither-disable-next-line encode-packed-collision
         return string.concat(
             "data:application/json;base64,",
             Base64.encode(
@@ -716,7 +734,7 @@ contract Banny721TokenUriResolver is
             return ("ffe900", "ffc700", "f3a603", "965a1a", "ffe900", "ffc700", "f3a603");
         }
 
-        revert Banny721TokenUriResolver_UnrecognizedProduct();
+        revert Banny721TokenUriResolver_UnrecognizedProduct({upc: upc});
     }
 
     /// @notice The full name of each product, including category and inventory.
@@ -953,7 +971,9 @@ contract Banny721TokenUriResolver is
         // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
         // forge-lint: disable-next-line(block-timestamp)
         if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
-            revert Banny721TokenUriResolver_OutfitChangesLocked();
+            revert Banny721TokenUriResolver_OutfitChangesLocked({
+                hook: hook, bannyBodyId: bannyBodyId, lockedUntil: outfitLockedUntil[hook][bannyBodyId]
+            });
         }
     }
 
@@ -1067,9 +1087,9 @@ contract Banny721TokenUriResolver is
         }
 
         // A full HEAD and individual head accessories cannot coexist — the head would hide the accessories.
-        if (hasHead && hasHeadAccessory) revert Banny721TokenUriResolver_HeadAlreadyAdded();
+        if (hasHead && hasHeadAccessory) revert Banny721TokenUriResolver_HeadAlreadyAdded({category: _HEAD_CATEGORY});
         // A full SUIT and individual suit pieces cannot coexist — the suit would hide the pieces.
-        if (hasSuit && hasSuitPiece) revert Banny721TokenUriResolver_SuitAlreadyAdded();
+        if (hasSuit && hasSuitPiece) revert Banny721TokenUriResolver_SuitAlreadyAdded({category: _SUIT_CATEGORY});
     }
 
     //*********************************************************************//
@@ -1117,18 +1137,28 @@ contract Banny721TokenUriResolver is
         // Cache the sender once to avoid repeated ERC-2771 context reads throughout the call chain.
         address sender = _msgSender();
 
-        if (IERC721(hook).ownerOf(bannyBodyId) != sender) revert Banny721TokenUriResolver_UnauthorizedBannyBody();
+        address bannyBodyOwner = IERC721(hook).ownerOf(bannyBodyId);
+        if (bannyBodyOwner != sender) {
+            revert Banny721TokenUriResolver_UnauthorizedBannyBody({
+                hook: hook, bannyBodyId: bannyBodyId, sender: sender, owner: bannyBodyOwner
+            });
+        }
 
         // Make sure the bannyBodyId belongs to a body-category tier.
-        if (_productOfTokenId({hook: hook, tokenId: bannyBodyId}).category != _BODY_CATEGORY) {
-            revert Banny721TokenUriResolver_BannyBodyNotBodyCategory();
+        uint256 bannyBodyCategory = _productOfTokenId({hook: hook, tokenId: bannyBodyId}).category;
+        if (bannyBodyCategory != _BODY_CATEGORY) {
+            revert Banny721TokenUriResolver_BannyBodyNotBodyCategory({
+                hook: hook, bannyBodyId: bannyBodyId, category: bannyBodyCategory
+            });
         }
 
         // Can't decorate a banny that's locked.
         // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
         // forge-lint: disable-next-line(block-timestamp)
         if (outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
-            revert Banny721TokenUriResolver_OutfitChangesLocked();
+            revert Banny721TokenUriResolver_OutfitChangesLocked({
+                hook: hook, bannyBodyId: bannyBodyId, lockedUntil: outfitLockedUntil[hook][bannyBodyId]
+            });
         }
 
         emit DecorateBanny({
@@ -1156,7 +1186,11 @@ contract Banny721TokenUriResolver is
         uint256 newLockUntil = block.timestamp + _LOCK_DURATION;
 
         // Make sure the new lock is at least as big as the current lock.
-        if (currentLockedUntil > newLockUntil) revert Banny721TokenUriResolver_CantAccelerateTheLock();
+        if (currentLockedUntil > newLockUntil) {
+            revert Banny721TokenUriResolver_CantAccelerateTheLock({
+                hook: hook, bannyBodyId: bannyBodyId, currentLockedUntil: currentLockedUntil, newLockUntil: newLockUntil
+            });
+        }
 
         // Set the lock.
         outfitLockedUntil[hook][bannyBodyId] = newLockUntil;
@@ -1188,7 +1222,9 @@ contract Banny721TokenUriResolver is
         data; // unused.
 
         // Make sure the transaction's operator is this contract.
-        if (operator != address(this)) revert Banny721TokenUriResolver_UnauthorizedTransfer();
+        if (operator != address(this)) {
+            revert Banny721TokenUriResolver_UnauthorizedTransfer({operator: operator, expectedOperator: address(this)});
+        }
 
         return IERC721Receiver.onERC721Received.selector;
     }
@@ -1221,7 +1257,9 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having their name stored.
     /// @param names The names of the products.
     function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
-        if (upcs.length != names.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+        if (upcs.length != names.length) {
+            revert Banny721TokenUriResolver_ArrayLengthMismatch({firstLength: upcs.length, secondLength: names.length});
+        }
 
         address sender = _msgSender();
         for (uint256 i; i < upcs.length;) {
@@ -1241,7 +1279,11 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having SVGs stored.
     /// @param svgContents The svg contents to store, not including the parent <svg></svg> element.
     function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
-        if (upcs.length != svgContents.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+        if (upcs.length != svgContents.length) {
+            revert Banny721TokenUriResolver_ArrayLengthMismatch({
+                firstLength: upcs.length, secondLength: svgContents.length
+            });
+        }
 
         address sender = _msgSender();
         for (uint256 i; i < upcs.length;) {
@@ -1249,16 +1291,23 @@ contract Banny721TokenUriResolver is
             string memory svgContent = svgContents[i];
 
             // Make sure there isn't already contents for the specified universal product code.
-            if (bytes(_svgContentOf[upc]).length != 0) revert Banny721TokenUriResolver_ContentsAlreadyStored();
+            if (bytes(_svgContentOf[upc]).length != 0) {
+                revert Banny721TokenUriResolver_ContentsAlreadyStored({upc: upc});
+            }
 
             // Get the stored svg hash for the product.
             bytes32 svgHash = svgHashOf[upc];
 
             // Make sure a hash exists.
-            if (svgHash == bytes32(0)) revert Banny721TokenUriResolver_HashNotFound();
+            if (svgHash == bytes32(0)) revert Banny721TokenUriResolver_HashNotFound({upc: upc});
 
             // Make sure the content matches the hash.
-            if (keccak256(abi.encodePacked(svgContent)) != svgHash) revert Banny721TokenUriResolver_ContentsMismatch();
+            bytes32 actualHash = keccak256(abi.encodePacked(svgContent));
+            if (actualHash != svgHash) {
+                revert Banny721TokenUriResolver_ContentsMismatch({
+                    upc: upc, expectedHash: svgHash, actualHash: actualHash
+                });
+            }
 
             // Store the svg contents.
             _svgContentOf[upc] = svgContent;
@@ -1275,7 +1324,11 @@ contract Banny721TokenUriResolver is
     /// @param upcs The universal product codes of the products having SVG hashes stored.
     /// @param svgHashes The svg hashes to store, not including the parent <svg></svg> element.
     function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
-        if (upcs.length != svgHashes.length) revert Banny721TokenUriResolver_ArrayLengthMismatch();
+        if (upcs.length != svgHashes.length) {
+            revert Banny721TokenUriResolver_ArrayLengthMismatch({
+                firstLength: upcs.length, secondLength: svgHashes.length
+            });
+        }
 
         address sender = _msgSender();
         for (uint256 i; i < upcs.length;) {
@@ -1283,7 +1336,9 @@ contract Banny721TokenUriResolver is
             bytes32 svgHash = svgHashes[i];
 
             // Make sure there isn't already contents for the specified universal product code.
-            if (svgHashOf[upc] != bytes32(0)) revert Banny721TokenUriResolver_HashAlreadyStored();
+            if (svgHashOf[upc] != bytes32(0)) {
+                revert Banny721TokenUriResolver_HashAlreadyStored({upc: upc, existingHash: svgHashOf[upc]});
+            }
 
             // Store the svg contents.
             svgHashOf[upc] = svgHash;
@@ -1331,11 +1386,18 @@ contract Banny721TokenUriResolver is
                     uint256 userId = userOf({hook: hook, backgroundId: backgroundId});
 
                     // If the background is not currently used, only the background's owner can use it for decoration.
-                    if (userId == 0) revert Banny721TokenUriResolver_UnauthorizedBackground();
+                    if (userId == 0) {
+                        revert Banny721TokenUriResolver_UnauthorizedBackground({
+                            hook: hook, backgroundId: backgroundId, sender: sender, owner: owner
+                        });
+                    }
 
                     // If the background is used, the banny body's owner can also authorize its use.
-                    if (sender != IERC721(hook).ownerOf(userId)) {
-                        revert Banny721TokenUriResolver_UnauthorizedBackground();
+                    address userOwner = IERC721(hook).ownerOf(userId);
+                    if (sender != userOwner) {
+                        revert Banny721TokenUriResolver_UnauthorizedBackground({
+                            hook: hook, backgroundId: backgroundId, sender: sender, owner: userOwner
+                        });
                     }
 
                     // A locked source body keeps its equipped background until the lock expires.
@@ -1347,7 +1409,9 @@ contract Banny721TokenUriResolver is
 
                 // Background must exist and must be a background category.
                 if (backgroundProduct.id == 0 || backgroundProduct.category != _BACKGROUND_CATEGORY) {
-                    revert Banny721TokenUriResolver_UnrecognizedBackground();
+                    revert Banny721TokenUriResolver_UnrecognizedBackground({
+                        hook: hook, backgroundId: backgroundId, category: backgroundProduct.category
+                    });
                 }
 
                 // Try to transfer the previous background back before updating state.
@@ -1434,18 +1498,23 @@ contract Banny721TokenUriResolver is
 
             // Check if the call is being made either by the outfit's owner or the owner of the banny body currently
             // wearing it.
-            // slither-disable-next-line calls-loop
             if (sender != IERC721(hook).ownerOf(outfitId)) {
                 // Get the banny body currently wearing this outfit.
                 uint256 wearerId = wearerOf({hook: hook, outfitId: outfitId});
 
                 // If the outfit is not currently worn, only the outfit's owner can use it for decoration.
-                if (wearerId == 0) revert Banny721TokenUriResolver_UnauthorizedOutfit();
+                if (wearerId == 0) {
+                    revert Banny721TokenUriResolver_UnauthorizedOutfit({
+                        hook: hook, outfitId: outfitId, sender: sender, owner: IERC721(hook).ownerOf(outfitId)
+                    });
+                }
 
                 // If the outfit is worn, the banny body's owner can also authorize its use.
-                // slither-disable-next-line calls-loop
-                if (sender != IERC721(hook).ownerOf(wearerId)) {
-                    revert Banny721TokenUriResolver_UnauthorizedOutfit();
+                address wearerOwner = IERC721(hook).ownerOf(wearerId);
+                if (sender != wearerOwner) {
+                    revert Banny721TokenUriResolver_UnauthorizedOutfit({
+                        hook: hook, outfitId: outfitId, sender: sender, owner: wearerOwner
+                    });
                 }
 
                 // A locked source body keeps its equipped outfits until the lock expires.
@@ -1457,12 +1526,14 @@ contract Banny721TokenUriResolver is
 
             // The product's category must be a known category.
             if (outfitProductCategory < _BACKSIDE_CATEGORY || outfitProductCategory > _SPECIAL_BODY_CATEGORY) {
-                revert Banny721TokenUriResolver_UnrecognizedCategory();
+                revert Banny721TokenUriResolver_UnrecognizedCategory({category: outfitProductCategory});
             }
 
             // Make sure the category is an increment of the previous outfit's category.
             if (i != 0 && outfitProductCategory <= lastAssetCategory) {
-                revert Banny721TokenUriResolver_UnorderedCategories();
+                revert Banny721TokenUriResolver_UnorderedCategories({
+                    previousCategory: lastAssetCategory, nextCategory: outfitProductCategory
+                });
             }
 
             if (outfitProductCategory == _HEAD_CATEGORY) {
@@ -1475,12 +1546,12 @@ contract Banny721TokenUriResolver is
                         || outfitProductCategory == _MOUTH_CATEGORY
                         || outfitProductCategory == _HEADTOP_CATEGORY) && hasHead
             ) {
-                revert Banny721TokenUriResolver_HeadAlreadyAdded();
+                revert Banny721TokenUriResolver_HeadAlreadyAdded({category: outfitProductCategory});
             } else if (
                 (outfitProductCategory == _SUIT_TOP_CATEGORY || outfitProductCategory == _SUIT_BOTTOM_CATEGORY)
                     && hasSuit
             ) {
-                revert Banny721TokenUriResolver_SuitAlreadyAdded();
+                revert Banny721TokenUriResolver_SuitAlreadyAdded({category: outfitProductCategory});
             }
 
             // Remove all previous assets up to and including the current category being iterated on.
@@ -1523,7 +1594,6 @@ contract Banny721TokenUriResolver is
                 _wearerOf[hook][outfitId] = bannyBodyId;
 
                 // Transfer the outfit to this contract.
-                // slither-disable-next-line reentrancy-no-eth,calls-loop
                 if (IERC721(hook).ownerOf(outfitId) != address(this)) {
                     _transferFrom({hook: hook, from: sender, to: address(this), assetId: outfitId});
                 }
@@ -1632,7 +1702,9 @@ contract Banny721TokenUriResolver is
                     _productOfTokenId({hook: hook, tokenId: mergedOutfitIds[i]}).category
                         == _productOfTokenId({hook: hook, tokenId: mergedOutfitIds[i - 1]}).category
                 ) {
-                    revert Banny721TokenUriResolver_DuplicateCategory();
+                    revert Banny721TokenUriResolver_DuplicateCategory({
+                        category: _productOfTokenId({hook: hook, tokenId: mergedOutfitIds[i]}).category
+                    });
                 }
                 unchecked {
                     ++i;
@@ -1661,7 +1733,6 @@ contract Banny721TokenUriResolver is
     /// @param assetId The ID of the token to transfer.
     /// @return success Whether the transfer succeeded.
     function _tryTransferFrom(address hook, address from, address to, uint256 assetId) internal returns (bool success) {
-        // slither-disable-next-line reentrancy-no-eth
         try IERC721(hook).safeTransferFrom({from: from, to: to, tokenId: assetId}) {
             success = true;
         } catch {}

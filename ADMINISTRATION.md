@@ -83,5 +83,5 @@
 - `src/Banny721TokenUriResolver.sol`
 - `src/interfaces/IBanny721TokenUriResolver.sol`
 - `script/Deploy.s.sol`
-- `test/TestAuditGaps.sol`
+- `test/TestRegressionGaps.sol`
 - `test/TestQALastMile.t.sol`

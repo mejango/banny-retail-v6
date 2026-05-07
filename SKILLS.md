@@ -14,7 +14,7 @@
 | Runtime and content-management invariants | [`references/runtime.md`](./references/runtime.md), [`references/operations.md`](./references/operations.md) |
 | Deployment or scripted drops | [`script/Deploy.s.sol`](./script/Deploy.s.sol), [`script/Drop1.s.sol`](./script/Drop1.s.sol), [`script/Add.Denver.s.sol`](./script/Add.Denver.s.sol) |
 | Decoration lifecycle and custody invariants | [`test/DecorateFlow.t.sol`](./test/DecorateFlow.t.sol), [`test/OutfitTransferLifecycle.t.sol`](./test/OutfitTransferLifecycle.t.sol) |
-| Adversarial, fork, or final QA coverage | [`test/BannyAttacks.t.sol`](./test/BannyAttacks.t.sol), [`test/Fork.t.sol`](./test/Fork.t.sol), [`test/TestAuditGaps.sol`](./test/TestAuditGaps.sol), [`test/TestQALastMile.t.sol`](./test/TestQALastMile.t.sol) |
+| Adversarial, fork, or final QA coverage | [`test/BannyAttacks.t.sol`](./test/BannyAttacks.t.sol), [`test/Fork.t.sol`](./test/Fork.t.sol), [`test/TestRegressionGaps.sol`](./test/TestRegressionGaps.sol), [`test/TestQALastMile.t.sol`](./test/TestQALastMile.t.sol) |
 
 ## Repo Map
 

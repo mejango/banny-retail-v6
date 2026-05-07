@@ -128,8 +128,10 @@ contract DuplicateCategoryRetentionTest is Test {
         uint256[] memory replacement = new uint256[](1);
         replacement[0] = NECKLACE_TWO;
 
-        // After the L-1 fix, the duplicate category is detected and the call reverts.
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_DuplicateCategory.selector);
+        // After the fix, the duplicate category is detected and the call reverts.
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_DuplicateCategory.selector, 3)
+        );
         rejector.decorate(resolver, address(hook), BODY_TOKEN, 0, replacement);
     }
 

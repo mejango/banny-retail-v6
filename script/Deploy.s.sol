@@ -391,10 +391,10 @@ contract DeployScript is Script, Sphinx {
             '<g class="o"><path d="M190 127h3v3h-3zm3 13h4v3h-4zm-42 0h6v6h-6z"/><path d="M151 133h3v7h-3zm10 0h6v4h-6z"/><path d="M157 137h17v6h-17zm3 13h14v3h-14zm17-13h7v16h-7z"/><path d="M184 137h6v6h-6zm0 10h10v6h-10z"/><path d="M187 143h10v4h-10z"/><path d="M190 140h3v3h-3zm-6-10h3v7h-3z"/><path d="M187 130h6v3h-6zm-36 0h10v3h-10zm16 13h7v7h-7zm-10 0h7v7h-7z"/><path d="M164 147h3v3h-3zm29-20h4v6h-4z"/><path d="M194 133h3v7h-3z"/></g><g class="w"><path d="M154 133h7v4h-7z"/><path d="M154 137h3v3h-3zm10 6h3v4h-3zm20 0h3v4h-3zm3-10h7v4h-7z"/><path d="M190 137h4v3h-4z"/></g>';
         {
             // Perform the check for the resolver..
-            (address _resolver, bool _resolverIsDeployed) = _isDeployed(
-                RESOLVER_SALT,
-                type(Banny721TokenUriResolver).creationCode,
-                abi.encode(
+            (address _resolver, bool _resolverIsDeployed) = _isDeployed({
+                salt: RESOLVER_SALT,
+                creationCode: type(Banny721TokenUriResolver).creationCode,
+                arguments: abi.encode(
                     bannyBodySvg,
                     defaultNecklaceSvg,
                     defaultMouthSvg,
@@ -403,7 +403,7 @@ contract DeployScript is Script, Sphinx {
                     operator,
                     trustedForwarder
                 )
-            );
+            });
             // Deploy it if it has not been deployed yet.
             resolver = !_resolverIsDeployed
                 ? new Banny721TokenUriResolver{salt: RESOLVER_SALT}({

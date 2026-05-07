@@ -273,7 +273,11 @@ contract TestBanny721TokenUriResolver is Test {
         resolver.setSvgHashesOf(upcs, hashes);
 
         // Second attempt should revert.
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HashAlreadyStored.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_HashAlreadyStored.selector, 100, hashes[0]
+            )
+        );
         resolver.setSvgHashesOf(upcs, hashes);
         vm.stopPrank();
     }
@@ -319,7 +323,9 @@ contract TestBanny721TokenUriResolver is Test {
         string[] memory contents = new string[](1);
         contents[0] = "anything";
 
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HashNotFound.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_HashNotFound.selector, upcs[0])
+        );
         resolver.setSvgContentsOf(upcs, contents);
     }
 
@@ -335,7 +341,14 @@ contract TestBanny721TokenUriResolver is Test {
         string[] memory contents = new string[](1);
         contents[0] = "wrong-content";
 
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsMismatch.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsMismatch.selector,
+                upcs[0],
+                hashes[0],
+                keccak256(abi.encodePacked(contents[0]))
+            )
+        );
         resolver.setSvgContentsOf(upcs, contents);
     }
 
@@ -354,7 +367,11 @@ contract TestBanny721TokenUriResolver is Test {
         resolver.setSvgContentsOf(upcs, contents);
 
         // Second time reverts.
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsAlreadyStored.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_ContentsAlreadyStored.selector, upcs[0]
+            )
+        );
         resolver.setSvgContentsOf(upcs, contents);
     }
 
@@ -372,7 +389,15 @@ contract TestBanny721TokenUriResolver is Test {
 
     function test_lockOutfitChangesFor_revertsIfNotOwner() public {
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector,
+                address(hook),
+                BODY_TOKEN,
+                bob,
+                alice
+            )
+        );
         resolver.lockOutfitChangesFor(address(hook), BODY_TOKEN);
     }
 
@@ -407,9 +432,17 @@ contract TestBanny721TokenUriResolver is Test {
         resolver.lockOutfitChangesFor(address(hook), BODY_TOKEN);
 
         uint256[] memory outfitIds = new uint256[](0);
+        uint256 lockedUntil = resolver.outfitLockedUntil(address(hook), BODY_TOKEN);
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_OutfitChangesLocked.selector,
+                address(hook),
+                BODY_TOKEN,
+                lockedUntil
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -434,7 +467,15 @@ contract TestBanny721TokenUriResolver is Test {
         uint256[] memory outfitIds = new uint256[](0);
 
         vm.prank(bob);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedBannyBody.selector,
+                address(hook),
+                BODY_TOKEN,
+                bob,
+                alice
+            )
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -449,7 +490,9 @@ contract TestBanny721TokenUriResolver is Test {
         outfitIds[1] = EYES_TOKEN; // category 5
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnorderedCategories.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_UnorderedCategories.selector, 7, 5)
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -464,7 +507,9 @@ contract TestBanny721TokenUriResolver is Test {
         outfitIds[1] = EYES_TOKEN; // category 5
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector, 5)
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -475,7 +520,9 @@ contract TestBanny721TokenUriResolver is Test {
         outfitIds[1] = MOUTH_TOKEN; // category 7
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_HeadAlreadyAdded.selector, 7)
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -490,7 +537,9 @@ contract TestBanny721TokenUriResolver is Test {
         outfitIds[1] = SUIT_BOTTOM_TOKEN; // category 10
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector, 10)
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -501,7 +550,9 @@ contract TestBanny721TokenUriResolver is Test {
         outfitIds[1] = SUIT_TOP_TOKEN; // category 11
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_SuitAlreadyAdded.selector, 11)
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -519,7 +570,9 @@ contract TestBanny721TokenUriResolver is Test {
         outfitIds[0] = fakeBadToken;
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector, 0)
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -529,7 +582,9 @@ contract TestBanny721TokenUriResolver is Test {
         outfitIds[0] = BACKGROUND_TOKEN; // category 1
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_UnrecognizedCategory.selector, 1)
+        );
         resolver.decorateBannyWith(address(hook), BODY_TOKEN, 0, outfitIds);
     }
 
@@ -636,7 +691,13 @@ contract TestBanny721TokenUriResolver is Test {
     }
 
     function test_onERC721Received_revertsIfNotSelf() public {
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedTransfer.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Banny721TokenUriResolver.Banny721TokenUriResolver_UnauthorizedTransfer.selector,
+                alice,
+                address(resolver)
+            )
+        );
         resolver.onERC721Received(alice, alice, 1, "");
     }
 

@@ -107,7 +107,7 @@ contract BodyCategoryValidationTest is Test {
         uint256[] memory outfitIds = new uint256[](0);
 
         vm.prank(alice);
-        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_BannyBodyNotBodyCategory.selector);
+        vm.expectPartialRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_BannyBodyNotBodyCategory.selector);
         resolver.decorateBannyWith(address(hook), NECKLACE_TOKEN, 0, outfitIds);
     }
 
