@@ -21,5 +21,5 @@
 
 ## Useful Proof Points
 
-- [`test/BannyAttacks.t.sol`](../test/BannyAttacks.t.sol) and [`test/TestAuditGaps.sol`](../test/TestAuditGaps.sol) for security-sensitive assumptions.
+- [`test/BannyAttacks.t.sol`](../test/BannyAttacks.t.sol) and [`test/TestRegressionGaps.sol`](../test/TestRegressionGaps.sol) for security-sensitive assumptions.
 - [`script/Drop1.s.sol`](../script/Drop1.s.sol) and [`script/Add.Denver.s.sol`](../script/Add.Denver.s.sol) when a deployment issue is really a script/config problem.

@@ -8,7 +8,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 
 - collection operators publishing bodies, outfits, backgrounds, and metadata
 - collectors equipping and unequipping avatar pieces
-- auditors reviewing custody, lock, and rendering behavior
+- reviewers reviewing custody, lock, and rendering behavior
 
 ## Key Surfaces
 

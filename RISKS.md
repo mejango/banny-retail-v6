@@ -6,7 +6,7 @@ This file focuses on the failure modes that can break NFT custody, bypass hook a
 
 - Read `Priority risks` first.
 - Use `Accepted Behaviors` to separate intentional tradeoffs from bugs.
-- Treat `Invariants to Verify` as required test and audit targets.
+- Treat `Invariants to Verify` as required test and review targets.
 
 ## Priority risks
 

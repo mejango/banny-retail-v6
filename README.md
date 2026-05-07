@@ -8,7 +8,7 @@ User journeys: [USER_JOURNEYS.md](./USER_JOURNEYS.md)
 Skills: [SKILLS.md](./SKILLS.md)  
 Risks: [RISKS.md](./RISKS.md)  
 Administration: [ADMINISTRATION.md](./ADMINISTRATION.md)  
-Audit instructions: [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md)
+Review instructions: [REVIEW_GUIDE.md](./REVIEW_GUIDE.md)
 
 ## Overview
 
@@ -50,8 +50,8 @@ It does not own mint pricing, tier issuance, or treasury accounting.
 
 1. `test/DecorateFlow.t.sol`
 2. `test/OutfitTransferLifecycle.t.sol`
-3. `test/audit/BurnedBodyStrandsAssets.t.sol`
-4. `test/audit/TryTransferFromStrandsAssets.t.sol`
+3. `test/regression/BurnedBodyStrandsAssets.t.sol`
+4. `test/regression/TryTransferFromStrandsAssets.t.sol`
 5. `test/TestQALastMile.t.sol`
 
 ## Integration Traps
@@ -102,7 +102,7 @@ src/
   Banny721TokenUriResolver.sol
   interfaces/
 test/
-  unit, attack, fork, audit, QA, and regression coverage
+  unit, attack, fork, review, QA, and regression coverage
 script/
   Deploy.s.sol
   Drop1.s.sol

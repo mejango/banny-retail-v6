@@ -88,14 +88,14 @@ That custody model uses lazy reconciliation for some stale attachment records. R
 - accessory escrow, replacement, and decoration flow:
   `test/DecorateFlow.t.sol`
 - burned-body custody edge cases:
-  `test/audit/BurnedBodyStrandsAssets.t.sol`
+  `test/regression/BurnedBodyStrandsAssets.t.sol`
 - transfer-path protection against stranded attachments:
-  `test/audit/TryTransferFromStrandsAssets.t.sol`
+  `test/regression/TryTransferFromStrandsAssets.t.sol`
 
 ## Source Map
 
 - `src/Banny721TokenUriResolver.sol`
 - `test/DecorateFlow.t.sol`
-- `test/audit/BurnedBodyStrandsAssets.t.sol`
-- `test/audit/TryTransferFromStrandsAssets.t.sol`
+- `test/regression/BurnedBodyStrandsAssets.t.sol`
+- `test/regression/TryTransferFromStrandsAssets.t.sol`
 - `script/Deploy.s.sol`

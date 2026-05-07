@@ -8,8 +8,8 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
 
-/// @notice Mock hook for audit gap testing.
-contract AuditGapMockHook {
+/// @notice Mock hook for regression gap testing.
+contract RegressionGapMockHook {
     mapping(uint256 tokenId => address) public ownerOf;
     mapping(uint256 tokenId => uint32) public tierIdOf;
     mapping(uint256 tokenId => uint24) public categoryOf;
@@ -59,8 +59,8 @@ contract AuditGapMockHook {
     }
 }
 
-/// @notice Mock store for audit gap testing.
-contract AuditGapMockStore {
+/// @notice Mock store for regression gap testing.
+contract RegressionGapMockStore {
     mapping(address hook => mapping(uint256 tokenId => JB721Tier)) public tiers;
 
     function setTier(address hook, uint256 tokenId, JB721Tier memory tier) external {
@@ -82,13 +82,13 @@ contract AuditGapMockStore {
     }
 }
 
-/// @title TestAuditGaps
+/// @title TestRegressionGaps
 /// @notice Tests for ERC-2771 meta-transaction support and SVG rendering edge cases.
-contract TestAuditGaps is Test {
+contract TestRegressionGaps is Test {
     Banny721TokenUriResolver resolver;
     Banny721TokenUriResolver resolverWithForwarder;
-    AuditGapMockHook hook;
-    AuditGapMockStore store;
+    RegressionGapMockHook hook;
+    RegressionGapMockStore store;
 
     address deployer = makeAddr("deployer");
     address alice = makeAddr("alice");
@@ -104,8 +104,8 @@ contract TestAuditGaps is Test {
     uint256 constant MOUTH_TOKEN = 40_000_000_001; // category 7
 
     function setUp() public {
-        store = new AuditGapMockStore();
-        hook = new AuditGapMockHook(address(store));
+        store = new RegressionGapMockStore();
+        hook = new RegressionGapMockHook(address(store));
 
         // Deploy resolver WITHOUT trusted forwarder (address(0)).
         vm.prank(deployer);

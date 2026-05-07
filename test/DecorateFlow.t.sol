@@ -84,7 +84,7 @@ contract DecorateFlowMockStore {
 
 /// @title DecorateFlowTests
 /// @notice Comprehensive tests for the Banny decoration (dress/undress) flow.
-///         Includes tests proving why the L18 outfit authorization fix is needed.
+///         Includes tests proving why the outfit authorization fix is needed.
 contract DecorateFlowTests is Test {
     Banny721TokenUriResolver resolver;
     DecorateFlowMockHook hook;
@@ -173,10 +173,10 @@ contract DecorateFlowTests is Test {
     }
 
     // =========================================================================
-    //  SECTION 1: L18 VULNERABILITY PROOF — Why the diff is needed
+    //  SECTION 1: OUTFIT AUTHORIZATION REGRESSION — Why the diff is needed
     // =========================================================================
 
-    /// @notice CRITICAL TEST: Proves the L18 outfit authorization vulnerability.
+    /// @notice CRITICAL TEST: Proves the outfit authorization vulnerability.
     ///
     ///         The OLD code was:
     ///           if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(wearerOf(hook, outfitId)))
