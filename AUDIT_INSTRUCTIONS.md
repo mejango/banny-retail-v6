@@ -1,8 +1,8 @@
-# Review Guide
+# Audit Instructions
 
 This repo is the Banny avatar composition layer. It does not mint the base NFTs, but it does hold equipped accessories and define the metadata users see.
 
-## Review Objective
+## Audit Objective
 
 Find issues that:
 
