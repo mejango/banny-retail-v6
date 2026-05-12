@@ -80,12 +80,19 @@ contract Drop1Script is Script, Sphinx {
             splits: new JBSplit[](0)
         });
 
+        // Capture pre-existing maxTierIdOf so we can detect drift between Sphinx proposal-time simulation and
+        // execution (see Drop1.s.sol for the same pattern).
+        uint256 maxTierIdBeforeAdjust = hook.STORE().maxTierIdOf(address(hook));
+
         hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
 
         // Read maxTierIdOf after adjustTiers so the value reflects our newly added tiers,
         // avoiding a race condition where another transaction could change maxTierIdOf between
         // the read and the adjustTiers call.
         uint256 maxTierId = hook.STORE().maxTierIdOf(address(hook));
+
+        // Drift detection: our single tier should occupy exactly maxTierIdBeforeAdjust + 1.
+        require(maxTierId == maxTierIdBeforeAdjust + 1, "Add.Denver: maxTierIdOf drift between proposal and execution");
 
         // Build the product IDs array for the newly added tier(s).
         uint256[] memory productIds = new uint256[](1);
