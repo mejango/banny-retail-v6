@@ -1185,12 +1185,23 @@ contract Drop1Script is Script, Sphinx {
             splits: new JBSplit[](0)
         });
 
+        // Capture the pre-existing maxTierIdOf so we can detect drift between Sphinx proposal-time simulation and
+        // execution. Without this guard, an authorized `ADJUST_721_TIERS` call landing between proposal and
+        // execution would shift our 47 new tier IDs upward, and the metadata writes below would silently target
+        // the wrong UPC range (or land on tiers that did not get our SVG/name data).
+        uint256 maxTierIdBeforeAdjust = hook.STORE().maxTierIdOf(address(hook));
+
         hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
 
         // Read maxTierIdOf after adjustTiers so the value reflects our newly added tiers,
         // avoiding a race condition where another transaction could change maxTierIdOf between
         // the read and the adjustTiers call.
         uint256 maxTierId = hook.STORE().maxTierIdOf(address(hook));
+
+        // Drift detection: our 47 tiers should occupy exactly the range (maxTierIdBeforeAdjust, maxTierId]. If
+        // another transaction added tiers between proposal and execution, the range no longer matches the 47-tier
+        // assumption and the metadata writes would target the wrong UPCs.
+        require(maxTierId == maxTierIdBeforeAdjust + 47, "Drop1: maxTierIdOf drift between proposal and execution");
 
         // Build the product IDs array for the newly added tiers.
         // The last 47 tier IDs correspond to the 47 tiers we just added.
