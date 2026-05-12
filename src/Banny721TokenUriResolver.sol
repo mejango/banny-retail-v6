@@ -1275,7 +1275,10 @@ contract Banny721TokenUriResolver is
         }
     }
 
-    /// @notice The owner of this contract can store SVG files for product IDs.
+    /// @notice Permissionless: anyone can store the SVG bytes for a product code, as long as they match the owner-
+    /// precommitted hash. The hash is set by the owner via `setSvgHashesOf`; this function only finalizes the bytes.
+    /// @dev See `setSvgHashesOf` for the trust model. The function reverts on hash mismatch, missing hash, or
+    /// already-stored content. Publication is one-shot — wrong-hash commitments are unrecoverable by design.
     /// @param upcs The universal product codes of the products having SVGs stored.
     /// @param svgContents The svg contents to store, not including the parent <svg></svg> element.
     function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
