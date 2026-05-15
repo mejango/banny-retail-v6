@@ -450,13 +450,41 @@ contract Banny721TokenUriResolver is
         );
     }
 
-    /// @notice The name committed for a given product (UPC). Surfaces the internal
-    /// `_productNameOf` so off-chain operators can verify the canonical product-name manifest
-    /// directly against on-chain state.
-    /// @param upc The UPC whose product name to return.
-    /// @return name The product name committed for `upc` (empty string when not set).
-    function productNamesOf(uint256 upc) external view override returns (string memory) {
-        return _productNameOf(upc);
+    /// @notice The names committed for the given products and categories. Surfaces the internal `_productNameOf` and
+    /// `_categoryNameOf` helpers so off-chain operators can verify the canonical product-name manifest directly
+    /// against on-chain state.
+    /// @param upcs The UPCs whose product names to return.
+    /// @param categories The categories whose names to return alongside each UPC.
+    /// @return names The UPCs, categories, product names, and category names.
+    function productNamesOf(
+        uint256[] calldata upcs,
+        uint256[] calldata categories
+    )
+        external
+        view
+        override
+        returns (IBanny721TokenUriResolver.ProductName[] memory names)
+    {
+        if (upcs.length != categories.length) {
+            revert Banny721TokenUriResolver_ArrayLengthMismatch({
+                firstLength: upcs.length, secondLength: categories.length
+            });
+        }
+
+        names = new IBanny721TokenUriResolver.ProductName[](upcs.length);
+
+        for (uint256 i; i < upcs.length;) {
+            names[i] = IBanny721TokenUriResolver.ProductName({
+                upc: upcs[i],
+                category: categories[i],
+                productName: _productNameOf(upcs[i]),
+                categoryName: _categoryNameOf(categories[i])
+            });
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @notice Returns the SVG showing either a banny body with/without outfits and a background, or the stand alone

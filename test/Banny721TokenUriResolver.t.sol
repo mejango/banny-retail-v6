@@ -7,6 +7,7 @@ import {JB721TierFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierFlags.
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
+import {IBanny721TokenUriResolver} from "../src/interfaces/IBanny721TokenUriResolver.sol";
 
 /// @notice Minimal mock hook for testing. Tracks owners and categories for mock 721 tokens.
 contract MockHook {
@@ -231,19 +232,71 @@ contract TestBanny721TokenUriResolver is Test {
         vm.prank(deployer);
         resolver.setProductNames(upcs, names);
 
-        assertEq(resolver.productNamesOf(100), "Cool Hat");
-        assertEq(resolver.productNamesOf(200), "Fancy Suit");
+        uint256[] memory categories = new uint256[](2);
+        categories[0] = 4;
+        categories[1] = 9;
+
+        IBanny721TokenUriResolver.ProductName[] memory productNames = resolver.productNamesOf(upcs, categories);
+
+        assertEq(productNames.length, 2);
+        assertEq(productNames[0].upc, 100);
+        assertEq(productNames[0].category, 4);
+        assertEq(productNames[0].productName, "Cool Hat");
+        assertEq(productNames[0].categoryName, "Head");
+        assertEq(productNames[1].upc, 200);
+        assertEq(productNames[1].category, 9);
+        assertEq(productNames[1].productName, "Fancy Suit");
+        assertEq(productNames[1].categoryName, "Suit");
     }
 
     function test_productNamesOf_returnsBuiltInProductNames() public view {
-        assertEq(resolver.productNamesOf(1), "Alien");
-        assertEq(resolver.productNamesOf(2), "Pink");
-        assertEq(resolver.productNamesOf(3), "Orange");
-        assertEq(resolver.productNamesOf(4), "Original");
+        uint256[] memory upcs = new uint256[](4);
+        upcs[0] = 1;
+        upcs[1] = 2;
+        upcs[2] = 3;
+        upcs[3] = 4;
+
+        uint256[] memory categories = new uint256[](4);
+        categories[0] = 0;
+        categories[1] = 0;
+        categories[2] = 0;
+        categories[3] = 0;
+
+        IBanny721TokenUriResolver.ProductName[] memory productNames = resolver.productNamesOf(upcs, categories);
+
+        assertEq(productNames[0].productName, "Alien");
+        assertEq(productNames[0].categoryName, "Banny body");
+        assertEq(productNames[1].productName, "Pink");
+        assertEq(productNames[1].categoryName, "Banny body");
+        assertEq(productNames[2].productName, "Orange");
+        assertEq(productNames[2].categoryName, "Banny body");
+        assertEq(productNames[3].productName, "Original");
+        assertEq(productNames[3].categoryName, "Banny body");
     }
 
     function test_productNamesOf_returnsEmptyStringForUnsetCustomProduct() public view {
-        assertEq(resolver.productNamesOf(999), "");
+        uint256[] memory upcs = new uint256[](1);
+        upcs[0] = 999;
+
+        uint256[] memory categories = new uint256[](1);
+        categories[0] = 13;
+
+        IBanny721TokenUriResolver.ProductName[] memory productNames = resolver.productNamesOf(upcs, categories);
+
+        assertEq(productNames[0].upc, 999);
+        assertEq(productNames[0].category, 13);
+        assertEq(productNames[0].productName, "");
+        assertEq(productNames[0].categoryName, "Fist");
+    }
+
+    function test_productNamesOf_revertsOnArrayLengthMismatch() public {
+        uint256[] memory upcs = new uint256[](2);
+        uint256[] memory categories = new uint256[](1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_ArrayLengthMismatch.selector, 2, 1)
+        );
+        resolver.productNamesOf(upcs, categories);
     }
 
     function test_setProductNames_revertsIfNotOwner() public {

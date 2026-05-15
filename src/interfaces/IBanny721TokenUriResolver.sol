@@ -5,6 +5,13 @@ pragma solidity ^0.8.0;
 /// dressed Banny compositions. Owners dress their banny bodies with outfits and backgrounds; the resolver composes
 /// all attached assets into a single SVG returned as a base64-encoded data URI.
 interface IBanny721TokenUriResolver {
+    struct ProductName {
+        uint256 upc;
+        uint256 category;
+        string productName;
+        string categoryName;
+    }
+
     /// @notice Emitted when a banny body is decorated with a background and outfits.
     /// @param hook The hook address of the collection.
     /// @param bannyBodyId The ID of the banny body that was decorated.
@@ -83,10 +90,17 @@ interface IBanny721TokenUriResolver {
     /// @return The product name, the category name, and the display name.
     function namesOf(address hook, uint256 tokenId) external view returns (string memory, string memory, string memory);
 
-    /// @notice The name committed for a given product.
-    /// @param upc The universal product code to look up.
-    /// @return name The product name committed for the UPC, or an empty string when none is set.
-    function productNamesOf(uint256 upc) external view returns (string memory name);
+    /// @notice The names committed for the given products and categories.
+    /// @param upcs The universal product codes to look up.
+    /// @param categories The product categories to name alongside each UPC.
+    /// @return names The UPCs, categories, product names, and category names.
+    function productNamesOf(
+        uint256[] calldata upcs,
+        uint256[] calldata categories
+    )
+        external
+        view
+        returns (ProductName[] memory names);
 
     /// @notice The timestamp until which a banny body's outfit is locked and cannot be changed.
     /// @param hook The hook address of the collection.
