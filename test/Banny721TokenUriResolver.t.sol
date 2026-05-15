@@ -231,7 +231,19 @@ contract TestBanny721TokenUriResolver is Test {
         vm.prank(deployer);
         resolver.setProductNames(upcs, names);
 
-        // Verify via namesOf (requires tier with that UPC).
+        assertEq(resolver.productNamesOf(100), "Cool Hat");
+        assertEq(resolver.productNamesOf(200), "Fancy Suit");
+    }
+
+    function test_productNamesOf_returnsBuiltInProductNames() public view {
+        assertEq(resolver.productNamesOf(1), "Alien");
+        assertEq(resolver.productNamesOf(2), "Pink");
+        assertEq(resolver.productNamesOf(3), "Orange");
+        assertEq(resolver.productNamesOf(4), "Original");
+    }
+
+    function test_productNamesOf_returnsEmptyStringForUnsetCustomProduct() public view {
+        assertEq(resolver.productNamesOf(999), "");
     }
 
     function test_setProductNames_revertsIfNotOwner() public {

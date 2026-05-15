@@ -455,7 +455,7 @@ contract Banny721TokenUriResolver is
     /// directly against on-chain state.
     /// @param upc The UPC whose product name to return.
     /// @return name The product name committed for `upc` (empty string when not set).
-    function productNameOf(uint256 upc) external view returns (string memory) {
+    function productNamesOf(uint256 upc) external view override returns (string memory) {
         return _productNameOf(upc);
     }
 

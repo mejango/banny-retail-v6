@@ -83,6 +83,11 @@ interface IBanny721TokenUriResolver {
     /// @return The product name, the category name, and the display name.
     function namesOf(address hook, uint256 tokenId) external view returns (string memory, string memory, string memory);
 
+    /// @notice The name committed for a given product.
+    /// @param upc The universal product code to look up.
+    /// @return name The product name committed for the UPC, or an empty string when none is set.
+    function productNamesOf(uint256 upc) external view returns (string memory name);
+
     /// @notice The timestamp until which a banny body's outfit is locked and cannot be changed.
     /// @param hook The hook address of the collection.
     /// @param upc The ID of the banny body.
