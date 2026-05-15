@@ -236,7 +236,8 @@ contract BannyForkTest is Test {
     // ──────────────────────────────────────
 
     function setUp() public {
-        vm.createSelectFork("ethereum");
+        // Pin to a stable post-V4-deployment mainnet block to keep CI deterministic.
+        vm.createSelectFork("ethereum", 21_700_000);
 
         // Clear any mainnet code at actor addresses (makeAddr may collide with deployed contracts).
         vm.etch(alice, "");
