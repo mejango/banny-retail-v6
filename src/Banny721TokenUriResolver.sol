@@ -450,6 +450,15 @@ contract Banny721TokenUriResolver is
         );
     }
 
+    /// @notice The name committed for a given product (UPC). Surfaces the internal
+    /// `_productNameOf` so off-chain operators can verify the canonical product-name manifest
+    /// directly against on-chain state.
+    /// @param upc The UPC whose product name to return.
+    /// @return name The product name committed for `upc` (empty string when not set).
+    function productNameOf(uint256 upc) external view returns (string memory) {
+        return _productNameOf(upc);
+    }
+
     /// @notice Returns the SVG showing either a banny body with/without outfits and a background, or the stand alone
     /// outfit
     /// or background.
