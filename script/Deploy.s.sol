@@ -228,7 +228,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(0),
+            encodedIpfsUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -249,7 +249,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(0),
+            encodedIpfsUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -270,7 +270,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(0),
+            encodedIpfsUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -291,7 +291,7 @@ contract DeployScript is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(0),
+            encodedIpfsUri: bytes32(0),
             category: BANNY_BODY_CATEGORY,
             discountPercent: 0,
             flags: JB721TierConfigFlags({

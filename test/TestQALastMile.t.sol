@@ -84,7 +84,7 @@ contract QAMockStore {
     }
 
     // forge-lint: disable-next-line(mixed-case-function)
-    function encodedIPFSUriOf(address hook, uint256 tierId) external view returns (bytes32) {
+    function encodedIpfsUriOf(address hook, uint256 tierId) external view returns (bytes32) {
         return ipfsUris[hook][tierId];
     }
 }
@@ -180,7 +180,7 @@ contract TestQALastMile is Test {
                 votingUnits: 0,
                 reserveFrequency: 0,
                 reserveBeneficiary: address(0),
-                encodedIPFSUri: bytes32(0),
+                encodedIpfsUri: bytes32(0),
                 category: category,
                 discountPercent: 0,
                 flags: JB721TierFlags({
