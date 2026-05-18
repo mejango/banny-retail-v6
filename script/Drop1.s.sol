@@ -69,7 +69,7 @@ contract Drop1Script is Script, Sphinx {
             category: 1,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -93,7 +93,7 @@ contract Drop1Script is Script, Sphinx {
             category: 1,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -117,7 +117,7 @@ contract Drop1Script is Script, Sphinx {
             category: 2,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -141,7 +141,7 @@ contract Drop1Script is Script, Sphinx {
             category: 2,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -165,7 +165,7 @@ contract Drop1Script is Script, Sphinx {
             category: 3,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -189,7 +189,7 @@ contract Drop1Script is Script, Sphinx {
             category: 4,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -213,7 +213,7 @@ contract Drop1Script is Script, Sphinx {
             category: 6,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -237,7 +237,7 @@ contract Drop1Script is Script, Sphinx {
             category: 6,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: true,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -261,7 +261,7 @@ contract Drop1Script is Script, Sphinx {
             category: 6,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -285,7 +285,7 @@ contract Drop1Script is Script, Sphinx {
             category: 6,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -309,7 +309,7 @@ contract Drop1Script is Script, Sphinx {
             category: 6,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -333,7 +333,7 @@ contract Drop1Script is Script, Sphinx {
             category: 7,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -357,7 +357,7 @@ contract Drop1Script is Script, Sphinx {
             category: 8,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -381,7 +381,7 @@ contract Drop1Script is Script, Sphinx {
             category: 8,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -405,7 +405,7 @@ contract Drop1Script is Script, Sphinx {
             category: 8,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -429,7 +429,7 @@ contract Drop1Script is Script, Sphinx {
             category: 9,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -453,7 +453,7 @@ contract Drop1Script is Script, Sphinx {
             category: 9,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -477,7 +477,7 @@ contract Drop1Script is Script, Sphinx {
             category: 9,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -501,7 +501,7 @@ contract Drop1Script is Script, Sphinx {
             category: 9,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -525,7 +525,7 @@ contract Drop1Script is Script, Sphinx {
             category: 10,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -549,7 +549,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -573,7 +573,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -597,7 +597,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -621,7 +621,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -645,7 +645,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -669,7 +669,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -693,7 +693,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -717,7 +717,7 @@ contract Drop1Script is Script, Sphinx {
             category: 11,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -741,7 +741,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -765,7 +765,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -789,7 +789,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -813,7 +813,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -837,7 +837,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -861,7 +861,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -885,7 +885,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -909,7 +909,7 @@ contract Drop1Script is Script, Sphinx {
             category: 12,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -933,7 +933,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -957,7 +957,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -981,7 +981,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1005,7 +1005,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1029,7 +1029,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1053,7 +1053,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1077,7 +1077,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1101,7 +1101,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1125,7 +1125,7 @@ contract Drop1Script is Script, Sphinx {
             category: 13,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1149,7 +1149,7 @@ contract Drop1Script is Script, Sphinx {
             category: 14,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -1173,7 +1173,7 @@ contract Drop1Script is Script, Sphinx {
             category: 16,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,

@@ -68,7 +68,7 @@ contract Drop1Script is Script, Sphinx {
             category: 1,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
