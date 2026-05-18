@@ -24,7 +24,7 @@ contract Drop1Script is Script, Sphinx {
     address reserveBeneficiary;
 
     function configureSphinx() public override {
-        // TODO: Update to contain revnet devs.
+        // Safe owners and threshold are resolved by the Sphinx project config.
         sphinxConfig.projectName = "banny-core-v6";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
@@ -39,10 +39,10 @@ contract Drop1Script is Script, Sphinx {
         );
 
         // Get the deployment addresses for the 721 hook contracts for this chain.
-        bannyverse = BannyverseDeploymentLib.getDeployment(
-            vm.envOr("BANNYVERSE_CORE_DEPLOYMENT_PATH", string("deployments/")),
-            vm.envOr("BANNYVERSE_REVNET_ID", uint256(4))
-        );
+        bannyverse = BannyverseDeploymentLib.getDeployment({
+            path: vm.envOr("BANNYVERSE_CORE_DEPLOYMENT_PATH", string("deployments/")),
+            revnetId: vm.envOr("BANNYVERSE_REVNET_ID", uint256(4))
+        });
 
         // Get the hook address by using the deployer.
         hook = JB721TiersHook(address(revnet.owner.tiered721HookOf(bannyverse.revnetId)));
