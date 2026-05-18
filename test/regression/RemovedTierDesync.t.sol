@@ -79,7 +79,7 @@ contract MockStoreM8 {
     }
 
     // forge-lint: disable-next-line(mixed-case-function)
-    function encodedIPFSUriOf(address, uint256) external pure returns (bytes32) {
+    function encodedIpfsUriOf(address, uint256) external pure returns (bytes32) {
         return bytes32(0);
     }
 }
@@ -328,7 +328,7 @@ contract RemovedTierDesyncTest is Test {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
-            encodedIPFSUri: bytes32(0),
+            encodedIpfsUri: bytes32(0),
             category: category,
             discountPercent: 0,
             flags: JB721TierFlags({

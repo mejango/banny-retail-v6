@@ -1041,7 +1041,7 @@ contract Banny721TokenUriResolver is
         return string.concat(
             '<image href="',
             JBIpfsDecoder.decode({
-                baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIPFSUriOf({hook: hook, tierId: upc})
+                baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIpfsUriOf({hook: hook, tierId: upc})
             }),
             '" width="400" height="400"/>'
         );
