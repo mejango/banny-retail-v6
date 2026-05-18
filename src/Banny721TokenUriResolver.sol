@@ -119,19 +119,19 @@ contract Banny721TokenUriResolver is
     mapping(uint256 upc => bytes32) public override svgHashOf;
 
     /// @notice The default alien-eye SVG fragment used when rendering a Banny without custom alien eyes.
-    string public override DEFAULT_ALIEN_EYES;
+    string public override defaultAlienEyes;
 
     /// @notice The default mouth SVG fragment used when rendering a Banny without a custom mouth.
-    string public override DEFAULT_MOUTH;
+    string public override defaultMouth;
 
     /// @notice The default necklace SVG fragment used when rendering a Banny without a custom necklace.
-    string public override DEFAULT_NECKLACE;
+    string public override defaultNecklace;
 
     /// @notice The default standard-eye SVG fragment used when rendering a Banny without custom standard eyes.
-    string public override DEFAULT_STANDARD_EYES;
+    string public override defaultStandardEyes;
 
     /// @notice The base Banny body SVG fragment used as the starting layer for token rendering.
-    string public override BANNY_BODY;
+    string public override bannyBody;
 
     //*********************************************************************//
     // --------------------- internal stored properties ------------------ //
@@ -180,30 +180,30 @@ contract Banny721TokenUriResolver is
     // -------------------------- constructor ---------------------------- //
     //*********************************************************************//
 
-    /// @param bannyBody The SVG of the banny body.
-    /// @param defaultNecklace The SVG of the default necklace.
-    /// @param defaultMouth The SVG of the default mouth.
-    /// @param defaultStandardEyes The SVG of the default standard eyes.
-    /// @param defaultAlienEyes The SVG of the default alien eyes.
+    /// @param bannyBodySvg The SVG of the banny body.
+    /// @param defaultNecklaceSvg The SVG of the default necklace.
+    /// @param defaultMouthSvg The SVG of the default mouth.
+    /// @param defaultStandardEyesSvg The SVG of the default standard eyes.
+    /// @param defaultAlienEyesSvg The SVG of the default alien eyes.
     /// @param owner The owner allowed to add SVG files that correspond to product IDs.
     /// @param trustedForwarder The trusted forwarder for the ERC2771Context.
     constructor(
-        string memory bannyBody,
-        string memory defaultNecklace,
-        string memory defaultMouth,
-        string memory defaultStandardEyes,
-        string memory defaultAlienEyes,
+        string memory bannyBodySvg,
+        string memory defaultNecklaceSvg,
+        string memory defaultMouthSvg,
+        string memory defaultStandardEyesSvg,
+        string memory defaultAlienEyesSvg,
         address owner,
         address trustedForwarder
     )
         Ownable(owner)
         ERC2771Context(trustedForwarder)
     {
-        BANNY_BODY = bannyBody;
-        DEFAULT_NECKLACE = defaultNecklace;
-        DEFAULT_MOUTH = defaultMouth;
-        DEFAULT_STANDARD_EYES = defaultStandardEyes;
-        DEFAULT_ALIEN_EYES = defaultAlienEyes;
+        bannyBody = bannyBodySvg;
+        defaultNecklace = defaultNecklaceSvg;
+        defaultMouth = defaultMouthSvg;
+        defaultStandardEyes = defaultStandardEyesSvg;
+        defaultAlienEyes = defaultAlienEyesSvg;
     }
 
     //*********************************************************************//
@@ -589,7 +589,7 @@ contract Banny721TokenUriResolver is
             ";}.a3{fill:#",
             a3,
             ";}</style>",
-            BANNY_BODY
+            bannyBody
         );
     }
 
@@ -816,7 +816,7 @@ contract Banny721TokenUriResolver is
     function _mannequinBannySvg() internal view returns (string memory) {
         return string.concat(
             "<style>.o{fill:#808080;}.b1{fill:none;}.b2{fill:none;}.b3{fill:none;}.b4{fill:none;}.a1{fill:none;}.a2{fill:none;}.a3{fill:none;}</style>",
-            BANNY_BODY
+            bannyBody
         );
     }
 
@@ -895,7 +895,7 @@ contract Banny721TokenUriResolver is
                 hasNecklace = true;
                 customNecklace = _svgOf({hook: hook, upc: upc});
             } else if (category > _NECKLACE_CATEGORY && !hasNecklace) {
-                contents = string.concat(contents, DEFAULT_NECKLACE);
+                contents = string.concat(contents, defaultNecklace);
                 hasNecklace = true;
             }
 
@@ -906,8 +906,8 @@ contract Banny721TokenUriResolver is
             if (category == _EYES_CATEGORY) {
                 hasEyes = true;
             } else if (category > _EYES_CATEGORY && !hasEyes && !hasHead) {
-                if (bodyUpc == ALIEN_UPC) contents = string.concat(contents, DEFAULT_ALIEN_EYES);
-                else contents = string.concat(contents, DEFAULT_STANDARD_EYES);
+                if (bodyUpc == ALIEN_UPC) contents = string.concat(contents, defaultAlienEyes);
+                else contents = string.concat(contents, defaultStandardEyes);
 
                 hasEyes = true;
             }
@@ -915,7 +915,7 @@ contract Banny721TokenUriResolver is
             if (category == _MOUTH_CATEGORY) {
                 hasMouth = true;
             } else if (category > _MOUTH_CATEGORY && !hasMouth && !hasHead) {
-                contents = string.concat(contents, DEFAULT_MOUTH);
+                contents = string.concat(contents, defaultMouth);
                 hasMouth = true;
             }
 

@@ -59,23 +59,23 @@ interface IBanny721TokenUriResolver {
 
     /// @notice The base SVG content for a banny body.
     /// @return The SVG string.
-    function BANNY_BODY() external view returns (string memory);
+    function bannyBody() external view returns (string memory);
 
     /// @notice The default SVG content for alien banny eyes.
     /// @return The SVG string.
-    function DEFAULT_ALIEN_EYES() external view returns (string memory);
+    function defaultAlienEyes() external view returns (string memory);
 
     /// @notice The default SVG content for a banny mouth.
     /// @return The SVG string.
-    function DEFAULT_MOUTH() external view returns (string memory);
+    function defaultMouth() external view returns (string memory);
 
     /// @notice The default SVG content for a banny necklace.
     /// @return The SVG string.
-    function DEFAULT_NECKLACE() external view returns (string memory);
+    function defaultNecklace() external view returns (string memory);
 
     /// @notice The default SVG content for standard banny eyes.
     /// @return The SVG string.
-    function DEFAULT_STANDARD_EYES() external view returns (string memory);
+    function defaultStandardEyes() external view returns (string memory);
 
     /// @notice Get the names associated with a token (product name, category name, and display name).
     /// @param hook The hook address of the collection.

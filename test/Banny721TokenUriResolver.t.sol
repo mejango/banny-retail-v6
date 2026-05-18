@@ -170,11 +170,11 @@ contract TestBanny721TokenUriResolver is Test {
     //*********************************************************************//
 
     function test_constructor_setsDefaults() public view {
-        assertEq(resolver.BANNY_BODY(), "<path/>");
-        assertEq(resolver.DEFAULT_NECKLACE(), "<necklace/>");
-        assertEq(resolver.DEFAULT_MOUTH(), "<mouth/>");
-        assertEq(resolver.DEFAULT_STANDARD_EYES(), "<eyes/>");
-        assertEq(resolver.DEFAULT_ALIEN_EYES(), "<alieneyes/>");
+        assertEq(resolver.bannyBody(), "<path/>");
+        assertEq(resolver.defaultNecklace(), "<necklace/>");
+        assertEq(resolver.defaultMouth(), "<mouth/>");
+        assertEq(resolver.defaultStandardEyes(), "<eyes/>");
+        assertEq(resolver.defaultAlienEyes(), "<alieneyes/>");
         assertEq(resolver.owner(), deployer);
     }
 

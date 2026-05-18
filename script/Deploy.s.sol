@@ -408,11 +408,11 @@ contract DeployScript is Script, Sphinx {
             // Deploy it if it has not been deployed yet.
             resolver = !_resolverIsDeployed
                 ? new Banny721TokenUriResolver{salt: RESOLVER_SALT}({
-                    bannyBody: bannyBodySvg,
-                    defaultNecklace: defaultNecklaceSvg,
-                    defaultMouth: defaultMouthSvg,
-                    defaultStandardEyes: defaultStandardEyesSvg,
-                    defaultAlienEyes: defaultAlienEyesSvg,
+                    bannyBodySvg: bannyBodySvg,
+                    defaultNecklaceSvg: defaultNecklaceSvg,
+                    defaultMouthSvg: defaultMouthSvg,
+                    defaultStandardEyesSvg: defaultStandardEyesSvg,
+                    defaultAlienEyesSvg: defaultAlienEyesSvg,
                     owner: operator,
                     trustedForwarder: trustedForwarder
                 })
