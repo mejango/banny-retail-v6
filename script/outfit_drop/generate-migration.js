@@ -807,7 +807,7 @@ function generateBatchScript(batchNumber, tierIds, transferDataFunctions, items)
         JB721TiersHook hook = JB721TiersHook(hookAddress);
         
         // Get project ID from hook
-        uint256 projectId = hook.PROJECT_ID();
+        uint256 projectId = hook.projectId();
         
         // Deploy the appropriate chain-specific migration contract with transfer data
         `;
@@ -1716,7 +1716,7 @@ contract AirdropOutfitsScript is Script, Sphinx {
         JB721TiersHook hook = JB721TiersHook(hookAddress);
         
         // Get project ID from hook
-        uint256 projectId = hook.PROJECT_ID();
+        uint256 projectId = hook.projectId();
         
         // Deploy the appropriate chain-specific migration contract with transfer data
         if (chainId == 1) {

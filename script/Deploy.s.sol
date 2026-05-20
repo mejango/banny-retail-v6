@@ -430,7 +430,7 @@ contract DeployScript is Script, Sphinx {
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;
 
         // Deploy the $BANNY Revnet.
-        revnet.basic_deployer
+        revnet.basicDeployer
             .deployFor({
                 revnetId: 0,
                 configuration: bannyverseConfig.configuration,
