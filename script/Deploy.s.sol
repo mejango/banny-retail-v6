@@ -5,10 +5,6 @@ import {Hook721Deployment, Hook721DeploymentLib} from "@bananapus/721-hook-v6/sc
 import {CoreDeployment, CoreDeploymentLib} from "@bananapus/core-v6/script/helpers/CoreDeploymentLib.sol";
 import {SuckerDeployment, SuckerDeploymentLib} from "@bananapus/suckers-v6/script/helpers/SuckerDeploymentLib.sol";
 import {
-    RouterTerminalDeployment,
-    RouterTerminalDeploymentLib
-} from "@bananapus/router-terminal-v6/script/helpers/RouterTerminalDeploymentLib.sol";
-import {
     RevnetCoreDeployment,
     RevnetCoreDeploymentLib
 } from "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
@@ -22,7 +18,6 @@ import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
-import {JBTerminalConfig} from "@bananapus/core-v6/src/structs/JBTerminalConfig.sol";
 import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.sol";
 import {REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVAutoIssuance.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
@@ -34,7 +29,6 @@ import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHook
 import {REVStageConfig} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
-import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
@@ -42,10 +36,10 @@ import {Script} from "forge-std/Script.sol";
 import {Banny721TokenUriResolver} from "./../src/Banny721TokenUriResolver.sol";
 
 struct BannyverseRevnetConfig {
+    JBAccountingContext[] accountingContextsToAccept;
     REVConfig configuration;
-    JBTerminalConfig[] terminalConfigurations;
-    REVSuckerDeploymentConfig suckerDeploymentConfiguration;
     REVDeploy721TiersHookConfig hookConfiguration;
+    REVSuckerDeploymentConfig suckerDeploymentConfiguration;
 }
 
 contract DeployScript is Script, Sphinx {
@@ -57,8 +51,6 @@ contract DeployScript is Script, Sphinx {
     RevnetCoreDeployment revnet;
     /// @notice tracks the deployment of the 721 hook contracts for the chain we are deploying to.
     Hook721Deployment hook;
-    /// @notice tracks the deployment of the router terminal.
-    RouterTerminalDeployment routerTerminal;
 
     BannyverseRevnetConfig bannyverseConfig;
 
@@ -113,14 +105,6 @@ contract DeployScript is Script, Sphinx {
         suckers = SuckerDeploymentLib.getDeployment(
             vm.envOr("NANA_SUCKERS_DEPLOYMENT_PATH", string("node_modules/@bananapus/suckers-v6/deployments/"))
         );
-        // Get the deployment addresses for the 721 hook contracts for this chain.
-        routerTerminal = RouterTerminalDeploymentLib.getDeployment(
-            vm.envOr(
-                "NANA_ROUTER_TERMINAL_DEPLOYMENT_PATH",
-                string("node_modules/@bananapus/router-terminal-v6/deployments/")
-            )
-        );
-
         trustedForwarder = core.controller.trustedForwarder();
 
         bannyverseConfig = getBannyverseRevnetConfig();
@@ -130,21 +114,12 @@ contract DeployScript is Script, Sphinx {
     }
 
     function getBannyverseRevnetConfig() internal view returns (BannyverseRevnetConfig memory) {
-        // The terminals that the project will accept funds through.
-        JBTerminalConfig[] memory terminalConfigurations = new JBTerminalConfig[](2);
         JBAccountingContext[] memory accountingContextsToAccept = new JBAccountingContext[](1);
 
-        // Accept the chain's native currency through the multi terminal.
+        // Accept the chain's native currency through the Revnet deployer's canonical multi terminal. The deployer
+        // registers its immutable router-terminal registry separately, so this config only needs accounting contexts.
         accountingContextsToAccept[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
-
-        terminalConfigurations[0] =
-            JBTerminalConfig({terminal: core.terminal, accountingContextsToAccept: accountingContextsToAccept});
-
-        terminalConfigurations[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(routerTerminal.registry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -348,9 +323,8 @@ contract DeployScript is Script, Sphinx {
             REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigurations, salt: SUCKER_SALT});
 
         return BannyverseRevnetConfig({
+            accountingContextsToAccept: accountingContextsToAccept,
             configuration: revnetConfiguration,
-            terminalConfigurations: terminalConfigurations,
-            suckerDeploymentConfiguration: suckerDeploymentConfiguration,
             hookConfiguration: REVDeploy721TiersHookConfig({
                 baseline721HookConfiguration: REVBaseline721HookConfig({
                     name: "Banny Retail",
@@ -372,7 +346,8 @@ contract DeployScript is Script, Sphinx {
                 preventOperatorUpdatingMetadata: false,
                 preventOperatorMinting: false,
                 preventOperatorIncreasingDiscountPercent: false
-            })
+            }),
+            suckerDeploymentConfiguration: suckerDeploymentConfiguration
         });
     }
 
@@ -430,11 +405,11 @@ contract DeployScript is Script, Sphinx {
         bannyverseConfig.hookConfiguration.baseline721HookConfiguration.tokenUriResolver = resolver;
 
         // Deploy the $BANNY Revnet.
-        revnet.basic_deployer
+        revnet.basicDeployer
             .deployFor({
                 revnetId: 0,
                 configuration: bannyverseConfig.configuration,
-                terminalConfigurations: bannyverseConfig.terminalConfigurations,
+                accountingContextsToAccept: bannyverseConfig.accountingContextsToAccept,
                 suckerDeploymentConfiguration: bannyverseConfig.suckerDeploymentConfiguration,
                 tiered721HookConfiguration: bannyverseConfig.hookConfiguration,
                 allowedPosts: new REVCroptopAllowedPost[](0)
