@@ -1,6 +1,6 @@
 {
   "name": "@bannynet/core-v6",
-  "version": "0.0.36",
+  "version": "0.0.37",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,11 +10,7 @@
     "foundry.toml",
     "references/",
     "remappings.txt",
-    "script/Add.Denver.s.sol",
-    "script/Deploy.s.sol",
-    "script/Drop1.s.sol",
-    "script/helpers/",
-    "script/outfit_drop/",
+    "script/",
     "src/"
   ],
   "engines": {
