@@ -1,6 +1,6 @@
 {
   "name": "@bannynet/core-v6",
-  "version": "0.0.38",
+  "version": "0.0.39",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -34,7 +34,7 @@
     "@bananapus/suckers-v6": "^0.0.52",
     "@croptop/core-v6": "^0.0.53",
     "@openzeppelin/contracts": "5.6.1",
-    "@rev-net/core-v6": "^0.0.65",
+    "@rev-net/core-v6": "^0.0.67",
     "keccak": "3.0.4"
   },
   "devDependencies": {
