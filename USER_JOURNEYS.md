@@ -61,7 +61,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 1. Call `decorateBannyWith(...)` for the target body.
 2. The resolver checks compatibility and diffs old versus new attachments.
 3. Equipped accessories move into resolver custody while attached.
-4. The token URI for the body now reflects the combined SVG and metadata.
+4. The token URI for the body reflects the combined SVG and metadata.
 
 **Failure Modes**
 

@@ -128,7 +128,7 @@ contract DuplicateCategoryRetentionTest is Test {
         uint256[] memory replacement = new uint256[](1);
         replacement[0] = NECKLACE_TWO;
 
-        // After the fix, the duplicate category is detected and the call reverts.
+        // Retained outfits are revalidated, so duplicate categories revert.
         vm.expectRevert(
             abi.encodeWithSelector(Banny721TokenUriResolver.Banny721TokenUriResolver_DuplicateCategory.selector, 3)
         );

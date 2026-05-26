@@ -23,25 +23,26 @@ library MigrationHelper {
         internal
         view
     {
-        // Get V5 asset token IDs (from V5 hook)
-        (uint256 v5BackgroundId, uint256[] memory v5OutfitIds) =
+        // Get target asset token IDs from the hook being verified.
+        (uint256 targetBackgroundId, uint256[] memory targetOutfitIds) =
             resolver.assetIdsOf({hook: hookAddress, bannyBodyId: tokenId});
         // Get V4 asset token IDs (from V4 hook)
         (uint256 v4BackgroundId, uint256[] memory v4OutfitIds) =
             v4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
 
         // Compare background UPCs (not token IDs, since they may differ)
-        uint256 v5BackgroundUpc = v5BackgroundId == 0 ? 0 : _getUpc({hook: hookAddress, tokenId: v5BackgroundId});
+        uint256 targetBackgroundUpc =
+            targetBackgroundId == 0 ? 0 : _getUpc({hook: hookAddress, tokenId: targetBackgroundId});
         uint256 v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({hook: v4HookAddress, tokenId: v4BackgroundId});
 
-        bool matches = v5BackgroundUpc == v4BackgroundUpc && v5OutfitIds.length == v4OutfitIds.length;
+        bool matches = targetBackgroundUpc == v4BackgroundUpc && targetOutfitIds.length == v4OutfitIds.length;
 
         if (matches) {
             // Compare outfit UPCs
-            for (uint256 i = 0; i < v5OutfitIds.length; i++) {
-                uint256 v5OutfitUpc = _getUpc({hook: hookAddress, tokenId: v5OutfitIds[i]});
+            for (uint256 i = 0; i < targetOutfitIds.length; i++) {
+                uint256 targetOutfitUpc = _getUpc({hook: hookAddress, tokenId: targetOutfitIds[i]});
                 uint256 v4OutfitUpc = _getUpc({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
-                if (v5OutfitUpc != v4OutfitUpc) {
+                if (targetOutfitUpc != v4OutfitUpc) {
                     matches = false;
                     break;
                 }
@@ -54,19 +55,20 @@ library MigrationHelper {
             v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({hook: v4HookAddress, tokenId: v4BackgroundId});
 
             require(
-                v5BackgroundUpc == v4BackgroundUpc && v5OutfitIds.length == v4OutfitIds.length, "V4/V5 asset mismatch"
+                targetBackgroundUpc == v4BackgroundUpc && targetOutfitIds.length == v4OutfitIds.length,
+                "V4/target asset mismatch"
             );
 
-            for (uint256 i = 0; i < v5OutfitIds.length; i++) {
-                uint256 v5OutfitUpc = _getUpc({hook: hookAddress, tokenId: v5OutfitIds[i]});
+            for (uint256 i = 0; i < targetOutfitIds.length; i++) {
+                uint256 targetOutfitUpc = _getUpc({hook: hookAddress, tokenId: targetOutfitIds[i]});
                 uint256 v4OutfitUpc = _getUpc({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
-                require(v5OutfitUpc == v4OutfitUpc, "V4/V5 asset mismatch");
+                require(targetOutfitUpc == v4OutfitUpc, "V4/target asset mismatch");
             }
         }
     }
 
-    /// @notice Verify that tier balances in V5 are never greater than in V4 for all owners and tiers
-    /// @param hookAddress V5 hook address
+    /// @notice Verify that target tier balances are never greater than V4 for all owners and tiers
+    /// @param hookAddress Target hook address
     /// @param v4HookAddress V4 hook address
     /// @param v4FallbackResolverAddress V4 fallback resolver address (legacy resolver)
     /// @param owners Array of owner addresses to check
@@ -81,7 +83,7 @@ library MigrationHelper {
         internal
         view
     {
-        IJB721TiersHookStore v5Store = JB721TiersHook(hookAddress).STORE();
+        IJB721TiersHookStore targetStore = JB721TiersHook(hookAddress).STORE();
         IJB721TiersHookStore v4Store = JB721TiersHook(v4HookAddress).STORE();
 
         for (uint256 i = 0; i < owners.length; i++) {
@@ -90,30 +92,30 @@ library MigrationHelper {
             for (uint256 j = 0; j < tierIds.length; j++) {
                 uint256 tierId = tierIds[j];
 
-                // Check if this tier is owned by the fallback resolver in V4
-                // If so, skip verification (these are now owned by rightful owners in V5)
+                // Check if this tier is owned by the fallback resolver in V4.
+                // If so, skip verification because target ownership was intentionally reassigned.
                 uint256 v4FallbackResolverBalance =
                     v4Store.tierBalanceOf({hook: v4HookAddress, owner: v4FallbackResolverAddress, tierId: tierId});
                 if (v4FallbackResolverBalance > 0) {
                     continue;
                 }
 
-                // Get V4 and V5 tier balances for this owner and tier
+                // Get V4 and target tier balances for this owner and tier.
                 uint256 v4Balance = v4Store.tierBalanceOf({hook: v4HookAddress, owner: owner, tierId: tierId});
-                uint256 v5Balance = v5Store.tierBalanceOf({hook: hookAddress, owner: owner, tierId: tierId});
+                uint256 targetBalance = targetStore.tierBalanceOf({hook: hookAddress, owner: owner, tierId: tierId});
 
-                // Require that V5 balance is never greater than V4 balance
+                // Require that the target balance is never greater than the V4 balance.
                 require(
-                    v5Balance <= v4Balance,
+                    targetBalance <= v4Balance,
                     string.concat(
-                        "V5 tier balance exceeds V4: owner=",
+                        "target tier balance exceeds V4: owner=",
                         _addressToString(owner),
                         " tier=",
                         _uint256ToString(tierId),
                         " v4Balance=",
                         _uint256ToString(v4Balance),
-                        " v5Balance=",
-                        _uint256ToString(v5Balance)
+                        " targetBalance=",
+                        _uint256ToString(targetBalance)
                     )
                 );
             }
@@ -155,4 +157,3 @@ library MigrationHelper {
         return string(buffer);
     }
 }
-

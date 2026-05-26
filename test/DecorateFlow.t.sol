@@ -84,7 +84,7 @@ contract DecorateFlowMockStore {
 
 /// @title DecorateFlowTests
 /// @notice Comprehensive tests for the Banny decoration (dress/undress) flow.
-///         Includes tests proving why the outfit authorization fix is needed.
+///         Includes coverage for outfit and background authorization boundaries.
 contract DecorateFlowTests is Test {
     Banny721TokenUriResolver resolver;
     DecorateFlowMockHook hook;
@@ -173,12 +173,12 @@ contract DecorateFlowTests is Test {
     }
 
     // =========================================================================
-    //  SECTION 1: OUTFIT AUTHORIZATION REGRESSION — Why the diff is needed
+    //  SECTION 1: OUTFIT AUTHORIZATION REGRESSION
     // =========================================================================
 
-    /// @notice CRITICAL TEST: Proves the outfit authorization vulnerability.
+    /// @notice A non-owner cannot use token 0 ownership to equip someone else's unworn outfit.
     ///
-    ///         The OLD code was:
+    ///         The vulnerable authorization pattern was:
     ///           if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(wearerOf(hook, outfitId)))
     ///
     ///         When an outfit is UNWORN, wearerOf() returns 0. The old code then calls ownerOf(0)
@@ -186,8 +186,8 @@ contract DecorateFlowTests is Test {
     ///         their address for ownerOf(0)), they pass the authorization check and can steal
     ///         any unworn outfit — dressing their body with someone else's NFT.
     ///
-    ///         The FIX checks wearerOf == 0 first and immediately reverts, so only the outfit's
-    ///         direct owner can use an unworn outfit.
+    ///         Current behavior checks wearerOf == 0 first and immediately reverts, so only the
+    ///         outfit's direct owner can use an unworn outfit.
     function test_l18_nonOwnerCannotUseUnwornOutfitViaTokenZero() public {
         // Setup: Bob owns a body and token 0 on the hook. Alice owns a necklace (unworn).
         hook.setOwner(BODY_A, bob);
@@ -198,8 +198,8 @@ contract DecorateFlowTests is Test {
         assertEq(resolver.wearerOf(address(hook), NECKLACE_1), 0, "necklace is unworn");
 
         // Bob tries to decorate his body with alice's unworn necklace.
-        // OLD CODE BUG: wearerOf(hook, NECKLACE_1) = 0, ownerOf(0) = bob, so bob passes the check.
-        // FIXED CODE: wearerOf = 0 → immediate revert with UnauthorizedOutfit.
+        // Vulnerable behavior would treat ownerOf(0) as authorization.
+        // Current behavior reverts immediately when wearerOf is 0.
         uint256[] memory outfits = new uint256[](1);
         outfits[0] = NECKLACE_1;
 
@@ -241,7 +241,7 @@ contract DecorateFlowTests is Test {
         resolver.decorateBannyWith(address(hook), BODY_A, 0, outfits);
     }
 
-    /// @notice The fix preserves the legitimate case: outfit owner CAN use their own unworn outfit.
+    /// @notice An outfit owner can use their own unworn outfit.
     function test_l18_outfitOwnerCanUseOwnUnwornOutfit() public {
         // Alice owns both body and necklace. Necklace is unworn.
         uint256[] memory outfits = new uint256[](1);
@@ -255,7 +255,7 @@ contract DecorateFlowTests is Test {
         assertEq(hook.ownerOf(NECKLACE_1), address(resolver), "resolver holds the necklace");
     }
 
-    /// @notice The fix preserves the legitimate case: owner of a body wearing an outfit
+    /// @notice The owner of a body wearing an outfit
     ///         can reassign it (e.g., move to another body or replace).
     function test_l18_wearerOwnerCanReassignWornOutfit() public {
         // Alice dresses body A with necklace.
@@ -336,9 +336,9 @@ contract DecorateFlowTests is Test {
         assertEq(resolver.wearerOf(address(hook), NECKLACE_1), BODY_A);
     }
 
-    /// @notice CRITICAL TEST: Same vulnerability exists for backgrounds.
+    /// @notice A non-owner cannot use token 0 ownership to equip someone else's unused background.
     ///
-    ///         Line 1214 (OLD):
+    ///         The vulnerable authorization pattern was:
     ///           if (_msgSender() != owner && _msgSender() != IERC721(hook).ownerOf(userOf(hook, backgroundId)))
     ///
     ///         When a background is NOT in use, userOf() returns 0. The old code then calls
@@ -390,7 +390,7 @@ contract DecorateFlowTests is Test {
         resolver.decorateBannyWith(address(hook), BODY_A, BACKGROUND_1, empty);
     }
 
-    /// @notice Background owner CAN use their own unused background (fix preserves this).
+    /// @notice A background owner can use their own unused background.
     function test_l18_backgroundOwnerCanUseOwnUnusedBackground() public {
         uint256[] memory empty = new uint256[](0);
 
