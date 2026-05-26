@@ -86,8 +86,7 @@ contract MockStoreM8 {
 
 /// @notice Removed tier causes outfit state desynchronization.
 /// @dev When a previously equipped outfit's tier is removed, `_productOfTokenId` returns category 0.
-///      Before the fix, this caused the first while loop to exit immediately (due to `!= 0` guard),
-///      and the second while loop would transfer out outfits that were being re-equipped.
+///      Re-equipping must not transfer out outfits that remain in the requested outfit set.
 contract RemovedTierDesyncTest is Test {
     Banny721TokenUriResolver resolver;
     MockHookM8 hook;

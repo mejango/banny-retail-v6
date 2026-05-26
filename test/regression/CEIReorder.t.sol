@@ -78,9 +78,8 @@ contract MockStoreI25 {
 }
 
 /// @notice _decorateBannyWithBackground follows CEI pattern.
-/// @dev The fix reordered state writes (effects) before external transfers (interactions)
-/// in _decorateBannyWithBackground. This test verifies that after a background replacement,
-/// state is consistent and both the old background return and new background custody work.
+/// @dev Verifies that a background replacement leaves state consistent while returning the old background and taking
+/// custody of the new one.
 contract CEIReorderTest is Test {
     Banny721TokenUriResolver resolver;
     MockHookI25 hook;

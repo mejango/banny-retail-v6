@@ -136,7 +136,7 @@ contract TryTransferFromStrandsAssetsTest is Test {
         assertEq(hook.ownerOf(BACKGROUND_TOKEN), address(resolver), "background remains in resolver custody");
         assertEq(hook.ownerOf(NECKLACE_TOKEN), address(resolver), "outfit remains in resolver custody");
 
-        // KEY CHANGE: State is now PRESERVED --tracking is NOT cleared on failed transfers.
+        // Failed transfer-backs preserve state; tracking is not cleared.
         // Background remains tracked because _decorateBannyWithBackground aborts the removal on failed transfer.
         assertEq(
             resolver.userOf(address(hook), BACKGROUND_TOKEN),

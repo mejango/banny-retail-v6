@@ -32,7 +32,7 @@ contract MigrationHelperVerificationBypassTest is Test {
         uint256[] memory tierIds = new uint256[](1);
         tierIds[0] = 7;
 
-        // Alice is over-allocated in V5 versus V4 for tier 7.
+        // Alice is over-allocated in the target hook versus V4 for tier 7.
         v4Store.setTierBalance(address(v4Hook), ALICE, 7, 1);
         v5Store.setTierBalance(address(v5Hook), ALICE, 7, 2);
 
@@ -55,7 +55,7 @@ contract MigrationHelperVerificationBypassTest is Test {
 
         vm.expectRevert(
             bytes(
-                "V5 tier balance exceeds V4: owner=0x00000000000000000000000000000000000a11ce tier=7 v4Balance=1 v5Balance=2"
+                "target tier balance exceeds V4: owner=0x00000000000000000000000000000000000a11ce tier=7 v4Balance=1 targetBalance=2"
             )
         );
         harness.verifyTierBalances(address(v5Hook), address(v4Hook), FALLBACK_RESOLVER, owners, tierIds);

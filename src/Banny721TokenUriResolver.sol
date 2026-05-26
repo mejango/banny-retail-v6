@@ -65,8 +65,8 @@ contract Banny721TokenUriResolver is
     // ------------------------ private constants ------------------------ //
     //*********************************************************************//
 
-    /// @notice Just a kind reminder to our readers.
-    /// @dev Used in 721 token ID generation.
+    /// @notice The product-token ID divisor used by the 721 tiers hook.
+    /// @dev Token IDs are `productId * 1_000_000_000 + tokenNumber`.
     uint256 private constant _ONE_BILLION = 1_000_000_000;
 
     /// @notice The duration that banny bodies can be locked for.
@@ -100,10 +100,10 @@ contract Banny721TokenUriResolver is
     // --------------------- public stored properties -------------------- //
     //*********************************************************************//
 
-    /// @notice The amount of time each banny body is currently locked for.
+    /// @notice The timestamp until which each banny body's outfit changes are locked.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body to lock.
-    mapping(address hook => mapping(uint256 upc => uint256)) public override outfitLockedUntil;
+    mapping(address hook => mapping(uint256 bannyBodyId => uint256)) public override outfitLockedUntil;
 
     /// @notice The base of the domain hosting the SVG files that can be lazily uploaded to the contract.
     string public override svgBaseUri;
@@ -138,7 +138,7 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
 
     /// @notice The outfits currently attached to each banny body.
-    /// @dev Naked Banny's will only be shown with outfits currently owned by the owner of the banny body.
+    /// @dev Naked Banny bodies are shown only with outfits currently owned by the body owner.
     /// @dev NOTE: Equipped outfits travel with the banny body NFT on transfer. When a body is transferred,
     /// the new owner inherits all equipped outfits and can unequip them to receive the outfit NFTs.
     // The _attachedOutfitIdsOf array grows with each attachment. Gas cost for operations
@@ -152,7 +152,7 @@ contract Banny721TokenUriResolver is
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
 
     /// @notice The background currently attached to each banny body.
-    /// @dev Naked Banny's will only be shown with a background currently owned by the owner of the banny body.
+    /// @dev Naked Banny bodies are shown only with a background currently owned by the body owner.
     /// @dev NOTE: Equipped backgrounds travel with the banny body NFT on transfer, same as outfits.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the background.
@@ -226,7 +226,7 @@ contract Banny721TokenUriResolver is
         string memory extraMetadata = "";
         string memory attributes = '"attributes": [';
 
-        // If this isn't a banny body, return the asset SVG alone (or on a manakin banny).
+        // If this isn't a banny body, return the asset SVG alone (or on a mannequin banny).
         if (product.category != _BODY_CATEGORY) {
             // Keep a reference to the SVG contents.
             contents = _svgOf({hook: hook, upc: product.id});
@@ -523,7 +523,7 @@ contract Banny721TokenUriResolver is
         // Get a reference to the banny body using the background.
         uint256 bannyBodyId = _userOf[hook][backgroundId];
 
-        // If no banny body is wearing the outfit, or if its no longer the background attached, return 0.
+        // If no banny body is using the background, or if it's no longer attached, return 0.
         if (bannyBodyId == 0 || _attachedBackgroundIdOf[hook][bannyBodyId] != backgroundId) return 0;
 
         // Return the banny body ID.
@@ -745,7 +745,7 @@ contract Banny721TokenUriResolver is
         // Start with the item's name.
         name = string.concat(_productNameOf(product.id), " ");
 
-        // Get just the token ID without the product ID included.
+        // Strip the product prefix from the token ID.
         uint256 rawTokenId = tokenId % _ONE_BILLION;
 
         string memory remainingString = " remaining";
@@ -1428,7 +1428,7 @@ contract Banny721TokenUriResolver is
                     }
                 }
 
-                // Effects: update state now that the old background has been successfully returned.
+                // Update state after the old background has been successfully returned.
                 _attachedBackgroundIdOf[hook][bannyBodyId] = backgroundId;
                 _userOf[hook][backgroundId] = bannyBodyId;
 
@@ -1446,7 +1446,7 @@ contract Banny721TokenUriResolver is
                         _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
                     }
                 } else {
-                    // No transfer needed — just clear the stale attachment record.
+                    // No transfer is needed; clear the stale attachment record.
                     _attachedBackgroundIdOf[hook][bannyBodyId] = 0;
                 }
             }
@@ -1493,7 +1493,7 @@ contract Banny721TokenUriResolver is
             previousOutfitProductCategory = _productOfTokenId({hook: hook, tokenId: previousOutfitId}).category;
         }
 
-        // Iterate through each outfit, transfering them in and adding them to the banny if needed, while transfering
+        // Iterate through each outfit, transferring it in and adding it to the banny if needed, while transferring
         // out and removing old outfits no longer being worn.
         for (uint256 i; i < outfitIds.length;) {
             // Set the outfit ID being iterated on.
@@ -1564,8 +1564,8 @@ contract Banny721TokenUriResolver is
             // Category 0 means the tier was removed — these entries are always processed (transferred out and
             // skipped) so the index advances past them.
             while (previousOutfitId != 0 && previousOutfitProductCategory <= outfitProductCategory) {
-                // Transfer the previous outfit to the owner of the banny if its not being worn.
-                // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
+                // Transfer the previous outfit to the owner of the banny if it's not being worn.
+                // `_attachedOutfitIdsOf` has not been rewritten yet, so the wearer should still be the banny body being
                 // decorated.
                 if (previousOutfitId != outfitId && wearerOf({hook: hook, outfitId: previousOutfitId}) == bannyBodyId) {
                     // Use try-transfer: the previous outfit may have been burned or its tier removed.
@@ -1581,9 +1581,9 @@ contract Banny721TokenUriResolver is
                 }
 
                 if (++previousOutfitIndex < previousOutfitIds.length) {
-                    // set the next previous outfit.
+                    // Advance to the next previous outfit.
                     previousOutfitId = previousOutfitIds[previousOutfitIndex];
-                    // Get the next previous outfit.
+                    // Get the next previous outfit's category.
                     previousOutfitProductCategory = _productOfTokenId({hook: hook, tokenId: previousOutfitId}).category;
                 } else {
                     previousOutfitId = 0;
@@ -1593,7 +1593,7 @@ contract Banny721TokenUriResolver is
 
             // If the outfit is not already being worn by the banny, transfer it to this contract.
             if (wearerOf({hook: hook, outfitId: outfitId}) != bannyBodyId) {
-                // Store the banny that's in the background.
+                // Track the banny body now wearing this outfit.
                 _wearerOf[hook][outfitId] = bannyBodyId;
 
                 // Transfer the outfit to this contract.
@@ -1614,7 +1614,7 @@ contract Banny721TokenUriResolver is
         // attached to this banny. Since only one outfit per category is allowed, this is bounded by the number of
         // outfit categories (a small, fixed set).
         while (previousOutfitId != 0) {
-            // `_attachedOutfitIdsOf` hasnt been called yet, so the wearer should still be the banny body being
+            // `_attachedOutfitIdsOf` has not been rewritten yet, so the wearer should still be the banny body being
             // decorated.
             // Skip outfits that are being re-equipped in the new outfit set.
             if (_isInArray({value: previousOutfitId, array: outfitIds})) {
@@ -1632,7 +1632,7 @@ contract Banny721TokenUriResolver is
             }
 
             if (++previousOutfitIndex < previousOutfitIds.length) {
-                // remove previous product.
+                // Advance to the next previous outfit.
                 previousOutfitId = previousOutfitIds[previousOutfitIndex];
             } else {
                 previousOutfitId = 0;

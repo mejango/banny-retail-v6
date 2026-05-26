@@ -1204,7 +1204,7 @@ contract Drop1Script is Script, Sphinx {
         require(maxTierId == maxTierIdBeforeAdjust + 47, "Drop1: maxTierIdOf drift between proposal and execution");
 
         // Build the product IDs array for the newly added tiers.
-        // The last 47 tier IDs correspond to the 47 tiers we just added.
+        // The last 47 tier IDs correspond to this drop's tiers.
         uint256[] memory productIds = new uint256[](47);
         for (uint256 i; i < 47; i++) {
             productIds[i] = maxTierId - 46 + i;
