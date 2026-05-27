@@ -246,7 +246,7 @@ contract TestQALastMile is Test {
         string memory svgMarker = '"image":"data:image/svg+xml;base64,';
         bytes memory markerBytes = bytes(svgMarker);
         uint256 svgBase64Start = _indexOf(json, svgMarker);
-        assertTrue(svgBase64Start != type(uint256).max, "should find SVG base64 start");
+        assertNotEq(svgBase64Start, type(uint256).max, "should find SVG base64 start");
 
         // The SVG base64 starts after the marker and ends at the closing quote + brace.
         uint256 svgDataStart = svgBase64Start + markerBytes.length;
