@@ -2,13 +2,19 @@
 
 Banny Retail is an onchain avatar system for Juicebox 721 collections. A body NFT can wear outfit NFTs, use a background NFT, and resolve to a base64 JSON token URI whose image is an onchain SVG.
 
-Docs: <https://docs.juicebox.money>
-Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)  
-User journeys: [USER_JOURNEYS.md](./USER_JOURNEYS.md)  
-Skills: [SKILLS.md](./SKILLS.md)  
-Risks: [RISKS.md](./RISKS.md)  
-Administration: [ADMINISTRATION.md](./ADMINISTRATION.md)  
-Audit instructions: [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md)
+External docs: <https://docs.juicebox.money>
+
+## Documentation
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — system structure and contract responsibilities
+- [USER_JOURNEYS.md](./USER_JOURNEYS.md) — end-to-end flows for body owners and asset holders
+- [INVARIANTS.md](./INVARIANTS.md) — properties guaranteed by the resolver
+- [RISKS.md](./RISKS.md) — known risks and edge cases
+- [ADMINISTRATION.md](./ADMINISTRATION.md) — owner-only actions and operational levers
+- [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md) — guidance for security reviewers
+- [SKILLS.md](./SKILLS.md) — repo-specific gotchas and integration notes
+- [STYLE_GUIDE.md](./STYLE_GUIDE.md) — coding and naming conventions
+- [CHANGELOG.md](./CHANGELOG.md) — notable changes
 
 ## Overview
 

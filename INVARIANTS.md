@@ -1,7 +1,5 @@
 # Invariants of Banny NFT Resolver
 
-Last updated: 2026-05-28.
-
 Scope: `Banny721TokenUriResolver` (the single src/ contract) — the custom on-chain URI resolver attached to the Banny project (revnet 4 / BAN) of the Juicebox V6 deployment. The resolver is wired to a `JB721TiersHook` instance; the hook handles tier minting and ownership, while the resolver composes equipped outfits + background SVGs into a single token URI.
 
 Banny model in one sentence: **bodies are the carrier NFTs**; outfits and backgrounds are separate tier NFTs that, while "equipped", are held in the resolver's custody so their composed appearance follows the body wherever it goes.
