@@ -2,7 +2,6 @@
 
 Banny Retail is an onchain avatar system for Juicebox 721 collections. A body NFT can wear outfit NFTs, use a background NFT, and resolve to a base64 JSON token URI whose image is an onchain SVG.
 
-External docs: <https://docs.juicebox.money>
 
 ## Documentation
 
