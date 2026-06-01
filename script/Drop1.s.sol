@@ -50,11 +50,58 @@ contract Drop1Script is Script, Sphinx {
     }
 
     function deploy() public sphinx {
+        // Build the Drop 1 tier set, resolving every reserve-bearing tier's beneficiary to the configured
+        // `reserveBeneficiary`.
+        (string[] memory names, bytes32[] memory svgHashes, JB721TierConfig[] memory products) =
+            buildDrop1Tiers(reserveBeneficiary);
+
+        // Capture the pre-existing maxTierIdOf so we can detect drift between Sphinx proposal-time simulation and
+        // execution. Without this guard, an authorized `ADJUST_721_TIERS` call landing between proposal and
+        // execution would shift our 47 new tier IDs upward, and the metadata writes below would silently target
+        // the wrong UPC range (or land on tiers that did not get our SVG/name data).
+        uint256 maxTierIdBeforeAdjust = hook.STORE().maxTierIdOf(address(hook));
+
+        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
+
+        // Read maxTierIdOf after adjustTiers so the value reflects our newly added tiers,
+        // avoiding a race condition where another transaction could change maxTierIdOf between
+        // the read and the adjustTiers call.
+        uint256 maxTierId = hook.STORE().maxTierIdOf(address(hook));
+
+        // Drift detection: our 47 tiers should occupy exactly the range (maxTierIdBeforeAdjust, maxTierId]. If
+        // another transaction added tiers between proposal and execution, the range no longer matches the 47-tier
+        // assumption and the metadata writes would target the wrong UPCs.
+        require(maxTierId == maxTierIdBeforeAdjust + 47, "Drop1: maxTierIdOf drift between proposal and execution");
+
+        // Build the product IDs array for the newly added tiers.
+        // The last 47 tier IDs correspond to this drop's tiers.
+        uint256[] memory productIds = new uint256[](47);
+        for (uint256 i; i < 47; i++) {
+            productIds[i] = maxTierId - 46 + i;
+        }
+
+        bannyverse.resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
+        bannyverse.resolver.setProductNames({upcs: productIds, names: names});
+    }
+
+    /// @notice Builds the Drop 1 tier set: product names, SVG hashes, and tier configs.
+    /// @dev Tiers must be sorted by category ascending, and any tier with a non-zero `reserveFrequency` must have a
+    /// resolvable reserve beneficiary at add time. The first reserve-bearing tier sets the hook's default reserve
+    /// beneficiary (via `useReserveBeneficiaryAsDefault`) so that every later reserve-bearing tier inherits it.
+    /// @param reserveBeneficiary_ The address that receives reserve NFTs for every reserve-bearing tier in the drop.
+    /// @return names The product name for each tier, indexed to `products`.
+    /// @return svgHashes The SVG content hash for each tier, indexed to `products`.
+    /// @return products The tier configs to add.
+    function buildDrop1Tiers(address reserveBeneficiary_)
+        public
+        pure
+        returns (string[] memory names, bytes32[] memory svgHashes, JB721TierConfig[] memory products)
+    {
         uint256 decimals = 18;
 
-        string[] memory names = new string[](47);
-        bytes32[] memory svgHashes = new bytes32[](47);
-        JB721TierConfig[] memory products = new JB721TierConfig[](47);
+        names = new string[](47);
+        svgHashes = new bytes32[](47);
+        products = new JB721TierConfig[](47);
 
         // Desk
         names[0] = "Work Station";
@@ -153,6 +200,10 @@ contract Drop1Script is Script, Sphinx {
             splits: new JBSplit[](0)
         });
         // Block chain
+        // This is the first reserve-bearing tier in the drop (sorted by category ascending), so it establishes the
+        // hook's default reserve beneficiary. Setting it here means every later reserve-bearing tier can leave
+        // `reserveBeneficiary` as `address(0)` and inherit this default at add time, and the tiers add in one pass
+        // without a missing-beneficiary revert.
         names[4] = "Block Chain";
         svgHashes[4] = bytes32(0x5e609d387ea091bc8884a753ddd28dd43b8ed1243b29de6e9354ef1ab109a0b9);
         products[4] = JB721TierConfig({
@@ -160,13 +211,13 @@ contract Drop1Script is Script, Sphinx {
             initialSupply: 12,
             votingUnits: 0,
             reserveFrequency: 12,
-            reserveBeneficiary: address(0),
+            reserveBeneficiary: reserveBeneficiary_,
             encodedIpfsUri: bytes32(0xef6478be50575bade53e7ce4c9fb5b399643bcabed94f2111afb63e97fb9fd44),
             category: 3,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
                 allowOwnerMint: true,
-                useReserveBeneficiaryAsDefault: false,
+                useReserveBeneficiaryAsDefault: true,
                 transfersPausable: false,
                 useVotingUnits: false,
                 cantBeRemoved: false,
@@ -232,7 +283,7 @@ contract Drop1Script is Script, Sphinx {
             initialSupply: 100,
             votingUnits: 0,
             reserveFrequency: 25,
-            reserveBeneficiary: reserveBeneficiary,
+            reserveBeneficiary: reserveBeneficiary_,
             encodedIpfsUri: bytes32(0xf01423f9dae3de4adc7e372e6902a351e2c6193a385dde90f5baf37165914831),
             category: 6,
             discountPercent: 0,
@@ -1184,33 +1235,5 @@ contract Drop1Script is Script, Sphinx {
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
-
-        // Capture the pre-existing maxTierIdOf so we can detect drift between Sphinx proposal-time simulation and
-        // execution. Without this guard, an authorized `ADJUST_721_TIERS` call landing between proposal and
-        // execution would shift our 47 new tier IDs upward, and the metadata writes below would silently target
-        // the wrong UPC range (or land on tiers that did not get our SVG/name data).
-        uint256 maxTierIdBeforeAdjust = hook.STORE().maxTierIdOf(address(hook));
-
-        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
-
-        // Read maxTierIdOf after adjustTiers so the value reflects our newly added tiers,
-        // avoiding a race condition where another transaction could change maxTierIdOf between
-        // the read and the adjustTiers call.
-        uint256 maxTierId = hook.STORE().maxTierIdOf(address(hook));
-
-        // Drift detection: our 47 tiers should occupy exactly the range (maxTierIdBeforeAdjust, maxTierId]. If
-        // another transaction added tiers between proposal and execution, the range no longer matches the 47-tier
-        // assumption and the metadata writes would target the wrong UPCs.
-        require(maxTierId == maxTierIdBeforeAdjust + 47, "Drop1: maxTierIdOf drift between proposal and execution");
-
-        // Build the product IDs array for the newly added tiers.
-        // The last 47 tier IDs correspond to this drop's tiers.
-        uint256[] memory productIds = new uint256[](47);
-        for (uint256 i; i < 47; i++) {
-            productIds[i] = maxTierId - 46 + i;
-        }
-
-        bannyverse.resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
-        bannyverse.resolver.setProductNames({upcs: productIds, names: names});
     }
 }
