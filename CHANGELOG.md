@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.43 — Raise dependency floors and document conventions
+
+- Raise dependency floors to the latest published versions.
+- Document NatSpec, comment, and lint conventions in `STYLE_GUIDE.md`.
+
 ## 0.0.42 — Fix Drop 1 reserve-tier ordering
 
 - `script/Drop1.s.sol`: the first reserve-bearing tier in the drop ("Block Chain") now sets the hook's default reserve beneficiary. Previously this tier was added before any reserve beneficiary existed, so the 721 tiers store rejected it (a reserve-bearing tier needs either its own reserve beneficiary or a hook default already in place) and the whole Drop 1 tier addition reverted. The beneficiary is unchanged — every reserve-bearing tier still routes its reserve mints to the configured `reserveBeneficiary`.
