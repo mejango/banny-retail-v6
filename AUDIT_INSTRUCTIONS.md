@@ -2,7 +2,7 @@
 
 This repo is the Banny avatar composition layer. It does not mint the base NFTs, but it does hold equipped accessories and define the metadata users see.
 
-## Audit Objective
+## Audit objective
 
 There is a billion dollars of well-meaning projects' money in the Juicebox Money Engine, growing exponentially. Your job is to hack it before anyone else. Whoever hacks it first saves/steals the money, and you are obsessed with being this winner, while also being a steward of the protocol and wanting it to keep growing safely.
 
@@ -22,13 +22,13 @@ In scope:
 - `src/interfaces/IBanny721TokenUriResolver.sol`
 - deployment helpers in `script/`
 
-## Start Here
+## Start here
 
 1. `src/Banny721TokenUriResolver.sol`
 2. accessory receipt and release paths
 3. deployment wiring in `script/`
 
-## Security Model
+## Security model
 
 The resolver is an attachment and rendering layer around a `JB721TiersHook` collection.
 
@@ -37,7 +37,7 @@ The resolver is an attachment and rendering layer around a `JB721TiersHook` coll
 - body ownership should be the only authority that changes equipped state
 - accessory contracts may be hostile or malformed, so receipt and release ordering matters
 
-## Roles And Privileges
+## Roles and privileges
 
 | Role | Powers | How constrained |
 |------|--------|-----------------|
@@ -45,14 +45,14 @@ The resolver is an attachment and rendering layer around a `JB721TiersHook` coll
 | Resolver owner | Update metadata and SVG-related admin state | Must not control equipped-state authorization |
 | Accessory NFT contract | Execute callbacks during custody changes | Must not corrupt bookkeeping or steal custody |
 
-## Integration Assumptions
+## Integration assumptions
 
 | Dependency | Assumption | What breaks if wrong |
 |------------|------------|----------------------|
 | `JB721TiersHook` | Reports authentic body ownership and tier metadata | Unauthorized decoration or incorrect rendering |
 | Accessory ERC-721s | Behave like standard transferable NFTs | Custody or release flows fail unexpectedly |
 
-## Critical Invariants
+## Critical invariants
 
 1. Every accessory transferred into the resolver remains attributable to one body or is recoverable by the rightful owner.
 2. Only the current body owner or an intended delegate can change that body's equipped state.
@@ -60,7 +60,7 @@ The resolver is an attachment and rendering layer around a `JB721TiersHook` coll
 4. Outfit-lock state only affects the intended body for the intended duration.
 5. Metadata and SVG generation reflect current state and do not show impossible combinations.
 
-## Attack Surfaces
+## Attack surfaces
 
 - decoration entrypoints that replace one accessory with another
 - ERC-721 receipt hooks and any path that accepts custody
@@ -68,7 +68,7 @@ The resolver is an attachment and rendering layer around a `JB721TiersHook` coll
 - category validation and conflict checks
 - metadata assembly that assumes onchain assets or tier data remain available
 
-## Accepted Risks Or Behaviors
+## Accepted risks or behaviors
 
 - Equipped accessories intentionally follow the body unless they are unequipped first.
 - Preserving attribution on failed transfer-out is safer than dropping custody state.

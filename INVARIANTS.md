@@ -1,4 +1,4 @@
-# Invariants of Banny NFT Resolver
+# Invariants of Banny NFT resolver
 
 Scope: `Banny721TokenUriResolver` (the single src/ contract) — the custom on-chain URI resolver attached to the Banny project (revnet 4 / BAN) of the Juicebox V6 deployment. The resolver is wired to a `JB721TiersHook` instance; the hook handles tier minting and ownership, while the resolver composes equipped outfits + background SVGs into a single token URI.
 
@@ -15,7 +15,7 @@ The resolver has one `Ownable` owner (referred to as the **resolver owner** belo
 
 ---
 
-# Section A — Guarantees to Banny NFT Collectors
+## Section A — Guarantees to Banny NFT collectors
 
 ## A.1 Decoration authority is NFT-ownership-bound
 
@@ -72,7 +72,7 @@ If the body/outfit/background has no on-chain SVG (e.g., the owner hasn't pre-co
 
 ---
 
-# Section B — Guarantees & Powers of the Resolver Owner
+## Section B — Guarantees and powers of the resolver owner
 
 ## B.1 What the resolver owner CAN do (`onlyOwner`)
 
@@ -103,7 +103,7 @@ Net effect: any third party can complete the upload after owner pre-commit, but 
 
 ---
 
-# Section C — Per-Contract Operation Inventory
+## Section C — Per-contract operation inventory
 
 There is exactly one contract in `src/`: `Banny721TokenUriResolver` (`src/Banny721TokenUriResolver.sol`). It implements `IJB721TokenUriResolver`, `IBanny721TokenUriResolver`, `IERC721Receiver`, `Ownable`, `ERC2771Context`, `ReentrancyGuard`.
 
@@ -162,7 +162,7 @@ There is exactly one contract in `src/`: `Banny721TokenUriResolver` (`src/Banny7
 
 ---
 
-# Section D — Cross-Cutting Invariants
+## Section D — Cross-cutting invariants
 
 1. **Decoration is NFT-ownership-bound, never owner-bound.** `decorateBannyWith` and `lockOutfitChangesFor` consult `IERC721(hook).ownerOf` for *every* asset they touch. The resolver owner cannot dress, lock, or unequip any body or asset.
 
@@ -186,7 +186,7 @@ There is exactly one contract in `src/`: `Banny721TokenUriResolver` (`src/Banny7
 
 ---
 
-# Section E — Out-of-Scope Centralization Caveats
+## Section E — Out-of-scope centralization caveats
 
 These are NOT third-party attack vectors but are powers held by the resolver owner. They are scoped *narrowly* compared to the protocol-level owners enumerated in the top-level `INVARIANTS.md`.
 
@@ -200,7 +200,7 @@ These are NOT third-party attack vectors but are powers held by the resolver own
 
 ---
 
-# Section F — Key Code References
+## Section F — Key code references
 
 - Decoration gate (caller-is-body-owner check): `banny-retail-v6/src/Banny721TokenUriResolver.sol:1140-1145`
 - Body-category check during decoration: `banny-retail-v6/src/Banny721TokenUriResolver.sol:1148-1153`
