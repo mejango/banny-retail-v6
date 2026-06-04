@@ -1,6 +1,6 @@
 # Banny Retail
 
-Banny Retail is an onchain avatar system for Juicebox 721 collections. A body NFT can wear outfit NFTs, use a background NFT, and resolve to a base64 JSON token URI whose image is an onchain SVG.
+`@bannynet/core-v6` is the onchain avatar layer for Juicebox 721 collections. It defines how a body NFT wears outfit NFTs, uses a background NFT, and resolves to a base64 JSON token URI whose image is an onchain SVG.
 
 
 ## Documentation
@@ -28,13 +28,13 @@ The main user flows are:
 
 Use this repo when you need collection-specific, fully onchain metadata composition on top of Juicebox NFTs. Do not use it as a generic 721 hook. It is an app-layer resolver, not a protocol NFT primitive.
 
-## Key Contract
+## Key contract
 
 | Contract | Role |
 | --- | --- |
 | `Banny721TokenUriResolver` | Resolves metadata, stores equipped accessories, enforces outfit locks, and renders layered SVG output for Banny collections. |
 
-## Mental Model
+## Mental model
 
 This repo owns three things:
 
@@ -44,14 +44,14 @@ This repo owns three things:
 
 It does not own mint pricing, tier issuance, or treasury accounting.
 
-## Read These Files First
+## Read these files first
 
 1. `src/Banny721TokenUriResolver.sol`
 2. `test/DecorateFlow.t.sol`
 3. `test/OutfitTransferLifecycle.t.sol`
 4. `nana-721-hook-v6/src/JB721TiersHook.sol` for upstream mint and tier behavior
 
-## High-Signal Tests
+## High-signal tests
 
 1. `test/DecorateFlow.t.sol`
 2. `test/OutfitTransferLifecycle.t.sol`
@@ -59,7 +59,7 @@ It does not own mint pricing, tier issuance, or treasury accounting.
 4. `test/regression/TryTransferFromStrandsAssets.t.sol`
 5. `test/TestQALastMile.t.sol`
 
-## Integration Traps
+## Integration traps
 
 - the resolver holds equipped assets, so transfer edge cases matter as much as rendering output
 - transferred bodies carry their equipped assets, so a new body holder can inherit control of them
@@ -67,7 +67,7 @@ It does not own mint pricing, tier issuance, or treasury accounting.
 - outfit locks survive body transfers until expiry
 - metadata quality depends on lazily uploaded asset payloads, not only token state
 
-## Where State Lives
+## Where state lives
 
 - equipped outfit and background state live in `Banny721TokenUriResolver`
 - layer rendering and token URI generation live in the same resolver
@@ -96,11 +96,11 @@ Useful scripts:
 - `npm run deploy:mainnets:drop:1`
 - `npm run deploy:testnets:drop:1`
 
-## Deployment Notes
+## Deployment notes
 
 Deployments are handled through Sphinx using the environments configured in `script/Deploy.s.sol`. The resolver is meant to be plugged into a Juicebox 721 hook as that hook's token URI resolver.
 
-## Repository Layout
+## Repository layout
 
 ```text
 src/
@@ -115,7 +115,7 @@ script/
   helpers/
 ```
 
-## Risks And Notes
+## Risks and notes
 
 - attached outfits and backgrounds are held by the resolver while equipped
 - outfit locks are fixed-duration and cannot be shortened once set
@@ -123,7 +123,7 @@ script/
 - plain `transferFrom` can still create asset-tracking surprises around resolver custody
 - rendering quality depends on the integrity of uploaded SVG assets
 
-## For AI Agents
+## For AI agents
 
 - Treat this repo as an app-layer resolver, not as the NFT issuance primitive.
 - Start with `Banny721TokenUriResolver` and the lifecycle tests before summarizing attachment behavior.

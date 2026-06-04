@@ -1,16 +1,16 @@
 # User Journeys
 
-## Repo Purpose
+## Repo purpose
 
 This repo is the Banny-specific composition and metadata layer on top of a Juicebox 721 collection. It owns attachment custody, compatibility rules, outfit locks, and rendered token metadata. It does not own tier pricing, treasury accounting, or mint eligibility outside resolver-specific checks.
 
-## Primary Actors
+## Primary actors
 
 - collection operators publishing bodies, outfits, backgrounds, and metadata
 - collectors equipping and unequipping avatar pieces
 - auditors reviewing custody, lock, and rendering behavior
 
-## Key Surfaces
+## Key surfaces
 
 - `Banny721TokenUriResolver`: custody, compatibility, locks, and rendered SVG metadata
 - `decorateBannyWith(...)`: equips outfits and a background to a body and returns old items when possible
@@ -18,7 +18,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 - `setSvgHashesOf(...)` / `setSvgContentsOf(...)`: publish or repair art payloads
 - `setMetadata(...)` / `setProductNames(...)`: update collection metadata and UPC naming
 
-## Journey 1: Mint A Body, Outfit, And Background Set
+## Journey 1: Mint a body, outfit, and background set
 
 **Actor:** collector.
 
@@ -44,7 +44,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 
 - the user holds the components needed for later composition
 
-## Journey 2: Dress A Banny And Put Accessories Into Resolver Custody
+## Journey 2: Dress a Banny and put accessories into resolver custody
 
 **Actor:** body owner.
 
@@ -74,7 +74,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 - the body renders with the new composition
 - attached accessories stay in resolver custody until replaced or cleared
 
-## Journey 3: Lock A Banny's Appearance For A Period
+## Journey 3: Lock a Banny's appearance for a period
 
 **Actor:** body owner.
 
@@ -100,7 +100,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 
 - appearance changes are blocked until the lock expires
 
-## Journey 4: Publish Or Repair Onchain Art Assets
+## Journey 4: Publish or repair onchain art assets
 
 **Actor:** collection operator or art publisher.
 
@@ -127,7 +127,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 
 - token URIs can render the intended onchain art payloads
 
-## Journey 5: Update Collection Metadata And Product Catalog Entries
+## Journey 5: Update collection metadata and product catalog entries
 
 **Actor:** collection operator.
 
@@ -152,7 +152,7 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 
 - collection-level metadata and UPC names line up with the published art set
 
-## Journey 6: Unequip And Recover Custodied Accessories
+## Journey 6: Unequip and recover custodied accessories
 
 **Actor:** body owner.
 
@@ -178,13 +178,13 @@ This repo is the Banny-specific composition and metadata layer on top of a Juice
 
 - no-longer-equipped accessories are either returned or remain explicitly retained pending recovery
 
-## Trust Boundaries
+## Trust boundaries
 
 - this repo is trusted for custody of equipped accessories while attached
 - the underlying 721 hook remains the source of mint pricing, tier issuance, and treasury behavior
 - metadata correctness depends on operators publishing the intended SVG hashes and contents
 
-## Hand-Offs
+## Hand-offs
 
 - Use [nana-721-hook-v6](../nana-721-hook-v6/USER_JOURNEYS.md) for mint pricing, tier issuance, reserves, and treasury behavior.
 - Use this repo once the question is about custody, compatibility, outfit locks, or SVG composition.

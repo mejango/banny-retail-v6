@@ -16,38 +16,38 @@ This file focuses on the failure modes that can break NFT custody, bypass hook a
 | P1 | Silent transfer-failure retention | Failed returns intentionally keep attachment records to avoid stranding NFTs, but this can leave phantom render state if the asset is gone forever. | Explicit accepted-behavior rules, retained-item handling, and custody/state invariants. |
 | P1 | Sale-time outfit-lock griefing | A seller can transfer a locked body and force the buyer to wait up to 7 days before changing outfits. | Fixed-duration lock, marketplace disclosure, and user education. |
 
-## 1. Trust Assumptions
+## 1. Trust assumptions
 
 - **Trusted forwarder.** ERC-2771 `_msgSender()` is trusted for ownership checks and admin functions.
 - **Hook contract.** The `hook` parameter is caller-supplied and not validated against a registry.
 - **Owner.** The contract owner controls SVG hashes, product names, and metadata URIs.
 - **721 hook store.** `_storeOf(hook)` trusts the hook to return a legitimate store.
 
-## 2. Economic And Manipulation Risks
+## 2. Economic and manipulation risks
 
 - **Outfit theft via body transfer.** Equipped outfits and backgrounds move with the body NFT. If a body is sold while wearing valuable items, the buyer gains control of them.
 - **Try-catch silent failures with retention.** Failed transfer-outs preserve attachment records instead of clearing state. This avoids stranding but can create phantom render entries for burned or removed assets.
 - **Lock griefing.** `lockOutfitChangesFor` extends the lock to `block.timestamp + 7 days`. Locking just before a sale can block the buyer from changing the look for up to 7 days.
 
-## 3. Access Control
+## 3. Access control
 
 - **No hook validation.** Any address can be passed as `hook`. A malicious hook can fake `ownerOf`, execute arbitrary code during transfers, or return manipulated tier data.
 - **SVG content upload is permissionless once the hash is committed.** This is safe only if the committed hash is correct.
 - **`onERC721Received` restriction.** The contract only accepts NFTs when `operator == address(this)`. Plain `transferFrom` bypasses that and can permanently lock NFTs.
 
-## 4. DoS Vectors
+## 4. DoS vectors
 
 - **External call iteration scales with outfit count.** `decorateBannyWith` iterates both old and new outfit arrays, so gas cost scales with the number of outfits changed in one call.
 - **External hook calls in view functions.** `tokenUriOf` and `svgOf` call into the hook's store multiple times. A malicious or gas-heavy hook can make metadata unreadable.
 
-## 5. Integration Risks
+## 5. Integration risks
 
 - **Cross-contract NFT custody.** Outfits are held by the resolver via `safeTransferFrom`. If approval is revoked on the hook contract, equipping fails.
 - **Tier removal desync.** If a tier is removed while an outfit from that tier is equipped, the outfit may remain attached but render empty.
 - **Non-safe transfer loss.** Outfits sent directly via `transferFrom` can be permanently stuck because there is no rescue function.
 - **Reentrancy assumptions.** `decorateBannyWith` uses `nonReentrant`, but other functions rely on ordering and limited state impact instead.
 
-## 6. Invariants to Verify
+## 6. Invariants to verify
 
 - Every outfit held by the contract has a corresponding wearer mapping to a valid body.
 - Every background held by the contract has a corresponding user mapping to a valid body.
@@ -57,7 +57,7 @@ This file focuses on the failure modes that can break NFT custody, bypass hook a
 - SVG content integrity holds for all populated entries.
 - The number of held outfit NFTs should match the number of outfits still tracked as equipped for that hook.
 
-## 7. Accepted Behaviors
+## 7. Accepted behaviors
 
 ### 7.1 Failed transfers retain attachment records
 

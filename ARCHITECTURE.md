@@ -4,11 +4,11 @@
 
 `banny-retail-v6` is the Banny-specific metadata and attachment layer for Juicebox 721 collections. It does not mint NFTs or own treasury logic. It owns attachment custody, outfit-lock rules, and final token rendering.
 
-## System Overview
+## System overview
 
 The repo centers on `Banny721TokenUriResolver`. A 721 hook from `nana-721-hook-v6` points to this resolver for `tokenURI(...)`. Bodies, outfits, and backgrounds remain separate NFTs at the collection layer. The resolver escrows equipped accessories, records which assets are attached to each body, and composes the final SVG and JSON metadata on demand.
 
-## Core Invariants
+## Core invariants
 
 - A body can only reference accessories that are currently escrowed by the resolver.
 - Replacing an equipped item must atomically return the old item and escrow the new item.
@@ -24,13 +24,13 @@ The repo centers on `Banny721TokenUriResolver`. A 721 hook from `nana-721-hook-v
 | `Banny721TokenUriResolver` | Escrow, attachment state, lock windows, and metadata rendering | Main contract |
 | `IBanny721TokenUriResolver` | External integration surface | Used by hooks and offchain tooling |
 
-## Trust Boundaries
+## Trust boundaries
 
 - Minting, ownership transfer, and collection-level ERC-721 semantics live in `nana-721-hook-v6`.
 - This repo is trusted for rendering correctness and custody of equipped assets.
 - Asset-content upload is controlled by the registered content owner, but the contract verifies uploaded bytes against the stored hash.
 
-## Critical Flows
+## Critical flows
 
 ### Decorate
 
@@ -53,7 +53,7 @@ tokenURI(bodyId)
   -> returns base64 JSON metadata
 ```
 
-### Lock Outfit
+### Lock outfit
 
 ```text
 body owner
@@ -62,20 +62,20 @@ body owner
   -> later decoration and removal paths must respect it
 ```
 
-## Accounting Model
+## Accounting model
 
 This repo does not own treasury accounting. Its critical state is custody accounting: which NFTs are escrowed, which body they belong to, and when a body is locked against changes.
 
 That custody model uses lazy reconciliation for some stale attachment records. Read paths filter against current ownership and attachment state instead of rewriting storage on every outside transfer.
 
-## Security Model
+## Security model
 
 - The main failure mode is custody drift between slot state and actual escrowed NFTs.
 - Rendering order is part of app semantics, not cosmetic output.
 - Lazy reconciliation is intentional. Changes that assume storage is always perfectly clean can strand assets or mis-render bodies.
 - Any new asset category adds both a rendering concern and a custody concern.
 
-## Safe Change Guide
+## Safe change guide
 
 - Keep generic ERC-721 behavior in `nana-721-hook-v6`, not here.
 - Review escrow writes and transfer behavior together whenever changing attachment logic.
@@ -83,7 +83,7 @@ That custody model uses lazy reconciliation for some stale attachment records. R
 - If `tokenURI(...)` changes, test stable output for unchanged state and replacement behavior for changed state.
 - If adding slots or asset classes, update rendering order, slot replacement, and lock enforcement in one change.
 
-## Canonical Checks
+## Canonical checks
 
 - accessory escrow, replacement, and decoration flow:
   `test/DecorateFlow.t.sol`
@@ -92,7 +92,7 @@ That custody model uses lazy reconciliation for some stale attachment records. R
 - transfer-path protection against stranded attachments:
   `test/regression/TryTransferFromStrandsAssets.t.sol`
 
-## Source Map
+## Source map
 
 - `src/Banny721TokenUriResolver.sol`
 - `test/DecorateFlow.t.sol`

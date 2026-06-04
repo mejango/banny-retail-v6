@@ -1,17 +1,17 @@
 # Changelog
 
-## 0.0.43 — Raise dependency floors and document conventions
+## 0.0.43 — raise dependency floors and document conventions
 
 - Raise dependency floors to the latest published versions.
 - Document NatSpec, comment, and lint conventions in `STYLE_GUIDE.md`.
 
-## 0.0.42 — Fix Drop 1 reserve-tier ordering
+## 0.0.42 — fix Drop 1 reserve-tier ordering
 
 - `script/Drop1.s.sol`: the first reserve-bearing tier in the drop ("Block Chain") now sets the hook's default reserve beneficiary. Previously this tier was added before any reserve beneficiary existed, so the 721 tiers store rejected it (a reserve-bearing tier needs either its own reserve beneficiary or a hook default already in place) and the whole Drop 1 tier addition reverted. The beneficiary is unchanged — every reserve-bearing tier still routes its reserve mints to the configured `reserveBeneficiary`.
 - `script/Drop1.s.sol`: the tier set is now built in a reusable `buildDrop1Tiers(reserveBeneficiary)` function so the ordering can be exercised in isolation.
 - Added `test/regression/Drop1ReserveBeneficiaryOrdering.t.sol`: builds the Drop 1 tier set and adds it through the real 721 tiers store, asserting every reserve-bearing tier adds without reverting and resolves to the configured reserve beneficiary.
 
-## 0.0.33 — Bump v6 deps to nana-core-v6 0.0.53 cohort
+## 0.0.33 — bump v6 deps to nana-core-v6 0.0.53 cohort
 
 - `@bananapus/core-v6`: `^0.0.49 → ^0.0.53` ([PR #145](https://github.com/Bananapus/nana-core-v6/pull/145)).
 - `@bananapus/721-hook-v6`: `^0.0.49 → ^0.0.50`.

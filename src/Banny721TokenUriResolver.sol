@@ -35,30 +35,67 @@ contract Banny721TokenUriResolver is
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
 
+    /// @notice Thrown when two array arguments that must correspond have differing lengths.
     error Banny721TokenUriResolver_ArrayLengthMismatch(uint256 firstLength, uint256 secondLength);
+
+    /// @notice Thrown when the token being decorated is not a banny body tier.
     error Banny721TokenUriResolver_BannyBodyNotBodyCategory(address hook, uint256 bannyBodyId, uint256 category);
+
+    /// @notice Thrown when re-locking a banny body would shorten its existing outfit-change lock.
     error Banny721TokenUriResolver_CantAccelerateTheLock(
         address hook, uint256 bannyBodyId, uint256 currentLockedUntil, uint256 newLockUntil
     );
+
+    /// @notice Thrown when SVG contents have already been stored for the product code.
     error Banny721TokenUriResolver_ContentsAlreadyStored(uint256 upc);
+
+    /// @notice Thrown when the provided SVG contents do not match the product code's precommitted hash.
     error Banny721TokenUriResolver_ContentsMismatch(uint256 upc, bytes32 expectedHash, bytes32 actualHash);
+
+    /// @notice Thrown when two outfits in the merged set share the same category.
     error Banny721TokenUriResolver_DuplicateCategory(uint256 category);
+
+    /// @notice Thrown when an SVG hash has already been stored for the product code.
     error Banny721TokenUriResolver_HashAlreadyStored(uint256 upc, bytes32 existingHash);
+
+    /// @notice Thrown when no SVG hash has been stored for the product code.
     error Banny721TokenUriResolver_HashNotFound(uint256 upc);
+
+    /// @notice Thrown when a full head and individual head pieces are equipped together.
     error Banny721TokenUriResolver_HeadAlreadyAdded(uint256 category);
+
+    /// @notice Thrown when outfit changes are attempted on a banny body whose lock has not yet expired.
     error Banny721TokenUriResolver_OutfitChangesLocked(address hook, uint256 bannyBodyId, uint256 lockedUntil);
+
+    /// @notice Thrown when a full suit and individual suit pieces are equipped together.
     error Banny721TokenUriResolver_SuitAlreadyAdded(uint256 category);
+
+    /// @notice Thrown when the caller is not authorized to use the background for decoration.
     error Banny721TokenUriResolver_UnauthorizedBackground(
         address hook, uint256 backgroundId, address sender, address owner
     );
+
+    /// @notice Thrown when the caller does not own the banny body.
     error Banny721TokenUriResolver_UnauthorizedBannyBody(
         address hook, uint256 bannyBodyId, address sender, address owner
     );
+
+    /// @notice Thrown when the caller is not authorized to use the outfit for decoration.
     error Banny721TokenUriResolver_UnauthorizedOutfit(address hook, uint256 outfitId, address sender, address owner);
+
+    /// @notice Thrown when an ERC-721 token is received through an operator other than this contract.
     error Banny721TokenUriResolver_UnauthorizedTransfer(address operator, address expectedOperator);
+
+    /// @notice Thrown when outfit categories are not supplied in strictly ascending order.
     error Banny721TokenUriResolver_UnorderedCategories(uint256 previousCategory, uint256 nextCategory);
+
+    /// @notice Thrown when the supplied background does not exist or is not a background-category tier.
     error Banny721TokenUriResolver_UnrecognizedBackground(address hook, uint256 backgroundId, uint256 category);
+
+    /// @notice Thrown when an outfit's category falls outside the recognized category range.
     error Banny721TokenUriResolver_UnrecognizedCategory(uint256 category);
+
+    /// @notice Thrown when no fills are defined for the product code.
     error Banny721TokenUriResolver_UnrecognizedProduct(uint256 upc);
 
     //*********************************************************************//
@@ -72,28 +109,50 @@ contract Banny721TokenUriResolver is
     /// @notice The duration that banny bodies can be locked for.
     uint256 private constant _LOCK_DURATION = 7 days;
 
+    /// @notice The tier category for banny bodies, the carrier NFT that wears the other layers.
     uint8 private constant _BODY_CATEGORY = 0;
+    /// @notice The tier category for backgrounds rendered behind the banny body.
     uint8 private constant _BACKGROUND_CATEGORY = 1;
+    /// @notice The tier category for backside accessories rendered behind the body.
     uint8 private constant _BACKSIDE_CATEGORY = 2;
+    /// @notice The tier category for necklace accessories.
     uint8 private constant _NECKLACE_CATEGORY = 3;
+    /// @notice The tier category for full-head accessories that cover the face.
     uint8 private constant _HEAD_CATEGORY = 4;
+    /// @notice The tier category for eye accessories.
     uint8 private constant _EYES_CATEGORY = 5;
+    /// @notice The tier category for glasses accessories.
     uint8 private constant _GLASSES_CATEGORY = 6;
+    /// @notice The tier category for mouth accessories.
     uint8 private constant _MOUTH_CATEGORY = 7;
+    /// @notice The tier category for legs accessories.
     uint8 private constant _LEGS_CATEGORY = 8;
+    /// @notice The tier category for full-suit accessories that cover the body.
     uint8 private constant _SUIT_CATEGORY = 9;
+    /// @notice The tier category for suit-bottom accessories.
     uint8 private constant _SUIT_BOTTOM_CATEGORY = 10;
+    /// @notice The tier category for suit-top accessories.
     uint8 private constant _SUIT_TOP_CATEGORY = 11;
+    /// @notice The tier category for headtop accessories worn above the head.
     uint8 private constant _HEADTOP_CATEGORY = 12;
+    /// @notice The tier category for hand accessories.
     uint8 private constant _HAND_CATEGORY = 13;
+    /// @notice The tier category for special suit accessories.
     uint8 private constant _SPECIAL_SUIT_CATEGORY = 14;
+    /// @notice The tier category for special legs accessories.
     uint8 private constant _SPECIAL_LEGS_CATEGORY = 15;
+    /// @notice The tier category for special head accessories.
     uint8 private constant _SPECIAL_HEAD_CATEGORY = 16;
+    /// @notice The tier category for special banny bodies.
     uint8 private constant _SPECIAL_BODY_CATEGORY = 17;
 
+    /// @notice The universal product code of the alien banny body.
     uint8 private constant ALIEN_UPC = 1;
+    /// @notice The universal product code of the pink banny body.
     uint8 private constant PINK_UPC = 2;
+    /// @notice The universal product code of the orange banny body.
     uint8 private constant ORANGE_UPC = 3;
+    /// @notice The universal product code of the original banny body.
     uint8 private constant ORIGINAL_UPC = 4;
 
     //*********************************************************************//
@@ -141,12 +200,11 @@ contract Banny721TokenUriResolver is
     /// @dev Naked Banny bodies are shown only with outfits currently owned by the body owner.
     /// @dev NOTE: Equipped outfits travel with the banny body NFT on transfer. When a body is transferred,
     /// the new owner inherits all equipped outfits and can unequip them to receive the outfit NFTs.
-    // The _attachedOutfitIdsOf array grows with each attachment. Gas cost for operations
-    // iterating this array increases linearly. In practice, Bannys have a small, bounded number of outfit slots
-    // (< 20), making gas cost manageable. No explicit cap is needed given the natural slot limit.
-    // This array may contain stale entries (e.g. outfits transferred away externally). Stale entries are
-    // filtered at read time via `outfitsOf` and `wearerOf`, which check current ownership/attachment status.
-    // This lazy reconciliation avoids extra storage writes on every transfer.
+    /// @dev The array grows with each attachment, so operations iterating it cost gas linearly. Bannys have a small,
+    /// bounded number of outfit slots (< 20), so no explicit cap is needed given the natural slot limit.
+    /// @dev The array may contain stale entries (e.g. outfits transferred away externally). Stale entries are
+    /// filtered at read time via `outfitsOf` and `wearerOf`, which check current ownership/attachment status. This
+    /// lazy reconciliation avoids extra storage writes on every transfer.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param bannyBodyId The ID of the banny body of the outfits.
     mapping(address hook => mapping(uint256 bannyBodyId => uint256[])) internal _attachedOutfitIdsOf;
@@ -657,9 +715,9 @@ contract Banny721TokenUriResolver is
     }
 
     /// @notice Encode the token URI JSON with base64.
-    // Metadata strings (name, description, external_url) are set by the contract owner, not by users.
-    // No JSON escaping is applied — the owner is trusted to provide valid values. On-chain JSON is consumed
-    // by off-chain indexers and UIs, not rendered in a browser context where XSS would apply.
+    /// @dev Metadata strings (name, description, external_url) are set by the contract owner, not by users, and no
+    /// JSON escaping is applied because the owner is trusted to provide valid values. On-chain JSON is consumed by
+    /// off-chain indexers and UIs, not rendered in a browser context where XSS would apply.
     /// @param tokenId The ID of the token.
     /// @param product The tier product for the token.
     /// @param extraMetadata Additional JSON metadata fields to include.
@@ -1198,9 +1256,9 @@ contract Banny721TokenUriResolver is
 
     /// @notice Handles the receipt of an ERC-721 token, only accepting transfers initiated by this contract.
     /// @dev Make sure tokens can be received if the transaction was initiated by this contract.
-    // NFTs sent via transferFrom (not safeTransferFrom) bypass onERC721Received and cannot be
-    // tracked or recovered. This is an inherent ERC-721 limitation — the contract cannot prevent non-safe
-    // transfers. Users and UIs should always use safeTransferFrom.
+    /// @dev NFTs sent via transferFrom (not safeTransferFrom) bypass onERC721Received and cannot be tracked or
+    /// recovered. This is an inherent ERC-721 limitation — the contract cannot prevent non-safe transfers. Users and
+    /// UIs should always use safeTransferFrom.
     /// @param operator The address that initiated the transaction.
     /// @param from The address that initiated the transfer.
     /// @param tokenId The ID of the token to transfer.

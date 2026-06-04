@@ -1,6 +1,6 @@
 # Administration
 
-## At A Glance
+## At a glance
 
 | Item | Details |
 | --- | --- |
@@ -13,7 +13,7 @@
 
 `banny-retail-v6` has a small but real control plane. The resolver owner controls collection-wide metadata and SVG commitments. Body owners control decoration and outfit locks. No admin can rescue equipped NFTs if resolver logic fails.
 
-## Control Model
+## Control model
 
 - `Banny721TokenUriResolver` is `Ownable`.
 - Global admin power is limited to metadata, product naming, and SVG hash commitments.
@@ -29,7 +29,7 @@
 | Body owner | `IERC721(hook).ownerOf(bannyBodyId)` | Per body | Can decorate and lock that body |
 | Anyone | No assignment | Global | Can upload SVG bytes only if they match a committed hash |
 
-## Privileged Surfaces
+## Privileged surfaces
 
 | Contract | Function | Who Can Call | Effect |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@
 | `Banny721TokenUriResolver` | `decorateBannyWith(...)` | Current body owner | Equips or unequips accessories and updates custody |
 | `Banny721TokenUriResolver` | `lockOutfitChangesFor(...)` | Current body owner | Extends the outfit lock window for that body |
 
-## Immutable And One-Way
+## Immutable and one-way
 
 - SVG hash commitments are write-once.
 - SVG contents are write-once once uploaded.
@@ -48,7 +48,7 @@
 - The lock duration is fixed by `_LOCK_DURATION`.
 - Default art fragments, category semantics, and the trusted forwarder are constructor or code immutables.
 
-## Operational Notes
+## Operational notes
 
 - Treat `setSvgHashesOf(...)` like a release gate. A wrong hash usually means a new resolver or new UPC strategy, not a small edit.
 - Treat `setMetadata(...)` and `setProductNames(...)` as collection-wide display changes.
@@ -56,7 +56,7 @@
 - Only lock outfits when temporary non-editability is the intended experience.
 - Use safe ERC-721 transfer flows when assets enter the resolver path. Plain `transferFrom` can strand NFTs without a recovery path.
 
-## Machine Notes
+## Machine notes
 
 - Do not assume there is a rescue path for equipped assets. There is none.
 - Treat `src/Banny721TokenUriResolver.sol` as the source of truth for lock extension and write-once SVG behavior.
@@ -70,7 +70,7 @@
 - If equipped assets become stuck because of resolver logic, there is no owner rescue path.
 - If NFTs are stranded through non-safe transfer semantics, this contract does not provide recovery.
 
-## Admin Boundaries
+## Admin boundaries
 
 - The owner cannot arbitrarily withdraw equipped user NFTs.
 - The owner cannot overwrite committed hashes or uploaded SVG contents.
@@ -78,7 +78,7 @@
 - Nobody can shorten an active outfit lock.
 - There is no pause, upgrade, or rescue mechanism.
 
-## Source Map
+## Source map
 
 - `src/Banny721TokenUriResolver.sol`
 - `src/interfaces/IBanny721TokenUriResolver.sol`

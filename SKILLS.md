@@ -1,11 +1,11 @@
 # Banny Retail
 
-## Use This File For
+## Use this file for
 
 - Use this file when the task involves Banny outfit attachment, layered SVG rendering, token URI composition, or asset custody and lock behavior.
 - Start here, then decide whether the issue is custody state, lock timing, stored SVG content, or final token-URI composition.
 
-## Read This Next
+## Read this next
 
 | If you need... | Open this next |
 |---|---|
@@ -16,7 +16,7 @@
 | Decoration lifecycle and custody invariants | [`test/DecorateFlow.t.sol`](./test/DecorateFlow.t.sol), [`test/OutfitTransferLifecycle.t.sol`](./test/OutfitTransferLifecycle.t.sol) |
 | Adversarial, fork, or final QA coverage | [`test/BannyAttacks.t.sol`](./test/BannyAttacks.t.sol), [`test/Fork.t.sol`](./test/Fork.t.sol), [`test/TestRegressionGaps.sol`](./test/TestRegressionGaps.sol), [`test/TestQALastMile.t.sol`](./test/TestQALastMile.t.sol) |
 
-## Repo Map
+## Repo map
 
 | Area | Where to look |
 |---|---|
@@ -28,12 +28,12 @@
 
 App-layer token URI resolver for Juicebox 721 collections. It lets Banny body NFTs equip outfit and background NFTs, holds them while equipped, and renders fully onchain layered SVG metadata.
 
-## Reference Files
+## Reference files
 
 - Open [`references/runtime.md`](./references/runtime.md) for attachment and custody behavior, rendering order, and the main invariants that protect equipped assets.
 - Open [`references/operations.md`](./references/operations.md) for upload and metadata-management behavior, deployment breadcrumbs, and common stale-data traps around SVG content.
 
-## Working Rules
+## Working rules
 
 - Start in [`src/Banny721TokenUriResolver.sol`](./src/Banny721TokenUriResolver.sol) for both rendering and attachment behavior.
 - Treat custody, stale attachment cleanup, and lock timing as high-risk. Rendering bugs are visible, but custody bugs are worse.
