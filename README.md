@@ -13,7 +13,7 @@
 - [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md) — guidance for security reviewers
 - [SKILLS.md](./SKILLS.md) — repo-specific gotchas and integration notes
 - [STYLE_GUIDE.md](./STYLE_GUIDE.md) — coding and naming conventions
-- [CHANGELOG.md](./CHANGELOG.md) — notable changes
+- [CHANGELOG.md](./CHANGELOG.md) - V5 to V6 migration changelog
 
 ## Overview
 

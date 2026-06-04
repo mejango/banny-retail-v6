@@ -1,52 +1,71 @@
-# Changelog
-
-## 0.0.43 — raise dependency floors and document conventions
-
-- Raise dependency floors to the latest published versions.
-- Document NatSpec, comment, and lint conventions in `STYLE_GUIDE.md`.
-
-## 0.0.42 — fix Drop 1 reserve-tier ordering
-
-- `script/Drop1.s.sol`: the first reserve-bearing tier in the drop ("Block Chain") now sets the hook's default reserve beneficiary. Previously this tier was added before any reserve beneficiary existed, so the 721 tiers store rejected it (a reserve-bearing tier needs either its own reserve beneficiary or a hook default already in place) and the whole Drop 1 tier addition reverted. The beneficiary is unchanged — every reserve-bearing tier still routes its reserve mints to the configured `reserveBeneficiary`.
-- `script/Drop1.s.sol`: the tier set is now built in a reusable `buildDrop1Tiers(reserveBeneficiary)` function so the ordering can be exercised in isolation.
-- Added `test/regression/Drop1ReserveBeneficiaryOrdering.t.sol`: builds the Drop 1 tier set and adds it through the real 721 tiers store, asserting every reserve-bearing tier adds without reverting and resolves to the configured reserve beneficiary.
-
-## 0.0.33 — bump v6 deps to nana-core-v6 0.0.53 cohort
-
-- `@bananapus/core-v6`: `^0.0.49 → ^0.0.53` ([PR #145](https://github.com/Bananapus/nana-core-v6/pull/145)).
-- `@bananapus/721-hook-v6`: `^0.0.49 → ^0.0.50`.
-- `@bananapus/buyback-hook-v6`: `^0.0.45 → ^0.0.46`.
-- `@bananapus/suckers-v6`: `^0.0.43 → ^0.0.46`.
-- All `JBRulesetMetadata` test literals patched to include `pauseCrossProjectFeeFreeInflows: false`.
+# V5 to V6 Changelog
 
 ## Scope
 
-This file describes the verified change from `banny-retail-v5` to the current `banny-retail-v6` repo.
+This is a V5-to-V6 migration changelog, not a package release log or commit history. It compares `banny-retail-v5` in `../../v5/evm` with the current `banny-retail-v6` repo.
 
-## Current v6 surface
+## Current V6 Surface
 
 - `Banny721TokenUriResolver`
 - `IBanny721TokenUriResolver`
 
 ## Summary
 
-- Decoration flows now handle previously equipped assets more defensively. The v6 test suite adds explicit regression coverage for removed tiers, failed return transfers, and stranded-asset scenarios.
-- Metadata management is broader than in v5. The resolver now manages description, external URL, and base URI together instead of only a base URI path.
-- Validation is stricter. v6 adds array-length checks on batch setters and extra checks around valid body and background categories before decoration logic proceeds.
-- The repo was upgraded to the v6 dependency set and Solidity `0.8.28`.
+- Metadata management changed from a base-URI-only model to a single metadata setter for description, external URL, and base URI.
+- Several ABI names were cleaned up: v5's misspelled `setSvgHashsOf(...)` became `setSvgHashesOf(...)`, and the uppercase constant-style art getters became lower-camel interface getters.
+- The resolver now consumes the V6 721 hook pricing/context shape and should be compiled against the V6 721 hook ABI.
+- Decoration flows are more defensive. V6 validates array lengths, body/background categories, duplicate categories, and failed return transfers more explicitly.
+- SVG and metadata output can change in ways that V5 indexers should not treat as a pure URI-prefix update.
 
-## Verified deltas
+## ABI, Event, and Error Changes
 
-- `setSvgBaseUri(...)` was replaced by `setMetadata(description, url, baseUri)`.
-- Metadata JSON is no longer hardcoded around a fixed description and external URL. Those values now come from contract state.
-- `pricingContext()` consumption changed with the v6 721 hook and now uses the two-value return shape.
-- The resolver adds explicit `Banny721TokenUriResolver_ArrayLengthMismatch()` and `Banny721TokenUriResolver_BannyBodyNotBodyCategory()` errors.
-- Outfit and background handling now includes logic intended to preserve attachment state when a previously equipped asset cannot be returned cleanly.
-- (L-1) `_storeOutfitsWithRetained` now verifies that no two merged outfits share the same category after sorting. A retained outfit whose transfer failed could previously duplicate a category supplied in the new outfit set, leading to rendering artifacts. The new `Banny721TokenUriResolver_DuplicateCategory()` error prevents this.
-- Gas optimizations: all `for` loops use `unchecked { ++i; }` increments, `_sortOutfitsByCategory` pre-computes categories to avoid repeated external calls during sort comparisons, `_msgSender()` is cached once per entry point to avoid repeated ERC-2771 context reads, and the mannequin SVG style string is inlined to remove redundant `string.concat` overhead.
+- Removed or replaced functions:
+  - `setSvgBaseUri(string)` -> `setMetadata(string description, string url, string baseUri)`
+  - `setSvgHashsOf(uint256[],bytes32[])` -> `setSvgHashesOf(uint256[],bytes32[])`
+  - uppercase art getters such as `BANNY_BODY()` are exposed through lower-camel getters such as `bannyBody()`
+- Added view surface:
+  - `svgDescription()`
+  - `svgExternalUrl()`
+- Added or migration-sensitive events:
+  - `SetMetadata`
+  - `SetSvgHash`
+  - existing decoration/content events should be regenerated from the V6 interface because argument names and setter names changed.
+- Added or migration-sensitive errors include:
+  - `Banny721TokenUriResolver_ArrayLengthMismatch`
+  - `Banny721TokenUriResolver_BannyBodyNotBodyCategory`
+  - `Banny721TokenUriResolver_DuplicateCategory`
+  - `Banny721TokenUriResolver_HashAlreadyStored`
+  - `Banny721TokenUriResolver_HashNotFound`
+  - `Banny721TokenUriResolver_UnrecognizedBackground`
 
-## Migration notes
+## Machine-Checked ABI Coverage
 
-- Treat `setMetadata` as the metadata-management entry point. v5 assumptions around a base-URI-only setter no longer fit this repo.
-- Decoration flows should be reviewed for failure handling, especially if an integration assumed every previously equipped NFT could always be transferred back out.
-- Event and error expectations should be regenerated from the v6 ABI rather than copied from v5.
+Generated from Foundry `out/**/*.json` artifacts, filtered to this repo's own runtime source roots and excluding tests, scripts, and dependencies.
+
+- V5 comparison package: `banny-retail-v5`.
+- Own-source ABI artifacts compared: V6 `2`, V5 `2`.
+- Contract/interface coverage: `0` added, `0` removed, `2` shared names with ABI changes, `0` shared names ABI-identical.
+- Shared-name ABI item deltas: `37` added, `30` removed, `0` modified.
+
+Shared ABI artifacts with changes:
+- `Banny721TokenUriResolver`: `28` added, `23` removed, `0` modified ABI items.
+- `IBanny721TokenUriResolver`: `9` added, `7` removed, `0` modified ABI items.
+
+Generated event/error name deltas:
+- Event names added:
+  - `SetMetadata`.
+- Event names removed or replaced:
+  - `SetSvgBaseUri`.
+- Error names added:
+  - `Banny721TokenUriResolver_ArrayLengthMismatch`, `Banny721TokenUriResolver_BannyBodyNotBodyCategory`, `Banny721TokenUriResolver_CantAccelerateTheLock`, `Banny721TokenUriResolver_ContentsAlreadyStored`, `Banny721TokenUriResolver_ContentsMismatch`, `Banny721TokenUriResolver_DuplicateCategory`, `Banny721TokenUriResolver_HashAlreadyStored`, `Banny721TokenUriResolver_HashNotFound`.
+  - `Banny721TokenUriResolver_HeadAlreadyAdded`, `Banny721TokenUriResolver_OutfitChangesLocked`, `Banny721TokenUriResolver_SuitAlreadyAdded`, `Banny721TokenUriResolver_UnauthorizedBackground`, `Banny721TokenUriResolver_UnauthorizedBannyBody`, `Banny721TokenUriResolver_UnauthorizedOutfit`, `Banny721TokenUriResolver_UnauthorizedTransfer`, `Banny721TokenUriResolver_UnorderedCategories`.
+  - `Banny721TokenUriResolver_UnrecognizedBackground`, `Banny721TokenUriResolver_UnrecognizedCategory`, `Banny721TokenUriResolver_UnrecognizedProduct`.
+- Error names removed or replaced:
+  - `Banny721TokenUriResolver_CantAccelerateTheLock`, `Banny721TokenUriResolver_ContentsAlreadyStored`, `Banny721TokenUriResolver_ContentsMismatch`, `Banny721TokenUriResolver_HashAlreadyStored`, `Banny721TokenUriResolver_HashNotFound`, `Banny721TokenUriResolver_HeadAlreadyAdded`, `Banny721TokenUriResolver_OutfitChangesLocked`, `Banny721TokenUriResolver_SuitAlreadyAdded`.
+  - `Banny721TokenUriResolver_UnauthorizedBackground`, `Banny721TokenUriResolver_UnauthorizedBannyBody`, `Banny721TokenUriResolver_UnauthorizedOutfit`, `Banny721TokenUriResolver_UnauthorizedTransfer`, `Banny721TokenUriResolver_UnorderedCategories`, `Banny721TokenUriResolver_UnrecognizedBackground`, `Banny721TokenUriResolver_UnrecognizedCategory`, `Banny721TokenUriResolver_UnrecognizedProduct`.
+
+## Migration Notes
+
+- Regenerate the resolver ABI. Do not keep a V5 ABI with only the base URI setter renamed manually.
+- Update any admin tooling that calls `setSvgBaseUri(...)` or `setSvgHashsOf(...)`.
+- Review decoration UX for failed outgoing NFT transfers. V6 can retain previously equipped assets when returning them fails, instead of assuming the transfer always succeeds.
