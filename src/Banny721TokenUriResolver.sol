@@ -508,9 +508,7 @@ contract Banny721TokenUriResolver is
         );
     }
 
-    /// @notice Returns the SVG showing either a banny body with/without outfits and a background, or the stand alone
-    /// outfit
-    /// or background.
+    /// @notice Returns the SVG for a banny body, a standalone outfit, or a standalone background.
     /// @param hook The hook storing the assets.
     /// @param tokenId The ID of the token to show. If the ID belongs to a banny body, it will be shown with its
     /// current outfits in its current background if specified.
@@ -1173,9 +1171,8 @@ contract Banny721TokenUriResolver is
     ///
     /// @dev WARNING: Equipped outfits and backgrounds are held by this contract on behalf of the banny body. When the
     /// banny body NFT is transferred to a new owner, all equipped assets remain associated with that body. The new
-    /// owner of the body effectively gains control of all equipped items — they can unequip them (receiving the
-    /// outfit
-    /// NFTs) or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
+    /// owner of the body effectively gains control of all equipped items. They can unequip them, receiving the outfit
+    /// NFTs, or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
     ///
     /// @param hook The hook storing the assets.
     /// @param bannyBodyId The ID of the banny body to dress.
