@@ -128,6 +128,7 @@ contract BannyHandler is Test {
         backgrounds[0] = 10;
         backgrounds[1] = 11;
         for (uint256 i; i < 2; ++i) {
+            // forge-lint: disable-next-line(unsafe-typecast)
             store.setTier(address(hook), backgrounds[i], uint32(100 + i), 1);
             hook.setOwner(backgrounds[i], actors[i % 3]);
             allTokens.push(backgrounds[i]);
@@ -138,6 +139,7 @@ contract BannyHandler is Test {
         uint24[6] memory cats = [uint24(2), 3, 5, 7, 12, 13];
         for (uint256 i; i < 6; ++i) {
             outfits[i] = 100 + i;
+            // forge-lint: disable-next-line(unsafe-typecast)
             store.setTier(address(hook), outfits[i], uint32(200 + i), cats[i]);
             hook.setOwner(outfits[i], actors[i % 3]);
             allTokens.push(outfits[i]);
@@ -160,11 +162,13 @@ contract BannyHandler is Test {
         // category order, so selecting a subset preserves ascending order.
         uint256 count;
         for (uint256 i; i < 6; ++i) {
+            // forge-lint: disable-next-line(incorrect-shift)
             if (outfitMask & (1 << i) != 0) count++;
         }
         uint256[] memory ids = new uint256[](count);
         uint256 j;
         for (uint256 i; i < 6; ++i) {
+            // forge-lint: disable-next-line(incorrect-shift)
             if (outfitMask & (1 << i) != 0) {
                 ids[j++] = outfits[i];
             }
