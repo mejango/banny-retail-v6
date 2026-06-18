@@ -1,12 +1,13 @@
 {
   "name": "@bannynet/core-v6",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mejango/banny-retail-v6.git"
   },
   "files": [
+    "deployments/",
     "foundry.toml",
     "references/",
     "remappings.txt",
