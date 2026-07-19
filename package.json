@@ -24,6 +24,18 @@
     "deploy:testnets": "source ./.env && export START_TIME=$(date +%s) && npx sphinx propose ./script/Deploy.s.sol --networks testnets",
     "deploy:testnets:drop:1": "source ./.env && npx sphinx propose ./script/Drop1.s.sol --networks testnets",
     "deploy:mainnets:drop:1": "source ./.env && npx sphinx propose ./script/Drop1.s.sol --networks mainnets",
+    "generate:airdrop": "node ./script/outfit_drop/generate-v6-airdrop.js",
+    "generate:airdrop:combined": "BANNY_AIRDROP_COMBINED=1 node ./script/outfit_drop/generate-v6-airdrop.js",
+    "generate:airdrop:unchunked": "BANNY_AIRDROP_COMBINED=1 node ./script/outfit_drop/generate-v6-airdrop.js",
+    "report:airdrop": "node ./script/outfit_drop/export-v6-airdrop-report.js",
+    "deploy:testnets:airdrop": "source ./.env && BANNY_AIRDROP_SPHINX_PROJECT=banny-core npx sphinx propose ./script/AirdropV4Bannys.s.sol --networks testnets",
+    "deploy:mainnets:airdrop": "source ./.env && npx sphinx propose ./script/AirdropV4Bannys.s.sol --networks mainnets",
+    "deploy:testnets:airdrop:combined": "source ./.env && SPHINX_ALLOW_HIGH_GAS_ACTIONS=1 BANNY_AIRDROP_SPHINX_PROJECT=banny-core npx sphinx propose ./script/AirdropV4BannysCombinedTestnets.s.sol --networks testnets",
+    "deploy:mainnets:airdrop:combined": "source ./.env && SPHINX_ALLOW_HIGH_GAS_ACTIONS=1 npx sphinx propose ./script/AirdropV4BannysCombinedMainnets.s.sol --networks mainnets",
+    "deploy:banny-lp-split-hook:testnets": "source ./.env && npx sphinx propose ./script/SetBannyLpSplitHook.s.sol --target-contract SetBannyLpSplitHook --networks testnets",
+    "deploy:banny-lp-split-hook:mainnets": "source ./.env && npx sphinx propose ./script/SetBannyLpSplitHook.s.sol --target-contract SetBannyLpSplitHook --networks mainnets",
+    "deploy:testnets:airdrop:unchunked": "source ./.env && SPHINX_ALLOW_HIGH_GAS_ACTIONS=1 BANNY_AIRDROP_SPHINX_PROJECT=banny-core npx sphinx propose ./script/AirdropV4BannysCombinedTestnets.s.sol --networks testnets",
+    "deploy:mainnets:airdrop:unchunked": "source ./.env && SPHINX_ALLOW_HIGH_GAS_ACTIONS=1 npx sphinx propose ./script/AirdropV4BannysCombinedMainnets.s.sol --networks mainnets",
     "artifacts": "source ./.env && npx sphinx artifacts --org-id 'ea165b21-7cdc-4d7b-be59-ecdd4c26bee4' --project-name 'banny-core-v6'"
   },
   "dependencies": {

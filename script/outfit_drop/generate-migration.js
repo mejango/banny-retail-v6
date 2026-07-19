@@ -3437,5 +3437,14 @@ function generateTokenIdArrayForUnused(unusedItems, tierIdQuantities, upcStartin
     return code;
 }
 
-// Run the script generation
-generateMigrationScript();
+if (require.main === module) {
+    generateMigrationScript();
+}
+
+module.exports = {
+    buildTransferDataForChain,
+    generateTierIdLoops,
+    generateUnusedAssetsContract,
+    splitBanniesIntoChunks,
+    toChecksumAddress,
+};
