@@ -37,3 +37,6 @@ assets/
 AUDIT_FINDINGS.md
 NEMESIS_SCOPE.md
 run-nemesis-all.sh
+
+# Foundry broadcast logs (incl. dry-run) — regenerable, not committed
+broadcast

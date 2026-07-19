@@ -7,9 +7,8 @@ import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721
 
 library MigrationHelper {
     /// @notice Get the UPC (tier ID) from a token ID
-    function _getUpc(address hook, uint256 tokenId) internal view returns (uint256) {
-        IJB721TiersHookStore store = JB721TiersHook(hook).STORE();
-        return store.tierOfTokenId({hook: hook, tokenId: tokenId, includeResolvedUri: false}).id;
+    function _getUpc(uint256 tokenId) internal pure returns (uint256) {
+        return tokenId / 1_000_000_000;
     }
 
     function verifyV4AssetMatch(
@@ -31,17 +30,16 @@ library MigrationHelper {
             v4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
 
         // Compare background UPCs (not token IDs, since they may differ)
-        uint256 targetBackgroundUpc =
-            targetBackgroundId == 0 ? 0 : _getUpc({hook: hookAddress, tokenId: targetBackgroundId});
-        uint256 v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({hook: v4HookAddress, tokenId: v4BackgroundId});
+        uint256 targetBackgroundUpc = targetBackgroundId == 0 ? 0 : _getUpc({tokenId: targetBackgroundId});
+        uint256 v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({tokenId: v4BackgroundId});
 
         bool matches = targetBackgroundUpc == v4BackgroundUpc && targetOutfitIds.length == v4OutfitIds.length;
 
         if (matches) {
             // Compare outfit UPCs
             for (uint256 i = 0; i < targetOutfitIds.length; i++) {
-                uint256 targetOutfitUpc = _getUpc({hook: hookAddress, tokenId: targetOutfitIds[i]});
-                uint256 v4OutfitUpc = _getUpc({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
+                uint256 targetOutfitUpc = _getUpc({tokenId: targetOutfitIds[i]});
+                uint256 v4OutfitUpc = _getUpc({tokenId: v4OutfitIds[i]});
                 if (targetOutfitUpc != v4OutfitUpc) {
                     matches = false;
                     break;
@@ -52,7 +50,7 @@ library MigrationHelper {
         if (!matches) {
             // Try fallback resolver
             (v4BackgroundId, v4OutfitIds) = fallbackV4Resolver.assetIdsOf({hook: v4HookAddress, bannyBodyId: tokenId});
-            v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({hook: v4HookAddress, tokenId: v4BackgroundId});
+            v4BackgroundUpc = v4BackgroundId == 0 ? 0 : _getUpc({tokenId: v4BackgroundId});
 
             require(
                 targetBackgroundUpc == v4BackgroundUpc && targetOutfitIds.length == v4OutfitIds.length,
@@ -60,8 +58,8 @@ library MigrationHelper {
             );
 
             for (uint256 i = 0; i < targetOutfitIds.length; i++) {
-                uint256 targetOutfitUpc = _getUpc({hook: hookAddress, tokenId: targetOutfitIds[i]});
-                uint256 v4OutfitUpc = _getUpc({hook: v4HookAddress, tokenId: v4OutfitIds[i]});
+                uint256 targetOutfitUpc = _getUpc({tokenId: targetOutfitIds[i]});
+                uint256 v4OutfitUpc = _getUpc({tokenId: v4OutfitIds[i]});
                 require(targetOutfitUpc == v4OutfitUpc, "V4/target asset mismatch");
             }
         }
