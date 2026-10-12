@@ -21,7 +21,7 @@ contract SvgPublicationHarness is Banny721TokenUriResolver {
     }
 
     function stored(uint256 upc) external view returns (string memory) {
-        return _storedSvgOf(upc);
+        return string(SVG_STORAGE.read(upc));
     }
 }
 
