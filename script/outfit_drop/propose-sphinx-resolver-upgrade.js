@@ -217,6 +217,13 @@ async function assertPreparedFresh(artifact, directory, part) {
 const assertReady = (artifact, directory, progress, part) =>
     shared.assertReadyToSubmit(artifact, directory, progress, part, assertPreparedFresh);
 
+async function resolveCompilerArtifacts(getConfigArtifacts, initCodes, expectedIdentity, readIdentity = () => readBuild().identity) {
+    // Forge inspection/context collection can replace full compiler metadata; recover it after those operations.
+    await shared.ensureBuildInfo(getConfigArtifacts, {}, ROOT, () => initCodes);
+    assert.equal(readIdentity(), expectedIdentity, 'Resolver compiler/source identity changed during metadata recovery');
+    return getConfigArtifacts(initCodes);
+}
+
 async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInterface,
     foundryToml, projectRoot, getConfigArtifacts, context, targetContract, spinner) {
     assert.equal(path.resolve(projectRoot), ROOT, 'Run from the Banny repository');
@@ -255,7 +262,7 @@ async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInte
     }
     const initCodes = batches.flat().flatMap(batch => batch.batch.transactions.filter(tx => same(tx.to, exporter.FACTORY))
         .map(tx => core.decodeDeterministicDeploymentProxyData(tx.data).initCodeWithArgs));
-    const { configArtifacts, buildInfos } = await getConfigArtifacts(initCodes);
+    const { configArtifacts, buildInfos } = await resolveCompilerArtifacts(getConfigArtifacts, initCodes, build.identity);
     entries.forEach((entry, index) => { entry.networkConfig.actionInputs = batches[index].map((batch, actionIndex) => actionFor(batch, actionIndex, configArtifacts)); });
     await context.assertNoLinkedLibraries(scriptPath, foundryToml.cachePath, foundryToml.artifactFolder, projectRoot, targetContract);
     fs.writeFileSync(path.join(reportDir, 'inputs.json'), JSON.stringify({ workflow: WORKFLOW, inputIdentity: build.identity,
@@ -300,4 +307,5 @@ if (require.main === module) {
 }
 
 module.exports = { WORKFLOW, actionFor, batchesFor, validatePrepared, assertFrozenCalls, assertAuthority,
-    assertDeployment, assertSwitched, assertPreparedFresh, collectAndQualify, makePropose, resumePrepared, readBuild };
+    assertDeployment, assertSwitched, assertPreparedFresh, collectAndQualify, makePropose, resumePrepared, readBuild,
+    resolveCompilerArtifacts };

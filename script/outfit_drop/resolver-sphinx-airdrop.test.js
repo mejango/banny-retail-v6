@@ -176,3 +176,28 @@ test('a completed resume cannot return success without final workflow verificati
     try { await assert.rejects(adapter.resumePrepared({}, '/tmp/unused'), /Wrong prepared workflow/); }
     finally { shared.resumePrepared = originalResume; shared.readPreparedArtifact = originalRead; }
 });
+
+test('final artifact lookup restores metadata lost during collection and rejects changed compiler identity', async () => {
+    const shared = require('./propose-sphinx-airdrop');
+    const originalEnsure = shared.ensureBuildInfo;
+    const initCodes = ['0x6000', '0x6001', '0x6002'];
+    let fullMetadata = false, recovered = 0, lookups = 0;
+    const lookup = async codes => {
+        assert.deepEqual(codes, initCodes); lookups++;
+        return { configArtifacts: fullMetadata ? { reviewed: true } : {}, buildInfos: fullMetadata ? { full: true } : {} };
+    };
+    shared.ensureBuildInfo = async (getConfigArtifacts, plans, root, readInitCodes) => {
+        assert.equal(getConfigArtifacts, lookup);
+        assert.deepEqual(readInitCodes(), initCodes);
+        assert.deepEqual((await lookup(initCodes)).configArtifacts, {});
+        fullMetadata = true; recovered++;
+    };
+    try {
+        const result = await adapter.resolveCompilerArtifacts(lookup, initCodes, 'frozen', () => 'frozen');
+        assert.deepEqual(result.configArtifacts, { reviewed: true });
+        assert.equal(recovered, 1); assert.equal(lookups, 2);
+        fullMetadata = false; lookups = 0;
+        await assert.rejects(adapter.resolveCompilerArtifacts(lookup, initCodes, 'frozen', () => 'changed'), /identity changed/);
+        assert.equal(lookups, 1, 'Changed artifacts must fail before final metadata can authorize actions');
+    } finally { shared.ensureBuildInfo = originalEnsure; }
+});
