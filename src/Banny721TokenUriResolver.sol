@@ -15,8 +15,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "lib/base64/base64.sol";
 
-import {IBanny721TokenUriResolver} from "./interfaces/IBanny721TokenUriResolver.sol";
 import {BannySvgStorage} from "./BannySvgStorage.sol";
+
+import {IBanny721TokenUriResolver} from "./interfaces/IBanny721TokenUriResolver.sol";
 
 /// @notice Manages Banny NFT composition — stores SVG assets (bodies, backgrounds, outfits), dresses banny bodies
 /// with wearable outfits, and resolves fully on-chain SVG token URIs for the composed result. Each banny body can
@@ -157,6 +158,14 @@ contract Banny721TokenUriResolver is
     uint8 private constant ORIGINAL_UPC = 4;
 
     //*********************************************************************//
+    // ---------------- public immutable stored properties --------------- //
+    //*********************************************************************//
+
+    /// @notice Immutable bytecode storage for published artwork.
+    /// @dev Deployed by this resolver so only this resolver can publish hash-validated fragments.
+    BannySvgStorage public immutable SVG_STORAGE;
+
+    //*********************************************************************//
     // --------------------- public stored properties -------------------- //
     //*********************************************************************//
 
@@ -221,9 +230,6 @@ contract Banny721TokenUriResolver is
     /// @custom:param upc The universal product code that the name belongs to.
     mapping(uint256 upc => string) internal _customProductNameOf;
 
-    /// @notice Immutable bytecode storage for published artwork.
-    BannySvgStorage public immutable SVG_STORAGE;
-
     /// @notice The ID of the banny body each background is used by.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param backgroundId The ID of the background.
@@ -266,8 +272,244 @@ contract Banny721TokenUriResolver is
     }
 
     //*********************************************************************//
-    // ------------------------- external views -------------------------- //
+    // ---------------------- external transactions ---------------------- //
     //*********************************************************************//
+
+    /// @notice Dress your banny body with outfits and a background.
+    /// @dev Decoration is allowed when ALL of the following hold:
+    ///
+    /// 1. The caller owns the banny body (via `_checkIfSenderIsOwner`).
+    /// 2. The banny body is not currently locked (`outfitLockedUntil` has not yet passed).
+    /// 3. For each outfit supplied:
+    ///    a. The caller is the outfit's current owner, OR
+    ///    b. The outfit is currently worn by another banny body and the caller owns that banny body.
+    ///    (If the outfit is unworn, only (a) applies — the outfit owner must be the caller.)
+    /// 4. For the background supplied (if non-zero):
+    ///    a. The caller is the background's current owner, OR
+    ///    b. The background is currently used by another banny body and the caller owns that banny body.
+    ///    (If the background is unused, only (a) applies — the background owner must be the caller.)
+    /// 5. Outfit categories must be valid (within recognized range) and passed in ascending order.
+    /// 6. Conflicting categories are rejected (e.g., a full head blocks individual face pieces;
+    ///    a full suit blocks separate top/bottom).
+    ///
+    /// @dev WARNING: Equipped outfits and backgrounds are held by this contract on behalf of the banny body. When the
+    /// banny body NFT is transferred to a new owner, all equipped assets remain associated with that body. The new
+    /// owner of the body effectively gains control of all equipped items. They can unequip them, receiving the outfit
+    /// NFTs, or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
+    ///
+    /// @param hook The hook storing the assets.
+    /// @param bannyBodyId The ID of the banny body to dress.
+    /// @param backgroundId The ID of the background that'll be associated with the specified banny.
+    /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny. Only one outfit per
+    /// outfit category allowed at a time and they must be passed in order.
+    function decorateBannyWith(
+        address hook,
+        uint256 bannyBodyId,
+        uint256 backgroundId,
+        uint256[] calldata outfitIds
+    )
+        external
+        override
+        nonReentrant
+    {
+        // Cache the sender once to avoid repeated ERC-2771 context reads throughout the call chain.
+        address sender = _msgSender();
+
+        address bannyBodyOwner = IERC721(hook).ownerOf(bannyBodyId);
+        if (bannyBodyOwner != sender) {
+            revert Banny721TokenUriResolver_UnauthorizedBannyBody({
+                hook: hook, bannyBodyId: bannyBodyId, sender: sender, owner: bannyBodyOwner
+            });
+        }
+
+        // Make sure the bannyBodyId belongs to a body-category tier.
+        uint256 bannyBodyCategory = _productOfTokenId({hook: hook, tokenId: bannyBodyId}).category;
+        if (bannyBodyCategory != _BODY_CATEGORY) {
+            revert Banny721TokenUriResolver_BannyBodyNotBodyCategory({
+                hook: hook, bannyBodyId: bannyBodyId, category: bannyBodyCategory
+            });
+        }
+
+        // Can't decorate a banny that's locked.
+        // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
+        // forge-lint: disable-next-line(block-timestamp)
+        if (outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
+            revert Banny721TokenUriResolver_OutfitChangesLocked({
+                hook: hook, bannyBodyId: bannyBodyId, lockedUntil: outfitLockedUntil[hook][bannyBodyId]
+            });
+        }
+
+        emit DecorateBanny({
+            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: sender
+        });
+
+        // Add the background.
+        _decorateBannyWithBackground({hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, sender: sender});
+
+        // Add the outfits.
+        _decorateBannyWithOutfits({hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds, sender: sender});
+    }
+
+    /// @notice Allows the owner of this contract to set the token metadata description, external URL, and SVG base URI.
+    /// @dev All fields are always written. Pass the current value for any field you do not want to change,
+    /// or pass an empty string to clear a field.
+    /// @param description The description to use in token metadata.
+    /// @param url The external URL to use in token metadata.
+    /// @param baseUri The base URI of the SVG files.
+    function setMetadata(
+        string calldata description,
+        string calldata url,
+        string calldata baseUri
+    )
+        external
+        override
+        onlyOwner
+    {
+        svgDescription = description;
+        svgExternalUrl = url;
+        svgBaseUri = baseUri;
+
+        emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: _msgSender()});
+    }
+
+    /// @notice Allows the owner to set the product's name.
+    /// @dev Product names are mutable — the owner can update them at any time. This is intentional to allow
+    /// corrections and localization. Names are only used in metadata and do not affect on-chain logic.
+    /// @param upcs The universal product codes of the products having their name stored.
+    /// @param names The names of the products.
+    function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
+        if (upcs.length != names.length) {
+            revert Banny721TokenUriResolver_ArrayLengthMismatch({firstLength: upcs.length, secondLength: names.length});
+        }
+
+        address sender = _msgSender();
+        for (uint256 i; i < upcs.length;) {
+            uint256 upc = upcs[i];
+            string memory name = names[i];
+
+            _customProductNameOf[upc] = name;
+
+            emit SetProductName({upc: upc, name: name, caller: sender});
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Permissionless: anyone can store the SVG bytes for a product code, as long as they match the owner-
+    /// precommitted hash. The hash is set by the owner via `setSvgHashesOf`; this function only finalizes the bytes.
+    /// @dev See `setSvgHashesOf` for the trust model. The function reverts on hash mismatch, missing hash, or
+    /// already-stored content. Publication is one-shot — wrong-hash commitments are unrecoverable by design.
+    /// @param upcs The universal product codes of the products having SVGs stored.
+    /// @param svgContents The svg contents to store, not including the parent <svg></svg> element.
+    function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
+        if (upcs.length != svgContents.length) {
+            revert Banny721TokenUriResolver_ArrayLengthMismatch({
+                firstLength: upcs.length, secondLength: svgContents.length
+            });
+        }
+
+        address sender = _msgSender();
+        for (uint256 i; i < upcs.length;) {
+            uint256 upc = upcs[i];
+            string memory svgContent = svgContents[i];
+
+            // Make sure there isn't already contents for the specified universal product code.
+            if (_hasStoredSvg(upc)) {
+                revert Banny721TokenUriResolver_ContentsAlreadyStored({upc: upc});
+            }
+
+            // Get the stored svg hash for the product.
+            bytes32 svgHash = svgHashOf[upc];
+
+            // Make sure a hash exists.
+            if (svgHash == bytes32(0)) revert Banny721TokenUriResolver_HashNotFound({upc: upc});
+
+            // Make sure the content matches the hash.
+            bytes32 actualHash = keccak256(abi.encodePacked(svgContent));
+            if (actualHash != svgHash) {
+                revert Banny721TokenUriResolver_ContentsMismatch({
+                    upc: upc, expectedHash: svgHash, actualHash: actualHash
+                });
+            }
+
+            // Store the svg contents.
+            _storeSvg({upc: upc, svgContent: svgContent});
+
+            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: sender});
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Allows the owner of this contract to upload the hash of an svg file for a universal product code.
+    /// @dev This allows anyone to lazily upload the correct svg file.
+    /// @param upcs The universal product codes of the products having SVG hashes stored.
+    /// @param svgHashes The svg hashes to store, not including the parent <svg></svg> element.
+    function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
+        if (upcs.length != svgHashes.length) {
+            revert Banny721TokenUriResolver_ArrayLengthMismatch({
+                firstLength: upcs.length, secondLength: svgHashes.length
+            });
+        }
+
+        address sender = _msgSender();
+        for (uint256 i; i < upcs.length;) {
+            uint256 upc = upcs[i];
+            bytes32 svgHash = svgHashes[i];
+
+            // Make sure there isn't already contents for the specified universal product code.
+            if (svgHashOf[upc] != bytes32(0)) {
+                revert Banny721TokenUriResolver_HashAlreadyStored({upc: upc, existingHash: svgHashOf[upc]});
+            }
+
+            // Store the svg contents.
+            svgHashOf[upc] = svgHash;
+
+            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: sender});
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    //*********************************************************************//
+    // -------------------------- external views ------------------------- //
+    //*********************************************************************//
+
+    /// @notice Handles the receipt of an ERC-721 token, only accepting transfers initiated by this contract.
+    /// @dev Make sure tokens can be received if the transaction was initiated by this contract.
+    /// @dev NFTs sent via transferFrom (not safeTransferFrom) bypass onERC721Received and cannot be tracked or
+    /// recovered. This is an inherent ERC-721 limitation — the contract cannot prevent non-safe transfers. Users and
+    /// UIs should always use safeTransferFrom.
+    /// @param operator The address that initiated the transaction.
+    /// @param from The address that initiated the transfer.
+    /// @param tokenId The ID of the token to transfer.
+    /// @param data The data of the transfer.
+    /// @return The ERC-721 receiver selector.
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    )
+        external
+        view
+        override
+        returns (bytes4)
+    {
+        from; // unused.
+        tokenId; // unused.
+        data; // unused.
+
+        // Make sure the transaction's operator is this contract.
+        if (operator != address(this)) {
+            revert Banny721TokenUriResolver_UnauthorizedTransfer({operator: operator, expectedOperator: address(this)});
+        }
+
+        return IERC721Receiver.onERC721Received.selector;
+    }
 
     /// @notice Returns the SVG showing a dressed banny body in a background.
     /// @param hook The hook storing the assets.
@@ -429,7 +671,7 @@ contract Banny721TokenUriResolver is
     }
 
     //*********************************************************************//
-    // -------------------------- public views --------------------------- //
+    // --------------------------- public views -------------------------- //
     //*********************************************************************//
 
     /// @notice The assets currently attached to each banny body.
@@ -614,634 +856,8 @@ contract Banny721TokenUriResolver is
     }
 
     //*********************************************************************//
-    // -------------------------- internal views ------------------------- //
+    // ----------------------- public transactions ----------------------- //
     //*********************************************************************//
-
-    /// @notice The SVG contents for a banny body.
-    /// @param upc The ID of the token whose product's SVG to return.
-    /// @return contents The SVG contents of the banny body.
-    function _bannyBodySvgOf(uint256 upc) internal view returns (string memory) {
-        (
-            string memory b1,
-            string memory b2,
-            string memory b3,
-            string memory b4,
-            string memory a1,
-            string memory a2,
-            string memory a3
-        ) = _fillsFor(upc);
-        return string.concat(
-            "<style>.b1{fill:#",
-            b1,
-            ";}.b2{fill:#",
-            b2,
-            ";}.b3{fill:#",
-            b3,
-            ";}.b4{fill:#",
-            b4,
-            ";}.a1{fill:#",
-            a1,
-            ";}.a2{fill:#",
-            a2,
-            ";}.a3{fill:#",
-            a3,
-            ";}</style>",
-            bannyBody
-        );
-    }
-
-    /// @notice The name of each token's category.
-    /// @param category The category of the token to name.
-    /// @return name The token's category name.
-    function _categoryNameOf(uint256 category) internal pure returns (string memory) {
-        if (category == _BODY_CATEGORY) {
-            return "Banny body";
-        } else if (category == _BACKGROUND_CATEGORY) {
-            return "Background";
-        } else if (category == _BACKSIDE_CATEGORY) {
-            return "Backside";
-        } else if (category == _LEGS_CATEGORY) {
-            return "Legs";
-        } else if (category == _NECKLACE_CATEGORY) {
-            return "Necklace";
-        } else if (category == _EYES_CATEGORY) {
-            return "Eyes";
-        } else if (category == _GLASSES_CATEGORY) {
-            return "Glasses";
-        } else if (category == _MOUTH_CATEGORY) {
-            return "Mouth";
-        } else if (category == _HEADTOP_CATEGORY) {
-            return "Head top";
-        } else if (category == _HEAD_CATEGORY) {
-            return "Head";
-        } else if (category == _SUIT_CATEGORY) {
-            return "Suit";
-        } else if (category == _SUIT_TOP_CATEGORY) {
-            return "Suit top";
-        } else if (category == _SUIT_BOTTOM_CATEGORY) {
-            return "Suit bottom";
-        } else if (category == _HAND_CATEGORY) {
-            return "Fist";
-        } else if (category == _SPECIAL_SUIT_CATEGORY) {
-            return "Special Suit";
-        } else if (category == _SPECIAL_LEGS_CATEGORY) {
-            return "Special Legs";
-        } else if (category == _SPECIAL_HEAD_CATEGORY) {
-            return "Special Head";
-        } else if (category == _SPECIAL_BODY_CATEGORY) {
-            return "Special Body";
-        }
-        return "";
-    }
-
-    /// @notice Make sure the message sender own's the token.
-    /// @param hook The 721 contract of the token having ownership checked.
-    /// @param upc The product's UPC to check ownership of.
-    function _checkIfSenderIsOwner(address hook, uint256 upc) internal view {
-        address owner = IERC721(hook).ownerOf(upc);
-        if (owner != _msgSender()) {
-            revert Banny721TokenUriResolver_UnauthorizedBannyBody({
-                hook: hook, bannyBodyId: upc, sender: _msgSender(), owner: owner
-            });
-        }
-    }
-
-    /// @notice The length of the context suffix appended by a trusted forwarder.
-    /// @dev ERC-2771 specifies the context as being a single address (20 bytes).
-    /// @return The suffix length in bytes.
-    function _contextSuffixLength() internal view virtual override(ERC2771Context, Context) returns (uint256) {
-        return super._contextSuffixLength();
-    }
-
-    /// @notice Encode the token URI JSON with base64.
-    /// @dev Metadata strings (name, description, external_url) are set by the contract owner, not by users, and no
-    /// JSON escaping is applied because the owner is trusted to provide valid values. On-chain JSON is consumed by
-    /// off-chain indexers and UIs, not rendered in a browser context where XSS would apply.
-    /// @param tokenId The ID of the token.
-    /// @param product The tier product for the token.
-    /// @param extraMetadata Additional JSON metadata fields to include.
-    /// @param imageContents The base64-encoded SVG image contents.
-    /// @return The fully encoded data URI string.
-    function _encodeTokenUri(
-        uint256 tokenId,
-        JB721Tier memory product,
-        string memory extraMetadata,
-        string memory imageContents
-    )
-        internal
-        view
-        returns (string memory)
-    {
-        return string.concat(
-            "data:application/json;base64,",
-            Base64.encode(
-                abi.encodePacked(
-                    abi.encodePacked(
-                        '{"name":"',
-                        _fullNameOf({tokenId: tokenId, product: product}),
-                        '", "productName": "',
-                        _productNameOf(product.id),
-                        '", "categoryName": "',
-                        _categoryNameOf(product.category),
-                        '", "tokenId": ',
-                        tokenId.toString(),
-                        ', "upc": ',
-                        uint256(product.id).toString(),
-                        ', "category": ',
-                        uint256(product.category).toString()
-                    ),
-                    extraMetadata,
-                    abi.encodePacked(
-                        ', "description":"',
-                        svgDescription,
-                        '","external_url":"',
-                        svgExternalUrl,
-                        '","image":"data:image/svg+xml;base64,',
-                        imageContents,
-                        '"}'
-                    )
-                )
-            )
-        );
-    }
-
-    /// @notice The fills for a product.
-    /// @param upc The ID of the token whose product's fills to return.
-    /// @return fills The fills for the product.
-    function _fillsFor(uint256 upc)
-        internal
-        pure
-        returns (
-            string memory,
-            string memory,
-            string memory,
-            string memory,
-            string memory,
-            string memory,
-            string memory
-        )
-    {
-        if (upc == ALIEN_UPC) {
-            return ("67d757", "30a220", "217a15", "09490f", "e483ef", "dc2fef", "dc2fef");
-        } else if (upc == PINK_UPC) {
-            return ("ffd8c5", "ff96a9", "fe588b", "c92f45", "ffd8c5", "ff96a9", "fe588b");
-        } else if (upc == ORANGE_UPC) {
-            return ("f3a603", "ff7c02", "fd3600", "c32e0d", "f3a603", "ff7c02", "fd3600");
-        } else if (upc == ORIGINAL_UPC) {
-            return ("ffe900", "ffc700", "f3a603", "965a1a", "ffe900", "ffc700", "f3a603");
-        }
-
-        revert Banny721TokenUriResolver_UnrecognizedProduct({upc: upc});
-    }
-
-    /// @notice The full name of each product, including category and inventory.
-    /// @param tokenId The ID of the token to name.
-    /// @param product The product of the token to name.
-    /// @return name The full name.
-    function _fullNameOf(uint256 tokenId, JB721Tier memory product) internal view returns (string memory name) {
-        // Start with the item's name.
-        name = string.concat(_productNameOf(product.id), " ");
-
-        // Strip the product prefix from the token ID.
-        uint256 rawTokenId = tokenId % _ONE_BILLION;
-
-        string memory remainingString = " remaining";
-
-        // If there's a raw token id, append it to the name before appending it to the category.
-        if (rawTokenId != 0) {
-            name = string.concat(name, rawTokenId.toString(), "/", uint256(product.initialSupply).toString());
-        } else if (product.remainingSupply == 0) {
-            name = string.concat(
-                name,
-                " (SOLD OUT) ",
-                uint256(product.remainingSupply).toString(),
-                "/",
-                uint256(product.initialSupply).toString(),
-                remainingString
-            );
-        } else {
-            name = string.concat(
-                name,
-                uint256(product.remainingSupply).toString(),
-                "/",
-                uint256(product.initialSupply).toString(),
-                remainingString
-            );
-        }
-
-        // Append a separator.
-        name = string.concat(name, ": ");
-
-        // Get a reference to the category's name.
-        string memory categoryName = _categoryNameOf(product.category);
-
-        // If there's a category name, append it.
-        if (bytes(categoryName).length != 0) {
-            name = string.concat(name, categoryName, " ");
-        }
-
-        // Append the product ID as a universal product code.
-        name = string.concat(name, "UPC #", uint256(product.id).toString());
-    }
-
-    /// @notice Check if a value is present in an array.
-    /// @param value The value to search for.
-    /// @param array The array to search in.
-    /// @return found True if the value was found.
-    function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
-        for (uint256 i; i < array.length;) {
-            if (array[i] == value) return true;
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @notice Returns the standard dimension SVG containing dynamic contents and SVG metadata.
-    /// @param contents The contents of the SVG
-    /// @return svg The SVG contents.
-    function _layeredSvg(string memory contents) internal pure returns (string memory) {
-        return string.concat(
-            '<svg width="400" height="400" viewBox="0 0 400 400" fill="white" xmlns="http://www.w3.org/2000/svg"><style>.o{fill:#050505;}.w{fill:#f9f9f9;}</style>',
-            contents,
-            "</svg>"
-        );
-    }
-
-    /// @notice The SVG contents for a mannequin banny.
-    /// @return contents The SVG contents of the mannequin banny.
-    function _mannequinBannySvg() internal view returns (string memory) {
-        return string.concat(
-            "<style>.o{fill:#808080;}.b1{fill:none;}.b2{fill:none;}.b3{fill:none;}.b4{fill:none;}.a1{fill:none;}.a2{fill:none;}.a3{fill:none;}</style>",
-            bannyBody
-        );
-    }
-
-    /// @notice Returns the calldata, preferred to use over `msg.data`
-    /// @return calldata the `msg.data` of this call
-    function _msgData() internal view override(ERC2771Context, Context) returns (bytes calldata) {
-        return ERC2771Context._msgData();
-    }
-
-    /// @notice Returns the sender, preferred to use over `msg.sender`
-    /// @return sender the sender address of this call.
-    function _msgSender() internal view override(ERC2771Context, Context) returns (address sender) {
-        return ERC2771Context._msgSender();
-    }
-
-    /// @notice The SVG contents for a list of outfit IDs.
-    /// @param hook The 721 contract that the product belongs to.
-    /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny.
-    /// @param bodyUpc The UPC of the banny body to dress (used for default eyes selection).
-    /// @return contents The SVG contents of the outfits.
-    function _outfitContentsFor(
-        address hook,
-        uint256[] memory outfitIds,
-        uint256 bodyUpc
-    )
-        internal
-        view
-        returns (string memory contents)
-    {
-        // Get a reference to the number of outfits are on the banny body.
-        uint256 numberOfOutfits = outfitIds.length;
-
-        // Keep a reference to if certain accessories have been added.
-        bool hasNecklace;
-        bool hasHead;
-        bool hasEyes;
-        bool hasMouth;
-
-        // Keep a reference to the custom necklace. Needed because the custom necklace is layered differently than the
-        // default.
-        string memory customNecklace;
-
-        // For each outfit, add the SVG layer if it's owned by the same owner as the banny body being dressed.
-        // Loop once more to make sure all default outfits are added.
-        for (uint256 i; i < numberOfOutfits + 1;) {
-            // Keep a reference to the outfit ID being iterated on.
-            uint256 outfitId;
-
-            // Keep a reference to the category of the outfit being iterated on.
-            uint256 category;
-
-            // Keep a reference to the upc of the outfit being iterated on.
-            uint256 upc;
-
-            // If the outfit is within the bounds of the number of outfits there are, add it normally.
-            if (i < numberOfOutfits) {
-                // Set the outfit ID being iterated on.
-                outfitId = outfitIds[i];
-
-                // Get the product of the outfit being iterated on.
-                JB721Tier memory product = _productOfTokenId({hook: hook, tokenId: outfitId});
-
-                // Set the category of the outfit being iterated on.
-                category = product.category;
-
-                // Set the upc of the outfit being iterated on.
-                upc = product.id;
-            } else {
-                // Set the category to be more than all other categories to force adding defaults.
-                category = _SPECIAL_BODY_CATEGORY + 1;
-                outfitId = 0;
-                upc = 0;
-            }
-
-            if (category == _NECKLACE_CATEGORY) {
-                hasNecklace = true;
-                customNecklace = _svgOf({hook: hook, upc: upc});
-            } else if (category > _NECKLACE_CATEGORY && !hasNecklace) {
-                contents = string.concat(contents, defaultNecklace);
-                hasNecklace = true;
-            }
-
-            if (category == _HEAD_CATEGORY) {
-                hasHead = true;
-            }
-
-            if (category == _EYES_CATEGORY) {
-                hasEyes = true;
-            } else if (category > _EYES_CATEGORY && !hasEyes && !hasHead) {
-                if (bodyUpc == ALIEN_UPC) contents = string.concat(contents, defaultAlienEyes);
-                else contents = string.concat(contents, defaultStandardEyes);
-
-                hasEyes = true;
-            }
-
-            if (category == _MOUTH_CATEGORY) {
-                hasMouth = true;
-            } else if (category > _MOUTH_CATEGORY && !hasMouth && !hasHead) {
-                contents = string.concat(contents, defaultMouth);
-                hasMouth = true;
-            }
-
-            // Add the custom necklace if needed.
-            if (category > _SUIT_TOP_CATEGORY && bytes(customNecklace).length != 0) {
-                contents = string.concat(contents, customNecklace);
-                // Reset.
-                customNecklace = "";
-            }
-
-            // Add the outfit if needed.
-            if (outfitId != 0 && category != _NECKLACE_CATEGORY) {
-                contents = string.concat(contents, _svgOf({hook: hook, upc: upc}));
-            }
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @notice The name of each token's product type.
-    /// @param upc The ID of the token whose product type to name.
-    /// @return name The item's product name.
-    function _productNameOf(uint256 upc) internal view returns (string memory) {
-        // Get the token's name.
-        if (upc == ALIEN_UPC) {
-            return "Alien";
-        } else if (upc == PINK_UPC) {
-            return "Pink";
-        } else if (upc == ORANGE_UPC) {
-            return "Orange";
-        } else if (upc == ORIGINAL_UPC) {
-            return "Original";
-        } else {
-            // Get the product's name that has been uploaded.
-            return _customProductNameOf[upc];
-        }
-    }
-
-    /// @notice Get the product of the 721 with the provided token ID in the provided 721 contract.
-    /// @param hook The 721 contract that the product belongs to.
-    /// @param tokenId The token ID of the 721 to get the product of.
-    /// @return product The product.
-    function _productOfTokenId(address hook, uint256 tokenId) internal view returns (JB721Tier memory) {
-        return _storeOf(hook).tierOfTokenId({hook: hook, tokenId: tokenId, includeResolvedUri: false});
-    }
-
-    /// @notice Revert if an equipped asset is reassigned away from a locked source body.
-    /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The body currently using the asset.
-    /// @param exemptBodyId The destination body currently decorated.
-    function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
-        // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
-        // forge-lint: disable-next-line(block-timestamp)
-        if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
-            revert Banny721TokenUriResolver_OutfitChangesLocked({
-                hook: hook, bannyBodyId: bannyBodyId, lockedUntil: outfitLockedUntil[hook][bannyBodyId]
-            });
-        }
-    }
-
-    /// @notice Sort outfit IDs in ascending category order.
-    /// @dev Retained outfits are merged back in after failed transfers, so the merged list can become unsorted even
-    /// when the caller provided the new outfits in canonical order. Rendering logic depends on category progression.
-    /// @param hook The 721 hook whose tier categories determine sort order.
-    /// @param outfitIds The outfit token IDs to sort in-place by ascending category.
-    function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
-        // Cache array length and skip sorting when fewer than 2 elements.
-        uint256 length = outfitIds.length;
-        if (length < 2) return;
-
-        // Pre-compute all categories to avoid repeated external STATICCALL during sort comparisons.
-        uint256[] memory categories = new uint256[](length);
-        for (uint256 i; i < length;) {
-            categories[i] = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
-            unchecked {
-                ++i;
-            }
-        }
-
-        // Insertion sort using cached categories.
-        for (uint256 i = 1; i < length;) {
-            // Cache the current element so it can be inserted into the correct sorted position.
-            uint256 outfitId = outfitIds[i];
-            uint256 category = categories[i];
-            uint256 j = i;
-
-            // Shift larger-category entries right until the insertion point is found.
-            while (j != 0 && categories[j - 1] > category) {
-                outfitIds[j] = outfitIds[j - 1];
-                categories[j] = categories[j - 1];
-                unchecked {
-                    --j;
-                }
-            }
-
-            // Place the cached element at its sorted position.
-            outfitIds[j] = outfitId;
-            categories[j] = category;
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @notice The store of the hook.
-    /// @param hook The hook to get the store of.
-    /// @return store The store of the hook.
-    function _storeOf(address hook) internal view returns (IJB721TiersHookStore) {
-        return IJB721TiersHook(hook).STORE();
-    }
-
-    /// @notice The banny body and outfit SVG files.
-    /// @param hook The 721 contract that the product belongs to.
-    /// @param upc The universal product code of the product that the SVG contents represent.
-    /// @return The SVG content string, either from storage or decoded from IPFS.
-    function _svgOf(address hook, uint256 upc) internal view returns (string memory) {
-        // Keep a reference to the stored svg contents.
-        string memory svgContents = _storedSvgOf(upc);
-
-        if (bytes(svgContents).length != 0) return svgContents;
-
-        return string.concat(
-            '<image href="',
-            JBIpfsDecoder.decode({
-                baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIpfsUriOf({hook: hook, tierId: upc})
-            }),
-            '" width="400" height="400"/>'
-        );
-    }
-
-    /// @notice Read published artwork independently of its storage representation.
-    function _storedSvgOf(uint256 upc) internal view returns (string memory) {
-        return string(SVG_STORAGE.read(upc));
-    }
-
-    /// @notice Whether nonempty artwork has already been published.
-    function _hasStoredSvg(uint256 upc) internal view returns (bool) {
-        return SVG_STORAGE.isStored(upc);
-    }
-
-    /// @notice Publish artwork after the caller has validated its commitment.
-    function _storeSvg(uint256 upc, string memory svgContent) internal {
-        SVG_STORAGE.write(upc, bytes(svgContent));
-    }
-
-    /// @notice Validate that an array of outfit IDs does not violate category exclusivity rules.
-    /// @dev HEAD is exclusive with EYES, GLASSES, MOUTH, and HEADTOP. SUIT is exclusive with SUIT_TOP and
-    /// SUIT_BOTTOM. The array does not need to be sorted.
-    /// @param hook The hook storing the assets.
-    /// @param outfitIds The outfit IDs to validate.
-    function _validateCategoryExclusivity(address hook, uint256[] memory outfitIds) internal view {
-        // Track whether a full-coverage item has been seen for each exclusive group.
-        bool hasHead;
-        bool hasSuit;
-        // Track whether a partial/accessory item has been seen for each exclusive group.
-        bool hasHeadAccessory;
-        bool hasSuitPiece;
-
-        // Scan every outfit and classify it into one of the two exclusive groups.
-        for (uint256 i; i < outfitIds.length;) {
-            // Look up the tier category for this outfit token.
-            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
-
-            if (category == _HEAD_CATEGORY) {
-                // A full HEAD covers the entire head area (eyes, glasses, mouth, headtop).
-                hasHead = true;
-            } else if (
-                category == _EYES_CATEGORY || category == _GLASSES_CATEGORY || category == _MOUTH_CATEGORY
-                    || category == _HEADTOP_CATEGORY
-            ) {
-                // Individual face/head accessories that would be hidden by a full HEAD.
-                hasHeadAccessory = true;
-            } else if (category == _SUIT_CATEGORY) {
-                // A full SUIT covers both the top and bottom body areas.
-                hasSuit = true;
-            } else if (category == _SUIT_TOP_CATEGORY || category == _SUIT_BOTTOM_CATEGORY) {
-                // Individual top or bottom pieces that would conflict with a full SUIT.
-                hasSuitPiece = true;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-
-        // A full HEAD and individual head accessories cannot coexist — the head would hide the accessories.
-        if (hasHead && hasHeadAccessory) revert Banny721TokenUriResolver_HeadAlreadyAdded({category: _HEAD_CATEGORY});
-        // A full SUIT and individual suit pieces cannot coexist — the suit would hide the pieces.
-        if (hasSuit && hasSuitPiece) revert Banny721TokenUriResolver_SuitAlreadyAdded({category: _SUIT_CATEGORY});
-    }
-
-    //*********************************************************************//
-    // ---------------------- external transactions ---------------------- //
-    //*********************************************************************//
-
-    /// @notice Dress your banny body with outfits and a background.
-    /// @dev Decoration is allowed when ALL of the following hold:
-    ///
-    /// 1. The caller owns the banny body (via `_checkIfSenderIsOwner`).
-    /// 2. The banny body is not currently locked (`outfitLockedUntil` has not yet passed).
-    /// 3. For each outfit supplied:
-    ///    a. The caller is the outfit's current owner, OR
-    ///    b. The outfit is currently worn by another banny body and the caller owns that banny body.
-    ///    (If the outfit is unworn, only (a) applies — the outfit owner must be the caller.)
-    /// 4. For the background supplied (if non-zero):
-    ///    a. The caller is the background's current owner, OR
-    ///    b. The background is currently used by another banny body and the caller owns that banny body.
-    ///    (If the background is unused, only (a) applies — the background owner must be the caller.)
-    /// 5. Outfit categories must be valid (within recognized range) and passed in ascending order.
-    /// 6. Conflicting categories are rejected (e.g., a full head blocks individual face pieces;
-    ///    a full suit blocks separate top/bottom).
-    ///
-    /// @dev WARNING: Equipped outfits and backgrounds are held by this contract on behalf of the banny body. When the
-    /// banny body NFT is transferred to a new owner, all equipped assets remain associated with that body. The new
-    /// owner of the body effectively gains control of all equipped items. They can unequip them, receiving the outfit
-    /// NFTs, or re-equip different items. Sellers should unequip valuable outfits before transferring a banny body.
-    ///
-    /// @param hook The hook storing the assets.
-    /// @param bannyBodyId The ID of the banny body to dress.
-    /// @param backgroundId The ID of the background that'll be associated with the specified banny.
-    /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny. Only one outfit per
-    /// outfit category allowed at a time and they must be passed in order.
-    function decorateBannyWith(
-        address hook,
-        uint256 bannyBodyId,
-        uint256 backgroundId,
-        uint256[] calldata outfitIds
-    )
-        external
-        override
-        nonReentrant
-    {
-        // Cache the sender once to avoid repeated ERC-2771 context reads throughout the call chain.
-        address sender = _msgSender();
-
-        address bannyBodyOwner = IERC721(hook).ownerOf(bannyBodyId);
-        if (bannyBodyOwner != sender) {
-            revert Banny721TokenUriResolver_UnauthorizedBannyBody({
-                hook: hook, bannyBodyId: bannyBodyId, sender: sender, owner: bannyBodyOwner
-            });
-        }
-
-        // Make sure the bannyBodyId belongs to a body-category tier.
-        uint256 bannyBodyCategory = _productOfTokenId({hook: hook, tokenId: bannyBodyId}).category;
-        if (bannyBodyCategory != _BODY_CATEGORY) {
-            revert Banny721TokenUriResolver_BannyBodyNotBodyCategory({
-                hook: hook, bannyBodyId: bannyBodyId, category: bannyBodyCategory
-            });
-        }
-
-        // Can't decorate a banny that's locked.
-        // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
-        // forge-lint: disable-next-line(block-timestamp)
-        if (outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
-            revert Banny721TokenUriResolver_OutfitChangesLocked({
-                hook: hook, bannyBodyId: bannyBodyId, lockedUntil: outfitLockedUntil[hook][bannyBodyId]
-            });
-        }
-
-        emit DecorateBanny({
-            hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, outfitIds: outfitIds, caller: sender
-        });
-
-        // Add the background.
-        _decorateBannyWithBackground({hook: hook, bannyBodyId: bannyBodyId, backgroundId: backgroundId, sender: sender});
-
-        // Add the outfits.
-        _decorateBannyWithOutfits({hook: hook, bannyBodyId: bannyBodyId, outfitIds: outfitIds, sender: sender});
-    }
 
     /// @notice Locks a banny body ID so that it can't change its outfit for a period of time.
     /// @param hook The hook address of the collection.
@@ -1265,163 +881,6 @@ contract Banny721TokenUriResolver is
 
         // Set the lock.
         outfitLockedUntil[hook][bannyBodyId] = newLockUntil;
-    }
-
-    /// @notice Handles the receipt of an ERC-721 token, only accepting transfers initiated by this contract.
-    /// @dev Make sure tokens can be received if the transaction was initiated by this contract.
-    /// @dev NFTs sent via transferFrom (not safeTransferFrom) bypass onERC721Received and cannot be tracked or
-    /// recovered. This is an inherent ERC-721 limitation — the contract cannot prevent non-safe transfers. Users and
-    /// UIs should always use safeTransferFrom.
-    /// @param operator The address that initiated the transaction.
-    /// @param from The address that initiated the transfer.
-    /// @param tokenId The ID of the token to transfer.
-    /// @param data The data of the transfer.
-    /// @return The ERC-721 receiver selector.
-    function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
-        bytes calldata data
-    )
-        external
-        view
-        override
-        returns (bytes4)
-    {
-        from; // unused.
-        tokenId; // unused.
-        data; // unused.
-
-        // Make sure the transaction's operator is this contract.
-        if (operator != address(this)) {
-            revert Banny721TokenUriResolver_UnauthorizedTransfer({operator: operator, expectedOperator: address(this)});
-        }
-
-        return IERC721Receiver.onERC721Received.selector;
-    }
-
-    /// @notice Allows the owner of this contract to set the token metadata description, external URL, and SVG base URI.
-    /// @dev All fields are always written. Pass the current value for any field you do not want to change,
-    /// or pass an empty string to clear a field.
-    /// @param description The description to use in token metadata.
-    /// @param url The external URL to use in token metadata.
-    /// @param baseUri The base URI of the SVG files.
-    function setMetadata(
-        string calldata description,
-        string calldata url,
-        string calldata baseUri
-    )
-        external
-        override
-        onlyOwner
-    {
-        svgDescription = description;
-        svgExternalUrl = url;
-        svgBaseUri = baseUri;
-
-        emit SetMetadata({description: description, externalUrl: url, baseUri: baseUri, caller: _msgSender()});
-    }
-
-    /// @notice Allows the owner to set the product's name.
-    /// @dev Product names are mutable — the owner can update them at any time. This is intentional to allow
-    /// corrections and localization. Names are only used in metadata and do not affect on-chain logic.
-    /// @param upcs The universal product codes of the products having their name stored.
-    /// @param names The names of the products.
-    function setProductNames(uint256[] memory upcs, string[] memory names) external override onlyOwner {
-        if (upcs.length != names.length) {
-            revert Banny721TokenUriResolver_ArrayLengthMismatch({firstLength: upcs.length, secondLength: names.length});
-        }
-
-        address sender = _msgSender();
-        for (uint256 i; i < upcs.length;) {
-            uint256 upc = upcs[i];
-            string memory name = names[i];
-
-            _customProductNameOf[upc] = name;
-
-            emit SetProductName({upc: upc, name: name, caller: sender});
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @notice Permissionless: anyone can store the SVG bytes for a product code, as long as they match the owner-
-    /// precommitted hash. The hash is set by the owner via `setSvgHashesOf`; this function only finalizes the bytes.
-    /// @dev See `setSvgHashesOf` for the trust model. The function reverts on hash mismatch, missing hash, or
-    /// already-stored content. Publication is one-shot — wrong-hash commitments are unrecoverable by design.
-    /// @param upcs The universal product codes of the products having SVGs stored.
-    /// @param svgContents The svg contents to store, not including the parent <svg></svg> element.
-    function setSvgContentsOf(uint256[] memory upcs, string[] calldata svgContents) external override {
-        if (upcs.length != svgContents.length) {
-            revert Banny721TokenUriResolver_ArrayLengthMismatch({
-                firstLength: upcs.length, secondLength: svgContents.length
-            });
-        }
-
-        address sender = _msgSender();
-        for (uint256 i; i < upcs.length;) {
-            uint256 upc = upcs[i];
-            string memory svgContent = svgContents[i];
-
-            // Make sure there isn't already contents for the specified universal product code.
-            if (_hasStoredSvg(upc)) {
-                revert Banny721TokenUriResolver_ContentsAlreadyStored({upc: upc});
-            }
-
-            // Get the stored svg hash for the product.
-            bytes32 svgHash = svgHashOf[upc];
-
-            // Make sure a hash exists.
-            if (svgHash == bytes32(0)) revert Banny721TokenUriResolver_HashNotFound({upc: upc});
-
-            // Make sure the content matches the hash.
-            bytes32 actualHash = keccak256(abi.encodePacked(svgContent));
-            if (actualHash != svgHash) {
-                revert Banny721TokenUriResolver_ContentsMismatch({
-                    upc: upc, expectedHash: svgHash, actualHash: actualHash
-                });
-            }
-
-            // Store the svg contents.
-            _storeSvg(upc, svgContent);
-
-            emit SetSvgContent({upc: upc, svgContent: svgContent, caller: sender});
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @notice Allows the owner of this contract to upload the hash of an svg file for a universal product code.
-    /// @dev This allows anyone to lazily upload the correct svg file.
-    /// @param upcs The universal product codes of the products having SVG hashes stored.
-    /// @param svgHashes The svg hashes to store, not including the parent <svg></svg> element.
-    function setSvgHashesOf(uint256[] memory upcs, bytes32[] memory svgHashes) external override onlyOwner {
-        if (upcs.length != svgHashes.length) {
-            revert Banny721TokenUriResolver_ArrayLengthMismatch({
-                firstLength: upcs.length, secondLength: svgHashes.length
-            });
-        }
-
-        address sender = _msgSender();
-        for (uint256 i; i < upcs.length;) {
-            uint256 upc = upcs[i];
-            bytes32 svgHash = svgHashes[i];
-
-            // Make sure there isn't already contents for the specified universal product code.
-            if (svgHashOf[upc] != bytes32(0)) {
-                revert Banny721TokenUriResolver_HashAlreadyStored({upc: upc, existingHash: svgHashOf[upc]});
-            }
-
-            // Store the svg contents.
-            svgHashOf[upc] = svgHash;
-
-            emit SetSvgHash({upc: upc, svgHash: svgHash, caller: sender});
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     //*********************************************************************//
@@ -1790,6 +1249,14 @@ contract Banny721TokenUriResolver is
         }
     }
 
+    /// @notice Publish a product's SVG fragment in immutable bytecode storage.
+    /// @dev The calling setter must validate the content hash and publication uniqueness before writing.
+    /// @param upc The universal product code whose artwork to publish.
+    /// @param svgContent The complete SVG fragment matching the product's committed hash.
+    function _storeSvg(uint256 upc, string memory svgContent) internal {
+        SVG_STORAGE.write({upc: upc, contents: bytes(svgContent)});
+    }
+
     /// @notice Transfer a token from one address to another.
     /// @param hook The 721 contract of the token to transfer.
     /// @param from The address to transfer the token from.
@@ -1810,5 +1277,556 @@ contract Banny721TokenUriResolver is
         try IERC721(hook).safeTransferFrom({from: from, to: to, tokenId: assetId}) {
             success = true;
         } catch {}
+    }
+
+    //*********************************************************************//
+    // -------------------------- internal views ------------------------- //
+    //*********************************************************************//
+
+    /// @notice The SVG contents for a banny body.
+    /// @param upc The ID of the token whose product's SVG to return.
+    /// @return contents The SVG contents of the banny body.
+    function _bannyBodySvgOf(uint256 upc) internal view returns (string memory) {
+        (
+            string memory b1,
+            string memory b2,
+            string memory b3,
+            string memory b4,
+            string memory a1,
+            string memory a2,
+            string memory a3
+        ) = _fillsFor(upc);
+        return string.concat(
+            "<style>.b1{fill:#",
+            b1,
+            ";}.b2{fill:#",
+            b2,
+            ";}.b3{fill:#",
+            b3,
+            ";}.b4{fill:#",
+            b4,
+            ";}.a1{fill:#",
+            a1,
+            ";}.a2{fill:#",
+            a2,
+            ";}.a3{fill:#",
+            a3,
+            ";}</style>",
+            bannyBody
+        );
+    }
+
+    /// @notice The name of each token's category.
+    /// @param category The category of the token to name.
+    /// @return name The token's category name.
+    function _categoryNameOf(uint256 category) internal pure returns (string memory) {
+        if (category == _BODY_CATEGORY) {
+            return "Banny body";
+        } else if (category == _BACKGROUND_CATEGORY) {
+            return "Background";
+        } else if (category == _BACKSIDE_CATEGORY) {
+            return "Backside";
+        } else if (category == _LEGS_CATEGORY) {
+            return "Legs";
+        } else if (category == _NECKLACE_CATEGORY) {
+            return "Necklace";
+        } else if (category == _EYES_CATEGORY) {
+            return "Eyes";
+        } else if (category == _GLASSES_CATEGORY) {
+            return "Glasses";
+        } else if (category == _MOUTH_CATEGORY) {
+            return "Mouth";
+        } else if (category == _HEADTOP_CATEGORY) {
+            return "Head top";
+        } else if (category == _HEAD_CATEGORY) {
+            return "Head";
+        } else if (category == _SUIT_CATEGORY) {
+            return "Suit";
+        } else if (category == _SUIT_TOP_CATEGORY) {
+            return "Suit top";
+        } else if (category == _SUIT_BOTTOM_CATEGORY) {
+            return "Suit bottom";
+        } else if (category == _HAND_CATEGORY) {
+            return "Fist";
+        } else if (category == _SPECIAL_SUIT_CATEGORY) {
+            return "Special Suit";
+        } else if (category == _SPECIAL_LEGS_CATEGORY) {
+            return "Special Legs";
+        } else if (category == _SPECIAL_HEAD_CATEGORY) {
+            return "Special Head";
+        } else if (category == _SPECIAL_BODY_CATEGORY) {
+            return "Special Body";
+        }
+        return "";
+    }
+
+    /// @notice Make sure the message sender own's the token.
+    /// @param hook The 721 contract of the token having ownership checked.
+    /// @param upc The product's UPC to check ownership of.
+    function _checkIfSenderIsOwner(address hook, uint256 upc) internal view {
+        address owner = IERC721(hook).ownerOf(upc);
+        if (owner != _msgSender()) {
+            revert Banny721TokenUriResolver_UnauthorizedBannyBody({
+                hook: hook, bannyBodyId: upc, sender: _msgSender(), owner: owner
+            });
+        }
+    }
+
+    /// @notice The length of the context suffix appended by a trusted forwarder.
+    /// @dev ERC-2771 specifies the context as being a single address (20 bytes).
+    /// @return The suffix length in bytes.
+    function _contextSuffixLength() internal view virtual override(ERC2771Context, Context) returns (uint256) {
+        return super._contextSuffixLength();
+    }
+
+    /// @notice Encode the token URI JSON with base64.
+    /// @dev Metadata strings (name, description, external_url) are set by the contract owner, not by users, and no
+    /// JSON escaping is applied because the owner is trusted to provide valid values. On-chain JSON is consumed by
+    /// off-chain indexers and UIs, not rendered in a browser context where XSS would apply.
+    /// @param tokenId The ID of the token.
+    /// @param product The tier product for the token.
+    /// @param extraMetadata Additional JSON metadata fields to include.
+    /// @param imageContents The base64-encoded SVG image contents.
+    /// @return The fully encoded data URI string.
+    function _encodeTokenUri(
+        uint256 tokenId,
+        JB721Tier memory product,
+        string memory extraMetadata,
+        string memory imageContents
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        return string.concat(
+            "data:application/json;base64,",
+            Base64.encode(
+                abi.encodePacked(
+                    abi.encodePacked(
+                        '{"name":"',
+                        _fullNameOf({tokenId: tokenId, product: product}),
+                        '", "productName": "',
+                        _productNameOf(product.id),
+                        '", "categoryName": "',
+                        _categoryNameOf(product.category),
+                        '", "tokenId": ',
+                        tokenId.toString(),
+                        ', "upc": ',
+                        uint256(product.id).toString(),
+                        ', "category": ',
+                        uint256(product.category).toString()
+                    ),
+                    extraMetadata,
+                    abi.encodePacked(
+                        ', "description":"',
+                        svgDescription,
+                        '","external_url":"',
+                        svgExternalUrl,
+                        '","image":"data:image/svg+xml;base64,',
+                        imageContents,
+                        '"}'
+                    )
+                )
+            )
+        );
+    }
+
+    /// @notice The fills for a product.
+    /// @param upc The ID of the token whose product's fills to return.
+    /// @return fills The fills for the product.
+    function _fillsFor(uint256 upc)
+        internal
+        pure
+        returns (
+            string memory,
+            string memory,
+            string memory,
+            string memory,
+            string memory,
+            string memory,
+            string memory
+        )
+    {
+        if (upc == ALIEN_UPC) {
+            return ("67d757", "30a220", "217a15", "09490f", "e483ef", "dc2fef", "dc2fef");
+        } else if (upc == PINK_UPC) {
+            return ("ffd8c5", "ff96a9", "fe588b", "c92f45", "ffd8c5", "ff96a9", "fe588b");
+        } else if (upc == ORANGE_UPC) {
+            return ("f3a603", "ff7c02", "fd3600", "c32e0d", "f3a603", "ff7c02", "fd3600");
+        } else if (upc == ORIGINAL_UPC) {
+            return ("ffe900", "ffc700", "f3a603", "965a1a", "ffe900", "ffc700", "f3a603");
+        }
+
+        revert Banny721TokenUriResolver_UnrecognizedProduct({upc: upc});
+    }
+
+    /// @notice The full name of each product, including category and inventory.
+    /// @param tokenId The ID of the token to name.
+    /// @param product The product of the token to name.
+    /// @return name The full name.
+    function _fullNameOf(uint256 tokenId, JB721Tier memory product) internal view returns (string memory name) {
+        // Start with the item's name.
+        name = string.concat(_productNameOf(product.id), " ");
+
+        // Strip the product prefix from the token ID.
+        uint256 rawTokenId = tokenId % _ONE_BILLION;
+
+        string memory remainingString = " remaining";
+
+        // If there's a raw token id, append it to the name before appending it to the category.
+        if (rawTokenId != 0) {
+            name = string.concat(name, rawTokenId.toString(), "/", uint256(product.initialSupply).toString());
+        } else if (product.remainingSupply == 0) {
+            name = string.concat(
+                name,
+                " (SOLD OUT) ",
+                uint256(product.remainingSupply).toString(),
+                "/",
+                uint256(product.initialSupply).toString(),
+                remainingString
+            );
+        } else {
+            name = string.concat(
+                name,
+                uint256(product.remainingSupply).toString(),
+                "/",
+                uint256(product.initialSupply).toString(),
+                remainingString
+            );
+        }
+
+        // Append a separator.
+        name = string.concat(name, ": ");
+
+        // Get a reference to the category's name.
+        string memory categoryName = _categoryNameOf(product.category);
+
+        // If there's a category name, append it.
+        if (bytes(categoryName).length != 0) {
+            name = string.concat(name, categoryName, " ");
+        }
+
+        // Append the product ID as a universal product code.
+        name = string.concat(name, "UPC #", uint256(product.id).toString());
+    }
+
+    /// @notice Whether nonempty artwork has been published for a product.
+    /// @dev Empty fragments remain unpublished so repeated empty-content writes are accepted.
+    /// @param upc The universal product code whose publication status to check.
+    /// @return stored Whether at least one immutable artwork chunk exists.
+    function _hasStoredSvg(uint256 upc) internal view returns (bool stored) {
+        return SVG_STORAGE.isStored(upc);
+    }
+
+    /// @notice Check if a value is present in an array.
+    /// @param value The value to search for.
+    /// @param array The array to search in.
+    /// @return found True if the value was found.
+    function _isInArray(uint256 value, uint256[] memory array) internal pure returns (bool found) {
+        for (uint256 i; i < array.length;) {
+            if (array[i] == value) return true;
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Returns the standard dimension SVG containing dynamic contents and SVG metadata.
+    /// @param contents The contents of the SVG
+    /// @return svg The SVG contents.
+    function _layeredSvg(string memory contents) internal pure returns (string memory) {
+        return string.concat(
+            '<svg width="400" height="400" viewBox="0 0 400 400" fill="white" xmlns="http://www.w3.org/2000/svg"><style>.o{fill:#050505;}.w{fill:#f9f9f9;}</style>',
+            contents,
+            "</svg>"
+        );
+    }
+
+    /// @notice The SVG contents for a mannequin banny.
+    /// @return contents The SVG contents of the mannequin banny.
+    function _mannequinBannySvg() internal view returns (string memory) {
+        return string.concat(
+            "<style>.o{fill:#808080;}.b1{fill:none;}.b2{fill:none;}.b3{fill:none;}.b4{fill:none;}.a1{fill:none;}.a2{fill:none;}.a3{fill:none;}</style>",
+            bannyBody
+        );
+    }
+
+    /// @notice Returns the calldata, preferred to use over `msg.data`
+    /// @return calldata the `msg.data` of this call
+    function _msgData() internal view override(ERC2771Context, Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
+    /// @notice Returns the sender, preferred to use over `msg.sender`
+    /// @return sender the sender address of this call.
+    function _msgSender() internal view override(ERC2771Context, Context) returns (address sender) {
+        return ERC2771Context._msgSender();
+    }
+
+    /// @notice The SVG contents for a list of outfit IDs.
+    /// @param hook The 721 contract that the product belongs to.
+    /// @param outfitIds The IDs of the outfits that'll be associated with the specified banny.
+    /// @param bodyUpc The UPC of the banny body to dress (used for default eyes selection).
+    /// @return contents The SVG contents of the outfits.
+    function _outfitContentsFor(
+        address hook,
+        uint256[] memory outfitIds,
+        uint256 bodyUpc
+    )
+        internal
+        view
+        returns (string memory contents)
+    {
+        // Get a reference to the number of outfits are on the banny body.
+        uint256 numberOfOutfits = outfitIds.length;
+
+        // Keep a reference to if certain accessories have been added.
+        bool hasNecklace;
+        bool hasHead;
+        bool hasEyes;
+        bool hasMouth;
+
+        // Keep a reference to the custom necklace. Needed because the custom necklace is layered differently than the
+        // default.
+        string memory customNecklace;
+
+        // For each outfit, add the SVG layer if it's owned by the same owner as the banny body being dressed.
+        // Loop once more to make sure all default outfits are added.
+        for (uint256 i; i < numberOfOutfits + 1;) {
+            // Keep a reference to the outfit ID being iterated on.
+            uint256 outfitId;
+
+            // Keep a reference to the category of the outfit being iterated on.
+            uint256 category;
+
+            // Keep a reference to the upc of the outfit being iterated on.
+            uint256 upc;
+
+            // If the outfit is within the bounds of the number of outfits there are, add it normally.
+            if (i < numberOfOutfits) {
+                // Set the outfit ID being iterated on.
+                outfitId = outfitIds[i];
+
+                // Get the product of the outfit being iterated on.
+                JB721Tier memory product = _productOfTokenId({hook: hook, tokenId: outfitId});
+
+                // Set the category of the outfit being iterated on.
+                category = product.category;
+
+                // Set the upc of the outfit being iterated on.
+                upc = product.id;
+            } else {
+                // Set the category to be more than all other categories to force adding defaults.
+                category = _SPECIAL_BODY_CATEGORY + 1;
+                outfitId = 0;
+                upc = 0;
+            }
+
+            if (category == _NECKLACE_CATEGORY) {
+                hasNecklace = true;
+                customNecklace = _svgOf({hook: hook, upc: upc});
+            } else if (category > _NECKLACE_CATEGORY && !hasNecklace) {
+                contents = string.concat(contents, defaultNecklace);
+                hasNecklace = true;
+            }
+
+            if (category == _HEAD_CATEGORY) {
+                hasHead = true;
+            }
+
+            if (category == _EYES_CATEGORY) {
+                hasEyes = true;
+            } else if (category > _EYES_CATEGORY && !hasEyes && !hasHead) {
+                if (bodyUpc == ALIEN_UPC) contents = string.concat(contents, defaultAlienEyes);
+                else contents = string.concat(contents, defaultStandardEyes);
+
+                hasEyes = true;
+            }
+
+            if (category == _MOUTH_CATEGORY) {
+                hasMouth = true;
+            } else if (category > _MOUTH_CATEGORY && !hasMouth && !hasHead) {
+                contents = string.concat(contents, defaultMouth);
+                hasMouth = true;
+            }
+
+            // Add the custom necklace if needed.
+            if (category > _SUIT_TOP_CATEGORY && bytes(customNecklace).length != 0) {
+                contents = string.concat(contents, customNecklace);
+                // Reset.
+                customNecklace = "";
+            }
+
+            // Add the outfit if needed.
+            if (outfitId != 0 && category != _NECKLACE_CATEGORY) {
+                contents = string.concat(contents, _svgOf({hook: hook, upc: upc}));
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice The name of each token's product type.
+    /// @param upc The ID of the token whose product type to name.
+    /// @return name The item's product name.
+    function _productNameOf(uint256 upc) internal view returns (string memory) {
+        // Get the token's name.
+        if (upc == ALIEN_UPC) {
+            return "Alien";
+        } else if (upc == PINK_UPC) {
+            return "Pink";
+        } else if (upc == ORANGE_UPC) {
+            return "Orange";
+        } else if (upc == ORIGINAL_UPC) {
+            return "Original";
+        } else {
+            // Get the product's name that has been uploaded.
+            return _customProductNameOf[upc];
+        }
+    }
+
+    /// @notice Get the product of the 721 with the provided token ID in the provided 721 contract.
+    /// @param hook The 721 contract that the product belongs to.
+    /// @param tokenId The token ID of the 721 to get the product of.
+    /// @return product The product.
+    function _productOfTokenId(address hook, uint256 tokenId) internal view returns (JB721Tier memory) {
+        return _storeOf(hook).tierOfTokenId({hook: hook, tokenId: tokenId, includeResolvedUri: false});
+    }
+
+    /// @notice Revert if an equipped asset is reassigned away from a locked source body.
+    /// @param hook The hook storing the assets.
+    /// @param bannyBodyId The body currently using the asset.
+    /// @param exemptBodyId The destination body currently decorated.
+    function _revertIfBodyLocked(address hook, uint256 bannyBodyId, uint256 exemptBodyId) internal view {
+        // Outfit locks are user-selected display locks; timestamp tolerance is acceptable here.
+        // forge-lint: disable-next-line(block-timestamp)
+        if (bannyBodyId != 0 && bannyBodyId != exemptBodyId && outfitLockedUntil[hook][bannyBodyId] > block.timestamp) {
+            revert Banny721TokenUriResolver_OutfitChangesLocked({
+                hook: hook, bannyBodyId: bannyBodyId, lockedUntil: outfitLockedUntil[hook][bannyBodyId]
+            });
+        }
+    }
+
+    /// @notice Sort outfit IDs in ascending category order.
+    /// @dev Retained outfits are merged back in after failed transfers, so the merged list can become unsorted even
+    /// when the caller provided the new outfits in canonical order. Rendering logic depends on category progression.
+    /// @param hook The 721 hook whose tier categories determine sort order.
+    /// @param outfitIds The outfit token IDs to sort in-place by ascending category.
+    function _sortOutfitsByCategory(address hook, uint256[] memory outfitIds) internal view {
+        // Cache array length and skip sorting when fewer than 2 elements.
+        uint256 length = outfitIds.length;
+        if (length < 2) return;
+
+        // Pre-compute all categories to avoid repeated external STATICCALL during sort comparisons.
+        uint256[] memory categories = new uint256[](length);
+        for (uint256 i; i < length;) {
+            categories[i] = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
+            unchecked {
+                ++i;
+            }
+        }
+
+        // Insertion sort using cached categories.
+        for (uint256 i = 1; i < length;) {
+            // Cache the current element so it can be inserted into the correct sorted position.
+            uint256 outfitId = outfitIds[i];
+            uint256 category = categories[i];
+            uint256 j = i;
+
+            // Shift larger-category entries right until the insertion point is found.
+            while (j != 0 && categories[j - 1] > category) {
+                outfitIds[j] = outfitIds[j - 1];
+                categories[j] = categories[j - 1];
+                unchecked {
+                    --j;
+                }
+            }
+
+            // Place the cached element at its sorted position.
+            outfitIds[j] = outfitId;
+            categories[j] = category;
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice The store of the hook.
+    /// @param hook The hook to get the store of.
+    /// @return store The store of the hook.
+    function _storeOf(address hook) internal view returns (IJB721TiersHookStore) {
+        return IJB721TiersHook(hook).STORE();
+    }
+
+    /// @notice Read the published SVG fragment for a product.
+    /// @param upc The universal product code whose artwork to read.
+    /// @return contents The complete fragment, or an empty string if no nonempty artwork is published.
+    function _storedSvgOf(uint256 upc) internal view returns (string memory contents) {
+        return string(SVG_STORAGE.read(upc));
+    }
+
+    /// @notice The banny body and outfit SVG files.
+    /// @param hook The 721 contract that the product belongs to.
+    /// @param upc The universal product code of the product that the SVG contents represent.
+    /// @return The SVG content string, either from storage or decoded from IPFS.
+    function _svgOf(address hook, uint256 upc) internal view returns (string memory) {
+        // Keep a reference to the stored svg contents.
+        string memory svgContents = _storedSvgOf(upc);
+
+        if (bytes(svgContents).length != 0) return svgContents;
+
+        return string.concat(
+            '<image href="',
+            JBIpfsDecoder.decode({
+                baseUri: svgBaseUri, hexString: _storeOf(hook).encodedIpfsUriOf({hook: hook, tierId: upc})
+            }),
+            '" width="400" height="400"/>'
+        );
+    }
+
+    /// @notice Validate that an array of outfit IDs does not violate category exclusivity rules.
+    /// @dev HEAD is exclusive with EYES, GLASSES, MOUTH, and HEADTOP. SUIT is exclusive with SUIT_TOP and
+    /// SUIT_BOTTOM. The array does not need to be sorted.
+    /// @param hook The hook storing the assets.
+    /// @param outfitIds The outfit IDs to validate.
+    function _validateCategoryExclusivity(address hook, uint256[] memory outfitIds) internal view {
+        // Track whether a full-coverage item has been seen for each exclusive group.
+        bool hasHead;
+        bool hasSuit;
+        // Track whether a partial/accessory item has been seen for each exclusive group.
+        bool hasHeadAccessory;
+        bool hasSuitPiece;
+
+        // Scan every outfit and classify it into one of the two exclusive groups.
+        for (uint256 i; i < outfitIds.length;) {
+            // Look up the tier category for this outfit token.
+            uint256 category = _productOfTokenId({hook: hook, tokenId: outfitIds[i]}).category;
+
+            if (category == _HEAD_CATEGORY) {
+                // A full HEAD covers the entire head area (eyes, glasses, mouth, headtop).
+                hasHead = true;
+            } else if (
+                category == _EYES_CATEGORY || category == _GLASSES_CATEGORY || category == _MOUTH_CATEGORY
+                    || category == _HEADTOP_CATEGORY
+            ) {
+                // Individual face/head accessories that would be hidden by a full HEAD.
+                hasHeadAccessory = true;
+            } else if (category == _SUIT_CATEGORY) {
+                // A full SUIT covers both the top and bottom body areas.
+                hasSuit = true;
+            } else if (category == _SUIT_TOP_CATEGORY || category == _SUIT_BOTTOM_CATEGORY) {
+                // Individual top or bottom pieces that would conflict with a full SUIT.
+                hasSuitPiece = true;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        // A full HEAD and individual head accessories cannot coexist — the head would hide the accessories.
+        if (hasHead && hasHeadAccessory) revert Banny721TokenUriResolver_HeadAlreadyAdded({category: _HEAD_CATEGORY});
+        // A full SUIT and individual suit pieces cannot coexist — the suit would hide the pieces.
+        if (hasSuit && hasSuitPiece) revert Banny721TokenUriResolver_SuitAlreadyAdded({category: _SUIT_CATEGORY});
     }
 }

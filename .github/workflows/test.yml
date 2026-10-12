@@ -24,6 +24,8 @@ jobs:
         run: npm run test:airdrop:safe
       - name: Check Sphinx airdrop preparation
         run: npm run test:airdrop:sphinx
+      - name: Check resolver style
+        run: node --test ./script/outfit_drop/resolver-style.test.js
       - name: Run tests
         run: forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
         env:
