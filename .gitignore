@@ -40,3 +40,6 @@ run-nemesis-all.sh
 
 # Foundry broadcast logs (incl. dry-run) — regenerable, not committed
 broadcast
+
+# Regenerable unsigned Safe airdrop batches and fork reports
+safe-airdrop/
