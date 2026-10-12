@@ -209,6 +209,10 @@ npm run export:airdrop:safe-ui -- --prepared PATH_TO_PREPARED_INPUT --source saf
 
 Run the exact replay for all six supported chains and repeat `--report` for their passed reports. This replays the already selected bundles at the same reviewed gas budgets; it does not repeat the partition search. Final export checks exact input hashes, nonces, recipients, outfits, rollback guards and fresh queue/approval state. The final manifest records the new Safe UI hashes and the prior native-envelope proof as provenance. Import one distribution JSON at a time, retain its listed Safe nonce, and compare the Safe review hash with the manifest before signing; Builder JSON does not itself fix the nonce. Both exporter phases are read-only on upstream chains.
 
+## Artwork publication and resolver replacement
+
+The resolver keeps its existing hash-validated artwork setter and stores published SVG fragments in immutable data contracts. This makes every original V6 artwork, including the two large backgrounds, practical to publish individually without reminting NFTs. See the [before-mint resolver rollout and publication checks](script/outfit_drop/RESOLVER_UPGRADE.md). Deploy and switch the reviewed resolver before preparing new airdrop transactions; previously prepared distributions must not be reused across that switch.
+
 ## Repository layout
 
 ```text

@@ -8,10 +8,10 @@ const path = require('node:path');
 const net = require('node:net');
 const { spawn } = require('node:child_process');
 const { ethers } = require('ethers');
+const { gasBudget } = require('./simulate-safe-airdrop');
 
 const ROOT = path.resolve(__dirname, '../..');
-const CAP = 16_777_216;
-const BUDGET = Math.floor(CAP * 0.95);
+const { executionGasCap: CAP, budget: BUDGET } = gasBudget(1);
 
 async function qualify(settingsFile, outputFile, imageFile) {
     const captured = JSON.parse(fs.readFileSync(settingsFile));
