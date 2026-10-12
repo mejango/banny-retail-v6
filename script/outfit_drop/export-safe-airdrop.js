@@ -617,6 +617,6 @@ if (require.main === module) {
     });
 }
 
-module.exports = { prepareChain, buildBatch, combineMigrationBatches, readArtifact, readCompiledArtifact, assertGeneratedSnapshot, networksFor, preflight, writeExports, defaultSafe,
+module.exports = { prepareChain, wrapBatch, buildBatch, combineMigrationBatches, readArtifact, readCompiledArtifact, assertGeneratedSnapshot, networksFor, preflight, writeExports, defaultSafe,
     bindNonce, encodeApprovedExecution, prepareApprovedExecution, partitionPlan, needsSetup, MAX_MINTS_PER_TRANSACTION,
     executorNeedsSetup, SAFE_TRANSACTION_FIELDS, FACTORY, MULTISEND, NETWORKS };

@@ -84,14 +84,14 @@ function sourceIdentity(items, artifacts, sourceHashes) {
     })).digest('hex');
 }
 
-async function ensureBuildInfo(getConfigArtifacts, helperPlans, root = ROOT) {
-    const initCodes = () => {
+async function ensureBuildInfo(getConfigArtifacts, helperPlans, root = ROOT, readInitCodes) {
+    const initCodes = readInitCodes || (() => {
         const executor = exporter.readCompiledArtifact('SafeAirdropExecutor', 'script/helpers/SafeAirdropExecutor.sol', root);
         // Constructor values do not affect compiler matching; these are never execution actions.
         const executorProbe = executor.bytecode.object + ethers.utils.defaultAbiCoder.encode(
             ['address', 'address'], [ethers.constants.AddressZero, ethers.constants.AddressZero]).slice(2);
         return [executorProbe, ...Object.values(helperPlans).flat().map(plan => exporter.readArtifact(plan, root).bytecode.object)];
-    };
+    });
     const unresolved = async () => {
         const codes = initCodes();
         try {
@@ -112,6 +112,34 @@ async function ensureBuildInfo(getConfigArtifacts, helperPlans, root = ROOT) {
         assert.equal(output.code, 0, 'Failed to rebuild Sphinx compiler metadata; no proposal was submitted');
         assert(!await unresolved(), 'Rebuilt setup bytecode still lacks Sphinx compiler metadata');
     } finally { fs.rmSync(temporaryCache, { recursive: true, force: true }); }
+}
+
+async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface, targetContract, reportDir }) {
+    const provider = new ethers.providers.JsonRpcProvider({ url: rpcUrl, timeout: 30000 });
+    const chainId = (await provider.getNetwork()).chainId;
+    const profile = Object.keys(exporter.NETWORKS).find(key => exporter.NETWORKS[key].some(n => n.chainId === chainId));
+    assert(profile, `Unsupported airdrop chain ${chainId}`);
+    const network = exporter.NETWORKS[profile].find(n => n.chainId === chainId);
+    const block = await provider.getBlock('latest');
+    assert(block && block.hash && block.number > 0, `Missing chain ${chainId} block`);
+    pinReads(provider, block.number);
+    const collectionPath = path.join(reportDir, `${chainId}-context.json`);
+    const args = ['script', scriptPath, '--rpc-url', rpcUrl, '--fork-block-number', String(block.number),
+        '--sig', 'sphinxCollectProposal(bytes,string,uint64)', NOOP, collectionPath,
+        '--always-use-create-2-factory', String(core.DEFAULT_CALL_DEPTH)];
+    if (targetContract) args.push('--target-contract', targetContract);
+    const output = await core.spawnAsync('forge', args, { FOUNDRY_BUILD_INFO: 'false' });
+    // Forge errors can contain its credential-bearing RPC argument. Keep those logs local to the process.
+    assert.equal(output.code, 0, `Sphinx context collection failed on ${network.folder}; no proposal was submitted`);
+    const info = decodeDeploymentInfo(fs.readFileSync(collectionPath, 'utf8'), pluginInterface, block.number);
+    assert.equal(info.chainId, String(chainId));
+    assert.equal(info.safeAddress.toLowerCase(), safe.toLowerCase(), 'Collected Safe differs from project config');
+    assert.equal(info.accountAccesses.length, 0, 'Configuration getter unexpectedly collected actions');
+    assert.equal(info.gasEstimates.length, 0, 'Configuration getter unexpectedly estimated actions');
+    assert.equal(info.blockGasLimit, block.gasLimit.toString(), 'Collected block gas limit differs from pinned header');
+    assert(!info.initialState.isExecuting, `An existing Sphinx root is active on ${network.folder}`);
+    return { provider, chainId, profile, network, block, info,
+        entry: { rpcUrl, networkConfig: makeNetworkConfig(info, true, {}, []) } };
 }
 
 async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUrls, pluginInterface,
@@ -135,30 +163,9 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
     const preparedChains = [];
     const preparedByChain = [];
     for (const rpcUrl of rpcUrls) {
-        const provider = new ethers.providers.JsonRpcProvider({ url: rpcUrl, timeout: 30000 });
-        const chainId = (await provider.getNetwork()).chainId;
-        const profile = Object.keys(exporter.NETWORKS).find(key => exporter.NETWORKS[key].some(n => n.chainId === chainId));
-        assert(profile, `Unsupported airdrop chain ${chainId}`);
-        const network = exporter.NETWORKS[profile].find(n => n.chainId === chainId);
+        const { provider, chainId, profile, network, block, entry } = await collectNetworkContext({
+            scriptPath, safe, rpcUrl, pluginInterface, targetContract, reportDir });
         assert(!entries.some(({ networkConfig }) => Number(networkConfig.chainId) === chainId), 'Duplicate chain');
-        const block = await provider.getBlock('latest');
-        assert(block && block.hash && block.number > 0, `Missing chain ${chainId} block`);
-        pinReads(provider, block.number);
-        const collectionPath = path.join(reportDir, `${chainId}-context.json`);
-        const args = ['script', scriptPath, '--rpc-url', rpcUrl, '--fork-block-number', String(block.number),
-            '--sig', 'sphinxCollectProposal(bytes,string,uint64)', NOOP, collectionPath,
-            '--always-use-create-2-factory', String(core.DEFAULT_CALL_DEPTH)];
-        if (targetContract) args.push('--target-contract', targetContract);
-        const output = await core.spawnAsync('forge', args, { FOUNDRY_BUILD_INFO: 'false' });
-        // Forge errors can contain its credential-bearing RPC argument. Keep those logs local to the process.
-        assert.equal(output.code, 0, `Sphinx context collection failed on ${network.folder}; no proposal was submitted`);
-        const info = decodeDeploymentInfo(fs.readFileSync(collectionPath, 'utf8'), pluginInterface, block.number);
-        assert.equal(info.chainId, String(chainId));
-        assert.equal(info.safeAddress.toLowerCase(), safe.toLowerCase(), 'Collected Safe differs from project config');
-        assert.equal(info.accountAccesses.length, 0, 'Configuration getter unexpectedly collected actions');
-        assert.equal(info.gasEstimates.length, 0, 'Configuration getter unexpectedly estimated actions');
-        assert.equal(info.blockGasLimit, block.gasLimit.toString(), 'Collected block gas limit differs from pinned header');
-        assert(!info.initialState.isExecuting, `An existing Sphinx root is active on ${network.folder}`);
         const helperPlan = helperPlans[network.sourceChainId][0];
         artifacts.set(helperPlan.contractName, exporter.readArtifact(helperPlan, ROOT, sourceHashes));
         let prepared;
@@ -174,7 +181,7 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
             authority: { owners: prepared.chain.owners, threshold: prepared.chain.threshold },
             resolver: prepared.chain.resolver, envelopes: selected.batches.map(batch => batch.safeTransaction),
             plans: selected.plans });
-        entries.push({ rpcUrl, networkConfig: makeNetworkConfig(info, true, {}, []) });
+        entries.push(entry);
         spinner?.info(`Prepared ${network.folder} at block ${block.number}: ${selected.batches.length} atomic actions.`);
     }
     const initCodes = preparedByChain.flat().filter(batch => batch.safeTransaction.stage === 'setup')
@@ -219,13 +226,13 @@ const artifactFile = directory => path.join(directory, 'prepared.json');
 const progressFile = directory => path.join(directory, 'proposal-progress.json');
 const resumeCommand = directory => `node ./script/outfit_drop/propose-sphinx-airdrop.js resume '${directory.replace(/'/g, `'"'"'`)}'`;
 
-function writePreparedArtifact(prepared, args) {
+function writePreparedArtifact(prepared, args, workflowTag) {
     assert.equal(prepared.report.status, 'passed', 'All parts must pass qualification before preparation is saved');
     assert(prepared.preparedChains?.length && prepared.inputIdentity, 'Missing frozen preparation inputs');
     const directory = prepared.reportDir;
     const filename = artifactFile(directory);
     assert(!fs.existsSync(filename), 'Preserve an existing prepared artifact; resume it instead');
-    const artifact = JSON.parse(serialize({ version: 1,
+    const artifact = JSON.parse(serialize({ version: 1, ...(workflowTag ? { workflow: workflowTag } : {}),
         proposalArgs: { scriptPath: args.scriptPath, networks: args.networks, targetContract: args.targetContract, sig: args.sig },
         filters: { BANNY_AIRDROP_CHUNK: process.env.BANNY_AIRDROP_CHUNK || '0',
             BANNY_AIRDROP_MAX_CHUNK: process.env.BANNY_AIRDROP_MAX_CHUNK || '0' },
@@ -395,17 +402,17 @@ async function assertPreparedFresh(artifact, directory, part) {
     }
 }
 
-async function assertReadyToSubmit(artifact, directory, progress, part) {
+async function assertReadyToSubmit(artifact, directory, progress, part, assertFresh = assertPreparedFresh) {
     // Re-read durable evidence too: a review prompt can remain open while files or chain state change.
     assert.deepEqual(readPreparedArtifact(directory), artifact, 'Prepared artifact changed during review');
     await assertProjectIdentity(artifact);
     const ready = await nextReadyPart(artifact, progress);
     assert(ready.status === 'ready' && ready.part === part, ready.message || 'A different proposal part is ready; resume again');
-    await assertPreparedFresh(artifact, directory, part);
+    await assertFresh(artifact, directory, part);
 }
 
 function makeAirdropPropose(context, { officialPropose = propose, prepare = collectAndQualify,
-    loaded, assertReady = assertReadyToSubmit } = {}) {
+    loaded, assertReady = assertReadyToSubmit, workflowTag, label = 'Airdrop', resumeCommand: command = resumeCommand } = {}) {
     return async args => {
         let artifact = loaded?.artifact;
         let directory = loaded?.directory;
@@ -425,7 +432,7 @@ function makeAirdropPropose(context, { officialPropose = propose, prepare = coll
                 if (!artifact) {
                     const prepared = await prepare(...collectionArgs);
                     directory = prepared.reportDir;
-                    artifact = writePreparedArtifact(prepared, args);
+                    artifact = writePreparedArtifact(prepared, args, workflowTag);
                     artifact.segments.forEach(() => outcomes.push({ status: 'not-submitted' }));
                     save();
                 }
@@ -465,12 +472,12 @@ function makeAirdropPropose(context, { officialPropose = propose, prepare = coll
                 // A preview must not erase a previous submission outcome.
                 if (args.isDryRun && outcomes[part].status === 'not-submitted') outcomes[part].status = 'dry-run';
                 save();
-                if (!args.silent) console.log(`Airdrop part ${part + 1}/${artifact.segments.length}: ${result.merkleTree.root}`);
+                if (!args.silent) console.log(`${label} part ${part + 1}/${artifact.segments.length}: ${result.merkleTree.root}`);
                 part++;
                 processed++;
             } while (args.isDryRun && !loaded && part < artifact.segments.length);
-            if (!args.silent) console.log(`${args.isDryRun ? 'Prepared; nothing submitted.' : 'One part submitted. Wait for execution on every participating chain.'}\nResume: ${resumeCommand(directory)}`);
-            return { completed: processed, reportDir: directory, resumeCommand: resumeCommand(directory) };
+            if (!args.silent) console.log(`${args.isDryRun ? 'Prepared; nothing submitted.' : 'One part submitted. Wait for execution on every participating chain.'}\nResume: ${command(directory)}`);
+            return { completed: processed, reportDir: directory, resumeCommand: command(directory) };
         } catch (error) {
             save();
             const failure = safeError(error);
@@ -483,9 +490,10 @@ function makeAirdropPropose(context, { officialPropose = propose, prepare = coll
 
 async function resumePrepared(context, directory, args = {}, { officialPropose = propose,
     readState = readPartState, assertReady = assertReadyToSubmit, assertFresh = assertPreparedFresh,
-    assertProject = assertProjectIdentity } = {}) {
+    assertProject = assertProjectIdentity, workflowTag, label = 'Airdrop', resumeCommand: command = resumeCommand } = {}) {
     directory = path.resolve(directory);
     const artifact = readPreparedArtifact(directory);
+    assert.equal(artifact.workflow, workflowTag, 'Prepared workflow differs from this entrypoint');
     const progress = JSON.parse(fs.readFileSync(progressFile(directory), 'utf8'));
     assert.deepEqual(progress.parts.map(part => part.root), artifact.segments.map(segment => segment.merkleTree.root),
         'Progress ledger differs from prepared roots');
@@ -502,7 +510,7 @@ async function resumePrepared(context, directory, args = {}, { officialPropose =
             return { status: ready.status, message, reportDir: directory };
         }
         await assertFresh(artifact, directory, ready.part);
-        return await makeAirdropPropose(context, { officialPropose, assertReady,
+        return await makeAirdropPropose(context, { officialPropose, assertReady, workflowTag, label, resumeCommand: command,
             loaded: { artifact, progress, directory, part: ready.part } })({ ...artifact.proposalArgs, ...args });
     } finally {
         if (previousProject === undefined) delete process.env.BANNY_AIRDROP_SPHINX_PROJECT;
@@ -526,6 +534,6 @@ if (require.main === module) {
 }
 
 module.exports = { NOOP, selectChunks, actionFor, deploymentsFor, pinReads, sourceIdentity, ensureBuildInfo,
-    collectAndQualify, makeAirdropPropose, safeError, writePreparedArtifact, readPreparedArtifact,
+    collectNetworkContext, collectAndQualify, makeAirdropPropose, safeError, writePreparedArtifact, readPreparedArtifact,
     nextReadyPart, assertPreparedFresh, assertReadyToSubmit, resumePrepared, assertCanonicalActions, assertActionsMatchEnvelopes,
-    assertProjectIdentity };
+    assertProjectIdentity, providerFor, progressFile, resumeCommand };

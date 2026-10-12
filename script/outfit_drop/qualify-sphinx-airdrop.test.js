@@ -216,3 +216,22 @@ test('qualification binds action bytes to canonical source slice metadata and re
     assert.throws(() => validatePrepared({ ...network, actionInputs: [tx, tx] }, { ...prepared, envelopes: [envelope, envelope] }), /Repeated NFT/);
     assert.throws(() => validatePrepared(network, { ...prepared, envelopes: [{ ...envelope, components: [envelope] }] }), /not merged/);
 });
+
+
+test('explicit stage boundaries preserve exact actions even when stages fit together', () => {
+    const network = config(8453, 2, '1000000');
+    assert.equal(packSegments([network], 3).length, 1);
+    let called = 0;
+    const parts = packSegments([network], 3, (pending, action, current) => {
+        called++;
+        assert.equal(current, network);
+        assert.equal(pending.length, 1);
+        assert.equal(action, network.actionInputs[1]);
+        return true;
+    });
+    assert.equal(called, 1);
+    assert.equal(parts.length, 2);
+    assert.deepEqual(parts.map(part => part.networkConfigs[0].nonce), ['8', '9']);
+    assert.deepEqual(parts.flatMap(part => part.networkConfigs[0].actionInputs.map(actionDigest)), network.actionInputs.map(actionDigest));
+    assert.throws(() => packSegments([config(8453, 1, '16000000')], 3, () => true), /split and requalify/);
+});

@@ -96,7 +96,7 @@ function assertHeadroom(signedGas, grossGas) {
     return headroom.toString();
 }
 
-function packSegments(configs, proofDepth) {
+function packSegments(configs, proofDepth, shouldSplit = () => false) {
     const partsByChain = configs.map(config => {
         assert(config.actionInputs.length > 0, 'Cannot qualify an empty chain.');
         const parts = [];
@@ -105,8 +105,8 @@ function packSegments(configs, proofDepth) {
             const leaf = worstProofLeaf(config, action, proofDepth);
             assert(estimateBatch(config, [leaf]) <= outerBudget(config), 'Buffered atomic shard exceeds the chain budget; split and requalify it.');
             const candidate = [...pending, action];
-            if (pending.length &&
-                estimateBatch(config, candidate.map(item => worstProofLeaf(config, item, proofDepth))) > outerBudget(config)) {
+            if (pending.length && (shouldSplit(pending, action, config) ||
+                estimateBatch(config, candidate.map(item => worstProofLeaf(config, item, proofDepth))) > outerBudget(config))) {
                 parts.push(pending);
                 pending = [action];
             } else pending = candidate;
@@ -173,16 +173,12 @@ function assertActionEvents(receipt, module, root, indices) {
     return events;
 }
 
-function validatePrepared(config, prepared) {
+function validateEnvelopes(config, prepared) {
     assert(prepared && String(prepared.chainId) === String(config.chainId), 'Prepared chain missing.');
     assert(sameAddress(prepared.safe, config.safeAddress), 'Prepared Safe differs.');
     assert(!config.arbitraryChain, 'Airdrop roots must bind the destination chain.');
     assert.equal(config.actionInputs.length, prepared.envelopes.length, 'Canonical action count differs.');
-    const plans = prepared.plans instanceof Map ? prepared.plans : new Map(prepared.plans.map(plan => [plan.contractName, plan]));
-    const allIds = [];
     for (const [index, envelope] of prepared.envelopes.entries()) {
-        assert(['setup', 'migration'].includes(envelope.stage), 'Unknown airdrop stage.');
-        assert(!envelope.components, 'Use canonical atomic shards, not merged Safe bundles.');
         assert.equal(String(envelope.chainId), String(config.chainId));
         assert(sameAddress(envelope.safe, config.safeAddress));
         const action = config.actionInputs[index];
@@ -190,6 +186,16 @@ function validatePrepared(config, prepared) {
         for (const [actionKey, envelopeKey] of [['to', 'to'], ['txData', 'data'], ['value', 'value'], ['operation', 'operation']]) {
             assert.equal(String(action[actionKey]).toLowerCase(), String(envelope.transaction[envelopeKey]).toLowerCase(), 'Sphinx action differs from its canonical atomic Safe envelope.');
         }
+    }
+}
+
+function validatePrepared(config, prepared) {
+    validateEnvelopes(config, prepared);
+    const plans = prepared.plans instanceof Map ? prepared.plans : new Map(prepared.plans.map(plan => [plan.contractName, plan]));
+    const allIds = [];
+    for (const envelope of prepared.envelopes) {
+        assert(['setup', 'migration'].includes(envelope.stage), 'Unknown airdrop stage.');
+        assert(!envelope.components, 'Use canonical atomic shards, not merged Safe bundles.');
         if (envelope.stage === 'migration') {
             const plan = migrationPlan(envelope, plans);
             assert(plan.assignments.expectedTokenIds.length <= MAX_MINTS_PER_TRANSACTION, 'Atomic shard exceeds the reviewed mint limit.');
@@ -214,9 +220,10 @@ async function captureFailure(provider, record, error, save) {
     save();
 }
 
-async function openContext(entry, prepared, report) {
+async function openContext(entry, prepared, report, validate = validatePrepared) {
     const config = entry.networkConfig;
-    const plans = validatePrepared(config, prepared);
+    validateEnvelopes(config, prepared);
+    const plans = validate(config, prepared);
     const pin = Number(config.blockNumber);
     assert(Number.isSafeInteger(pin) && pin > 0, 'A pinned block is required.');
     const { child, provider } = await startFork(entry.rpcUrl, Number(config.chainId), pin, { budgeted: true });
@@ -387,7 +394,15 @@ function readCalibrationSeed(seed, reportDirectory, sourceSha256) {
         sourceDirectory: path.resolve(seed.sourceDirectory), sourceSha256: old.sourceSha256 } };
 }
 
-async function qualifyProfile(entries, preparedChains, reportDirectory, calibrationSeed) {
+async function verifyFinal(context) {
+    for (const envelope of context.prepared.envelopes.filter(item => item.stage === 'migration')) {
+        await verifyRecipients(context.provider, envelope, migrationPlan(envelope, context.plans));
+    }
+    context.report.recipientsAndOutfitsVerified = true;
+    context.report.tokenCount = context.prepared.envelopes.reduce((sum, envelope) => sum + envelope.expectedTokenIds.length, 0);
+}
+
+async function qualifyProfile(entries, preparedChains, reportDirectory, calibrationSeed, workflow = {}) {
     assert(Array.isArray(entries) && entries.length > 0 && entries.length <= 4, 'Qualify one network profile at a time.');
     assert.equal(new Set(entries.map(entry => String(entry.networkConfig.chainId))).size, entries.length, 'Repeated chain.');
     fs.mkdirSync(reportDirectory, { recursive: true });
@@ -397,7 +412,8 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
         'script/outfit_drop/simulate-safe-airdrop.js', 'script/outfit_drop/export-safe-airdrop.js', 'script/outfit_drop/generate-v6-airdrop.js',
         'node_modules/@sphinx-labs/core/dist/actions/execute.js', 'node_modules/@sphinx-labs/core/dist/networks.js',
         'node_modules/@sphinx-labs/core/dist/tasks/index.js', 'node_modules/@sphinx-labs/contracts/dist/merkle-tree.js',
-        'node_modules/@sphinx-labs/contracts/contract-artifacts/sphinx/SphinxModule.sol/SphinxModule.json'];
+        'node_modules/@sphinx-labs/contracts/contract-artifacts/sphinx/SphinxModule.sol/SphinxModule.json',
+        ...(workflow.sourceFiles || [])];
     const report = { startedAt: new Date().toISOString(), status: 'running', localForkOnly: true,
         sourceSha256: Object.fromEntries(sourceFiles.map(file => [file, sha256(fs.readFileSync(path.join(ROOT, file)))])),
         chains: entries.map(() => ({})), segments: [],
@@ -407,7 +423,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     save();
     try {
         await allContexts(entries, async (entry, index) => {
-            const context = await openContext(entry, preparedChains.find(chain => String(chain.chainId) === String(entry.networkConfig.chainId)), report.chains[index]);
+            const context = await openContext(entry, preparedChains.find(chain => String(chain.chainId) === String(entry.networkConfig.chainId)), report.chains[index], workflow.validatePrepared);
             contexts.push(context); save();
         });
         contexts.sort((a, b) => entries.findIndex(entry => String(entry.networkConfig.chainId) === String(a.config.chainId))
@@ -442,7 +458,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
         save();
         for (const [index, config] of calibrated.entries()) assert.deepEqual(config.actionInputs.map(actionDigest),
             contexts[index].config.actionInputs.map(actionDigest), 'Calibration changed canonical action bytes or order.');
-        const segments = packSegments(calibrated, proofDepth);
+        const segments = packSegments(calibrated, proofDepth, workflow.shouldSplit);
         report.segments = segments.map((segment, index) => ({ index, root: segment.merkleTree.root,
             chains: segment.networkConfigs.map(config => ({ chainId: config.chainId, moduleNonce: config.nonce,
                 actions: config.actionInputs.map(action => ({ digest: actionDigest(action), signedGas: action.gas })) })) }));
@@ -461,11 +477,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
             });
         }
         await allContexts(contexts, async context => {
-            for (const envelope of context.prepared.envelopes.filter(item => item.stage === 'migration')) {
-                await verifyRecipients(context.provider, envelope, migrationPlan(envelope, context.plans));
-            }
-            context.report.recipientsAndOutfitsVerified = true;
-            context.report.tokenCount = context.prepared.envelopes.reduce((sum, envelope) => sum + envelope.expectedTokenIds.length, 0);
+            await (workflow.verifyFinal || verifyFinal)(context);
             context.report.finalModuleNonce = (await context.module.merkleRootNonce()).toString();
             const segmentCount = segments.filter(segment => segment.networkConfigs.some(config => config.chainId === context.config.chainId)).length;
             assert.equal(context.report.finalModuleNonce, (BigInt(context.config.nonce) + BigInt(segmentCount)).toString(), 'Final module nonce differs from the qualified segment sequence.');
@@ -484,4 +496,4 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
 }
 
 module.exports = { qualifyProfile, actionDigest, outerBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom,
-    packSegments, safeFrames, measureSafeFrame, moduleEvents, assertActionEvents, captureFailure, validatePrepared, validateSeedCalibration, readCalibrationSeed };
+    packSegments, safeFrames, measureSafeFrame, moduleEvents, assertActionEvents, captureFailure, validateEnvelopes, validatePrepared, validateSeedCalibration, readCalibrationSeed };

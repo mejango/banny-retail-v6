@@ -140,6 +140,8 @@ test('real ordinary Forge build gains official Sphinx metadata without deleting 
         const metadataFiles = fs.readdirSync(buildInfoFolder);
         await ensureBuildInfo(getConfigArtifacts, {}, directory);
         assert.deepEqual(fs.readdirSync(buildInfoFolder), metadataFiles, 'Matching metadata should not rebuild again');
+        await ensureBuildInfo(getConfigArtifacts, null, directory, () => [initCode]);
+        assert.deepEqual(fs.readdirSync(buildInfoFolder), metadataFiles, 'Explicit matching initcode must reuse official metadata');
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -367,4 +369,15 @@ test('original script config anchors Safe and module before interpreting resume 
     await assertProjectIdentity(artifact, official);
     artifact.segments[0].networkConfigs[0].moduleAddress = SAFE;
     await assert.rejects(assertProjectIdentity(artifact, official), /Project module changed/);
+});
+
+
+test('workflow tags prevent cross-workflow resume while shared canonical checks remain active', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-sphinx-workflow-'));
+    try {
+        const frozen = writePreparedArtifact(qualification(directory), { scriptPath: 'script/AirdropV4Bannys.s.sol' }, 'resolver-upgrade');
+        assert.equal(readPreparedArtifact(directory).workflow, 'resolver-upgrade');
+        assert.deepEqual(readPreparedArtifact(directory), frozen);
+        await assert.rejects(resumePrepared({}, directory), /workflow differs/);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
