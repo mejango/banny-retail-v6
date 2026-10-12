@@ -16,6 +16,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "lib/base64/base64.sol";
 
 import {IBanny721TokenUriResolver} from "./interfaces/IBanny721TokenUriResolver.sol";
+import {BannySvgStorage} from "./BannySvgStorage.sol";
 
 /// @notice Manages Banny NFT composition — stores SVG assets (bodies, backgrounds, outfits), dresses banny bodies
 /// with wearable outfits, and resolves fully on-chain SVG token URIs for the composed result. Each banny body can
@@ -220,9 +221,8 @@ contract Banny721TokenUriResolver is
     /// @custom:param upc The universal product code that the name belongs to.
     mapping(uint256 upc => string) internal _customProductNameOf;
 
-    /// @notice The banny body and outfit SVG files.
-    /// @custom:param upc The universal product code that the SVG contents represent.
-    mapping(uint256 upc => string) internal _svgContentOf;
+    /// @notice Immutable bytecode storage for published artwork.
+    BannySvgStorage public immutable SVG_STORAGE;
 
     /// @notice The ID of the banny body each background is used by.
     /// @custom:param hook The hook address of the collection.
@@ -257,6 +257,7 @@ contract Banny721TokenUriResolver is
         Ownable(owner)
         ERC2771Context(trustedForwarder)
     {
+        SVG_STORAGE = new BannySvgStorage();
         bannyBody = bannyBodySvg;
         defaultNecklace = defaultNecklaceSvg;
         defaultMouth = defaultMouthSvg;
@@ -1105,17 +1106,17 @@ contract Banny721TokenUriResolver is
 
     /// @notice Read published artwork independently of its storage representation.
     function _storedSvgOf(uint256 upc) internal view returns (string memory) {
-        return _svgContentOf[upc];
+        return string(SVG_STORAGE.read(upc));
     }
 
     /// @notice Whether nonempty artwork has already been published.
     function _hasStoredSvg(uint256 upc) internal view returns (bool) {
-        return bytes(_svgContentOf[upc]).length != 0;
+        return SVG_STORAGE.isStored(upc);
     }
 
     /// @notice Publish artwork after the caller has validated its commitment.
     function _storeSvg(uint256 upc, string memory svgContent) internal {
-        _svgContentOf[upc] = svgContent;
+        SVG_STORAGE.write(upc, bytes(svgContent));
     }
 
     /// @notice Validate that an array of outfit IDs does not violate category exclusivity rules.
