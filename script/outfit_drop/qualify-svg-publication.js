@@ -19,6 +19,7 @@ async function qualify(settingsFile, outputFile, imageFile) {
     const settings = snapshot.settingsRaw || snapshot.settings;
     const assets = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/fixtures/banny-svg-originals.json'))).assets;
     const artifact = JSON.parse(fs.readFileSync(path.join(ROOT, 'out/Banny721TokenUriResolver.sol/Banny721TokenUriResolver.json')));
+    const storageArtifact = JSON.parse(fs.readFileSync(path.join(ROOT, 'out/BannySvgStorage.sol/BannySvgStorage.json')));
     assert(ethers.utils.hexDataLength(artifact.deployedBytecode.object) <= 24_576, 'Resolver exceeds EIP-170');
     const server = net.createServer();
     await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
@@ -47,15 +48,24 @@ async function qualify(settingsFile, outputFile, imageFile) {
         const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode.object, owner);
         const args = ['bannyBody', 'defaultNecklace', 'defaultMouth', 'defaultStandardEyes', 'defaultAlienEyes']
             .map(field => settings[field]);
-        const resolver = await factory.deploy(...args, settings.owner, settings.trustedForwarder, { gasLimit: BUDGET });
+        const store = await new ethers.ContractFactory(storageArtifact.abi, storageArtifact.bytecode.object, owner)
+            .deploy(settings.owner, { gasLimit: BUDGET });
+        const storageDeployment = await store.deployTransaction.wait();
+        assert.equal(storageDeployment.status, 1);
+        const resolver = await factory.deploy(...args, settings.owner, settings.trustedForwarder, store.address, { gasLimit: BUDGET });
         const deployment = await resolver.deployTransaction.wait();
         assert.equal(deployment.status, 1);
-        report.deploymentGas = deployment.gasUsed.toString();
+        const binding = await (await store.setWriter(resolver.address, { gasLimit: BUDGET })).wait();
+        assert.equal(binding.status, 1);
+        assert.equal((await resolver.SVG_STORAGE()).toLowerCase(), store.address.toLowerCase());
+        assert.equal((await store.CONFIGURATOR()).toLowerCase(), settings.owner.toLowerCase());
+        report.storageDeploymentGas = storageDeployment.gasUsed.toString();
+        report.resolverDeploymentGas = deployment.gasUsed.toString();
+        report.writerBindingGas = binding.gasUsed.toString();
+        report.deploymentGas = deployment.gasUsed.add(storageDeployment.gasUsed).add(binding.gasUsed).toString();
         await (await resolver.setSvgHashesOf(assets.map(asset => asset.upc), assets.map(asset => asset.svgHash),
             { gasLimit: BUDGET })).wait();
-        const store = new ethers.Contract(await resolver.SVG_STORAGE(),
-            ['function read(uint256) view returns(bytes)', 'function WRITER() view returns(address)'], provider);
-        assert.equal((await store.WRITER()).toLowerCase(), resolver.address.toLowerCase());
+        assert.equal((await store.writer()).toLowerCase(), resolver.address.toLowerCase());
         for (const asset of assets) {
             const bytes = ethers.utils.toUtf8Bytes(asset.svgString);
             assert.equal(bytes.length, asset.bytes);

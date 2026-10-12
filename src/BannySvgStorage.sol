@@ -4,14 +4,21 @@ pragma solidity 0.8.28;
 import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
 
 /// @notice Stores committed SVG fragments as immutable, STOP-prefixed contract bytecode.
-/// @dev The deploying resolver validates commitments and publication uniqueness before writing.
+/// @dev The configured resolver validates commitments and publication uniqueness before writing.
 contract BannySvgStorage {
     //*********************************************************************//
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
 
-    /// @notice Thrown when a caller other than the deploying resolver attempts to publish artwork.
+    /// @notice Thrown when writer binding would authorize the zero address.
+    error BannySvgStorage_InvalidWriter();
+
+    /// @notice Thrown when binding is attempted by a caller other than the configurator or publication by a caller
+    /// other than the bound writer.
     error BannySvgStorage_Unauthorized(address caller);
+
+    /// @notice Thrown when a caller attempts to replace the permanently bound resolver.
+    error BannySvgStorage_WriterAlreadySet(address writer);
 
     //*********************************************************************//
     // ------------------------ internal constants ----------------------- //
@@ -25,9 +32,17 @@ contract BannySvgStorage {
     // --------------- public immutable stored properties ---------------- //
     //*********************************************************************//
 
-    /// @notice The resolver allowed to publish artwork.
-    /// @dev Bound to the deploying resolver so external callers cannot bypass commitment validation.
-    address public immutable WRITER = msg.sender;
+    /// @notice The account authorized to bind this storage to its resolver once.
+    /// @dev Explicitly supplied so deterministic deployment factories receive no configuration authority.
+    address public immutable CONFIGURATOR;
+
+    //*********************************************************************//
+    // --------------------- public stored properties -------------------- //
+    //*********************************************************************//
+
+    /// @notice The resolver allowed to publish artwork, or zero before binding.
+    /// @dev Set once by the configurator; external callers cannot bypass resolver commitment validation.
+    address public writer;
 
     //*********************************************************************//
     // -------------------- internal stored properties ------------------- //
@@ -39,16 +54,38 @@ contract BannySvgStorage {
     mapping(uint256 upc => address[]) internal _pointersOf;
 
     //*********************************************************************//
+    // -------------------------- constructor ---------------------------- //
+    //*********************************************************************//
+
+    /// @notice Sets the account authorized to bind the publication writer.
+    /// @param configurator The account coordinating deployment and one-time resolver binding.
+    constructor(address configurator) {
+        CONFIGURATOR = configurator;
+    }
+
+    //*********************************************************************//
     // ---------------------- external transactions ---------------------- //
     //*********************************************************************//
 
+    /// @notice Permanently binds this storage to the resolver allowed to publish artwork.
+    /// @dev Only the configurator can bind a nonzero writer, and binding cannot be changed or cleared.
+    /// @param newWriter The resolver allowed to publish artwork.
+    function setWriter(address newWriter) external {
+        // Separate deployment must not give the factory or another account authority to choose the writer.
+        if (msg.sender != CONFIGURATOR) revert BannySvgStorage_Unauthorized({caller: msg.sender});
+        // A permanent binding keeps published fragments under one resolver's commitment rules.
+        if (writer != address(0)) revert BannySvgStorage_WriterAlreadySet({writer: writer});
+        if (newWriter == address(0)) revert BannySvgStorage_InvalidWriter();
+        writer = newWriter;
+    }
+
     /// @notice Publish a product's SVG fragment in immutable bytecode chunks.
-    /// @dev Only the deploying resolver can write. Empty content creates no chunks and remains unpublished.
+    /// @dev Only the bound resolver can write. Empty content creates no chunks and remains unpublished.
     /// @param upc The universal product code whose artwork to publish.
     /// @param contents The complete fragment validated by the resolver against its committed hash.
     function write(uint256 upc, bytes calldata contents) external {
         // Keep commitment validation and publication uniqueness under the resolver's authority.
-        if (msg.sender != WRITER) revert BannySvgStorage_Unauthorized({caller: msg.sender});
+        if (msg.sender != writer) revert BannySvgStorage_Unauthorized({caller: msg.sender});
 
         // Keep every deployed chunk within the runtime code limit while preserving fragment order.
         for (uint256 start; start < contents.length;) {

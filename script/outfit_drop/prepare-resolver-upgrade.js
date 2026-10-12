@@ -17,6 +17,8 @@ const RESOLVER_ABI = SETTINGS.map(name => `function ${name}() view returns(${['o
     'function setProductNames(uint256[],string[])',
     'function setSvgHashesOf(uint256[],bytes32[])',
 ]);
+const SVG_STORAGE_ABI = ['function CONFIGURATOR() view returns(address)', 'function writer() view returns(address)',
+    'function setWriter(address)'];
 const HOOK_ABI = ['function STORE() view returns(address)', 'function owner() view returns(address)',
     'function projectId() view returns(uint256)', 'function PERMISSIONS() view returns(address)',
     'function balanceOf(address) view returns(uint256)', 'function setMetadata(string,string,string,string,address,uint256,bytes32)'];
@@ -58,14 +60,17 @@ function immutableIds() {
     const forwarder = forwarderBody?.match(/loadimmutable\("(\d+)"\)/)?.[1];
     const storage = storageBody?.match(/loadimmutable\("(\d+)"\)/)?.[1];
     if (!forwarder || !storage || forwarder === storage) throw new Error('Cannot identify resolver immutables');
-    return { forwarder, storage };
+    const storageIr = execFileSync('forge', ['inspect', 'BannySvgStorage', 'ir'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    const configurator = storageIr.match(/function getter_fun_CONFIGURATOR_\d+\([^]*?\n\s*}/)?.[0]?.match(/loadimmutable\("(\d+)"\)/)?.[1];
+    if (!configurator) throw new Error('Cannot identify storage configurator immutable');
+    return { forwarder, storage, configurator };
 }
 
 function runtimeHash(compiled, values) {
     let runtime = compiled.deployedBytecode.object.replace(/^0x/, '');
     const references = compiled.deployedBytecode.immutableReferences || {};
     if (Object.keys(references).sort().join(',') !== Object.keys(values).sort().join(',')) {
-        throw new Error('Resolver immutable layout changed; review runtime patching');
+        throw new Error('Contract immutable layout changed; review runtime patching');
     }
     for (const [id, value] of Object.entries(values)) {
         const encoded = ethers.utils.hexZeroPad(value, 32).slice(2).toLowerCase();
@@ -75,6 +80,19 @@ function runtimeHash(compiled, values) {
         }
     }
     return ethers.utils.keccak256(`0x${runtime}`);
+}
+
+async function deploymentTransaction(provider, item, expectedCodeHash, block) {
+    const code = await provider.getCode(item.address, block);
+    if (code === '0x') return item.transaction;
+    if (ethers.utils.keccak256(code) !== expectedCodeHash) throw new Error('Predicted deployment has unexpected code');
+    return null;
+}
+
+function storageBinding(storageAddress, writer, replacement) {
+    if (writer.toLowerCase() === replacement.toLowerCase()) return null;
+    if (writer !== ethers.constants.AddressZero) throw new Error('Storage is bound to another writer');
+    return tx(storageAddress, new ethers.utils.Interface(SVG_STORAGE_ABI).encodeFunctionData('setWriter', [replacement]));
 }
 
 function deployment(compiled, args, label) {
@@ -144,22 +162,32 @@ async function prepare({ provider, hook, safe, output, block }) {
     if (await provider.getCode(FACTORY, block) === '0x') throw new Error('Deterministic factory unavailable');
     if (!reviewedBuild) {
         const ids = immutableIds();
-        reviewedBuild = { ids, compiled: artifact('Banny721TokenUriResolver'), guardArtifact: artifact('BannyResolverUpgradeGuard') };
+        reviewedBuild = { ids, compiled: artifact('Banny721TokenUriResolver'), guardArtifact: artifact('BannyResolverUpgradeGuard'), storageArtifact: artifact('BannySvgStorage') };
     }
-    const { ids, compiled, guardArtifact } = reviewedBuild;
+    const { ids, compiled, guardArtifact, storageArtifact } = reviewedBuild;
     const s = state.settings;
+    const storage = deployment(storageArtifact, [safe], 'bytecode-svg-storage');
     const replacement = deployment(compiled, [s.bannyBody, s.defaultNecklace, s.defaultMouth,
-        s.defaultStandardEyes, s.defaultAlienEyes, s.owner, s.trustedForwarder], 'bytecode-svg');
+        s.defaultStandardEyes, s.defaultAlienEyes, s.owner, s.trustedForwarder, storage.address], 'bytecode-svg');
     const guard = deployment(guardArtifact, [], 'before-mint-guard');
-    const storageAddress = ethers.utils.getContractAddress({ from: replacement.address, nonce: 1 });
+    const storageAddress = storage.address;
+    const storageCodeHash = runtimeHash(storageArtifact, { [ids.configurator]: safe });
     const replacementCodeHash = runtimeHash(compiled, { [ids.forwarder]: s.trustedForwarder, [ids.storage]: storageAddress });
     const guardCodeHash = ethers.utils.keccak256(guardArtifact.deployedBytecode.object);
     const deployed = [];
-    for (const [item, expected] of [[replacement, replacementCodeHash], [guard, guardCodeHash]]) {
-        const code = await provider.getCode(item.address, block);
-        if (code === '0x') deployed.push(item.transaction);
-        else if (ethers.utils.keccak256(code) !== expected) throw new Error('Predicted deployment has unexpected code');
+    for (const [item, expected] of [[storage, storageCodeHash], [replacement, replacementCodeHash], [guard, guardCodeHash]]) {
+        const transaction = await deploymentTransaction(provider, item, expected, block);
+        if (transaction) deployed.push(transaction);
     }
+    let storageWriter = ethers.constants.AddressZero;
+    if (await provider.getCode(storageAddress, block) !== '0x') {
+        const existingStorage = new ethers.Contract(storageAddress, SVG_STORAGE_ABI, provider);
+        const [configurator, writer] = await Promise.all([existingStorage.CONFIGURATOR({ blockTag: block }), existingStorage.writer({ blockTag: block })]);
+        if (configurator.toLowerCase() !== safe.toLowerCase()) throw new Error('Storage configurator changed');
+        storageWriter = writer;
+    }
+    const binding = storageBinding(storageAddress, storageWriter, replacement.address);
+    if (binding) deployed.push(binding);
     if (replacement.address.toLowerCase() === state.previous.toLowerCase()) throw new Error('Replacement equals current resolver');
     const iface = new ethers.utils.Interface(RESOLVER_ABI);
     const committed = state.products.filter(product => product.hash !== ethers.constants.HashZero);
@@ -194,7 +222,7 @@ async function prepare({ provider, hook, safe, output, block }) {
         files.push(filename);
     }
     const evidence = { chainId, blockNumber: block, blockHash: header.hash, hook, safe, ...state,
-        replacement: replacement.address, svgStorage: storageAddress, replacementCodeHash, resolverInitCodeHash: replacement.initCodeHash,
+        replacement: replacement.address, svgStorage: storageAddress, storageCodeHash, storageInitCodeHash: storage.initCodeHash, storageWriter, replacementCodeHash, resolverInitCodeHash: replacement.initCodeHash,
         guard: guard.address, guardCodeHash, guardInitCodeHash: guard.initCodeHash, files, submitted: false };
     writeExclusive(path.join(output, `${chainId}-evidence.json`), evidence);
     return evidence;
@@ -213,4 +241,4 @@ if (require.main === module) {
         .then(result => console.log(`Prepared ${result.chainId}: ${result.files.length} stages in ${options.out}. No transaction sent.`))
         .catch(error => { console.error(String(error.code || error.message || 'Preparation failed').replace(/https?:\/\/\S+/g, '[redacted URL]')); process.exitCode = 1; });
 }
-module.exports = { prepare, collect, configurationHash, artworkHash, runtimeHash };
+module.exports = { prepare, collect, configurationHash, artworkHash, runtimeHash, storageBinding, deployment, deploymentTransaction };

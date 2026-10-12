@@ -7,6 +7,7 @@ import {JB721TierFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierFlags.
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "../helpers/BannyResolverDeployment.sol";
 
 /// @notice Mock hook that supports burning (setting owner to address(0) so ownerOf reverts).
 contract MockHook62 {
@@ -98,9 +99,15 @@ contract BurnedTokenCheckTest is Test {
         hook = new MockHook62(address(store));
 
         vm.prank(deployer);
-        resolver = new Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", deployer, address(0)
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: deployer,
+            trustedForwarder: address(0)
+        });
 
         _setupTier(BODY_TOKEN, 4, 0);
         _setupTier(NECKLACE_TOKEN, 10, 3);

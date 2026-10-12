@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {BannySvgStorage} from "../../../src/BannySvgStorage.sol";
+
 /// @notice Exposes resolver authority, rendering configuration and artwork commitments used to verify a switch.
 interface IBannyUpgradeResolver {
+    /// @notice Returns the separately deployed storage used for committed artwork.
+    /// @return svgStorage The resolver's immutable artwork storage dependency.
+    function SVG_STORAGE() external view returns (BannySvgStorage svgStorage);
+
     /// @notice Returns the shared Banny body SVG template.
     /// @return body The configured SVG fragment.
     function bannyBody() external view returns (string memory body);

@@ -6,6 +6,7 @@ import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "../helpers/BannyResolverDeployment.sol";
 
 /// @notice Reusable minimal hook/store mock for the access-control fuzz proofs.
 contract ACMockHook {
@@ -82,7 +83,15 @@ contract BannyResolverAccessControl is Test {
     function setUp() public {
         store = new ACMockStore();
         hook = new ACMockHook(address(store));
-        resolver = new Banny721TokenUriResolver("<b/>", "<n/>", "<m/>", "<e/>", "<a/>", address(this), address(0));
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<b/>",
+            defaultNecklaceSvg: "<n/>",
+            defaultMouthSvg: "<m/>",
+            defaultStandardEyesSvg: "<e/>",
+            defaultAlienEyesSvg: "<a/>",
+            owner: address(this),
+            trustedForwarder: address(0)
+        });
         store.setTier(address(hook), BODY, 4, 0); // body tier
     }
 

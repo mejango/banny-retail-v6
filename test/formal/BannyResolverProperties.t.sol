@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannySvgStorage} from "../../src/BannySvgStorage.sol";
 
 /// @notice Dual-implemented (Halmos `check_` + Foundry `testFuzz_`) functional-correctness proofs for the pure /
 /// view helpers of `Banny721TokenUriResolver` that gate composition, naming, fill selection and membership.
@@ -18,8 +19,19 @@ contract BannyResolverProperties is Test, Banny721TokenUriResolver {
     uint256 internal constant CAT_BACKGROUND = 1;
     uint256 internal constant CAT_SPECIAL_BODY = 17; // last recognized category.
 
+    /// @notice Deploy the pure-helper proof target with separately deployed artwork storage.
+    /// @dev These proofs never publish artwork, so storage intentionally remains unbound.
     constructor()
-        Banny721TokenUriResolver("<body/>", "<neck/>", "<mouth/>", "<eyes/>", "<alien/>", address(1), address(0))
+        Banny721TokenUriResolver(
+            "<body/>",
+            "<neck/>",
+            "<mouth/>",
+            "<eyes/>",
+            "<alien/>",
+            address(1),
+            address(0),
+            new BannySvgStorage(address(1))
+        )
     {}
 
     //*********************************************************************//

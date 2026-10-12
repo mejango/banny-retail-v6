@@ -7,6 +7,7 @@ import {JB721TierFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierFlags.
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "../helpers/BannyResolverDeployment.sol";
 
 /// @dev Mock hook that supports safeTransferFrom with ERC721Receiver checks.
 contract ExclusivityMockHook {
@@ -143,9 +144,15 @@ contract MergedOutfitExclusivityTest is Test {
         rejector = new ERC721Rejector();
 
         // Deploy the resolver with placeholder SVG paths and no trusted forwarder.
-        resolver = new Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", address(this), address(0)
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: address(this),
+            trustedForwarder: address(0)
+        });
 
         // Set up tier data: body (category 0), HEAD (category 4), EYES (category 5).
         _setupTier(BODY_TOKEN, 4, 0);

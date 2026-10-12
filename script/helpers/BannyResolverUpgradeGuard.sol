@@ -55,6 +55,8 @@ contract BannyResolverUpgradeGuard {
         );
         // Bind both implementations to the runtimes reviewed for this switch.
         require(previous.codehash == previousCodeHash && replacement.codehash == replacementCodeHash, "Runtime changed");
+        // An injected dependency must authorize the replacement before the collection points to it.
+        require(IBannyUpgradeResolver(replacement).SVG_STORAGE().writer() == replacement, "Storage writer");
         // Read the collection's authoritative store so the pointer and mint history cannot be supplied by the caller.
         IBannyUpgradeStore store = IBannyUpgradeHook(hook).STORE();
         // Reject a stale proposal if the collection has already selected another resolver.

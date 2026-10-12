@@ -8,6 +8,7 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {Base64} from "lib/base64/base64.sol";
 
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "./helpers/BannyResolverDeployment.sol";
 
 /// @notice Mock hook for QA last-mile testing.
 contract QAMockHook {
@@ -122,15 +123,15 @@ contract TestQALastMile is Test {
 
         // Deploy resolver with abbreviated SVG constants.
         vm.prank(deployer);
-        resolver = new Banny721TokenUriResolver(
-            '<g class="b1"><path d="M173 53h4v17h-4z"/></g>',
-            '<g class="o"><path d="M190 173h-37v-3h-10"/></g>',
-            '<g class="o"><path d="M183 160v-4h-20v4" fill="#ad71c8"/></g>',
-            '<g class="o"><path d="M177 140v3h6v11h10v-11h4v-3h-20z"/></g>',
-            '<g class="o"><path d="M190 127h3v3h-3z"/></g>',
-            deployer,
-            address(0)
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: '<g class="b1"><path d="M173 53h4v17h-4z"/></g>',
+            defaultNecklaceSvg: '<g class="o"><path d="M190 173h-37v-3h-10"/></g>',
+            defaultMouthSvg: '<g class="o"><path d="M183 160v-4h-20v4" fill="#ad71c8"/></g>',
+            defaultStandardEyesSvg: '<g class="o"><path d="M177 140v3h6v11h10v-11h4v-3h-20z"/></g>',
+            defaultAlienEyesSvg: '<g class="o"><path d="M190 127h3v3h-3z"/></g>',
+            owner: deployer,
+            trustedForwarder: address(0)
+        });
 
         // Set metadata so tokenURI JSON is populated.
         vm.prank(deployer);

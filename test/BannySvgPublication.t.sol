@@ -6,12 +6,13 @@ import {BannySvgStorage} from "../src/BannySvgStorage.sol";
 import {Test} from "forge-std/Test.sol";
 import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "./helpers/BannyResolverDeployment.sol";
 import {MockHook, MockStore} from "./Banny721TokenUriResolver.t.sol";
 
 contract SvgPublicationHarness is Banny721TokenUriResolver {
-    constructor()
+    constructor(BannySvgStorage svgStorage)
         Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", msg.sender, address(0)
+            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", msg.sender, address(0), svgStorage
         )
     {}
 
@@ -31,7 +32,9 @@ contract BannySvgPublicationTest is Test {
     MockHook hook;
 
     function setUp() public {
-        resolver = new SvgPublicationHarness();
+        BannySvgStorage svgStorage = new BannySvgStorage(address(this));
+        resolver = new SvgPublicationHarness(svgStorage);
+        svgStorage.setWriter(address(resolver));
         store = new MockStore();
         hook = new MockHook(address(store));
     }
@@ -162,7 +165,7 @@ contract BannySvgPublicationTest is Test {
 
     function test_storeCannotBeWrittenAroundResolverCommitments() public {
         BannySvgStorage storage_ = resolver.SVG_STORAGE();
-        assertEq(storage_.WRITER(), address(resolver));
+        assertEq(storage_.writer(), address(resolver));
         vm.expectRevert(abi.encodeWithSelector(BannySvgStorage.BannySvgStorage_Unauthorized.selector, address(this)));
         storage_.write(100, bytes("uncommitted"));
         assertFalse(storage_.isStored(100));
@@ -170,18 +173,79 @@ contract BannySvgPublicationTest is Test {
     }
 
     function test_deploymentsFitRuntimeAndInitcodeCaps() public {
-        Banny721TokenUriResolver production = new Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", address(this), address(0)
-        );
+        Banny721TokenUriResolver production = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: address(this),
+            trustedForwarder: address(0)
+        });
         assertLe(address(production).code.length, 24_576);
         assertLe(address(resolver.SVG_STORAGE()).code.length, 24_576);
         assertLe(type(BannySvgStorage).creationCode.length, 49_152);
         assertLe(
             type(Banny721TokenUriResolver).creationCode.length
-                + abi.encode("<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", address(this), address(0))
+                + abi.encode(
+                    "<path/>",
+                    "<necklace/>",
+                    "<mouth/>",
+                    "<eyes/>",
+                    "<alieneyes/>",
+                    address(this),
+                    address(0),
+                    production.SVG_STORAGE()
+                )
                 .length,
             49_152
         );
+    }
+
+    function test_storageWriterBindingIsAuthorizedNonzeroAndPermanent() public {
+        BannySvgStorage svgStorage = new BannySvgStorage(address(this));
+        assertEq(svgStorage.CONFIGURATOR(), address(this));
+        assertEq(svgStorage.writer(), address(0));
+        vm.prank(address(0xBEEF));
+        vm.expectRevert(abi.encodeWithSelector(BannySvgStorage.BannySvgStorage_Unauthorized.selector, address(0xBEEF)));
+        svgStorage.setWriter(address(resolver));
+        vm.expectRevert(BannySvgStorage.BannySvgStorage_InvalidWriter.selector);
+        svgStorage.setWriter(address(0));
+        assertEq(svgStorage.writer(), address(0));
+        svgStorage.setWriter(address(resolver));
+        vm.expectRevert(
+            abi.encodeWithSelector(BannySvgStorage.BannySvgStorage_WriterAlreadySet.selector, address(resolver))
+        );
+        svgStorage.setWriter(address(0xBEEF));
+        assertEq(svgStorage.writer(), address(resolver));
+    }
+
+    function test_injectedStorageRejectsWrongConfiguratorOrWriter() public {
+        BannySvgStorage wrongConfigurator = new BannySvgStorage(address(0xBEEF));
+        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_InvalidSvgStorage.selector);
+        new SvgPublicationHarness(wrongConfigurator);
+        BannySvgStorage wrongWriter = new BannySvgStorage(address(this));
+        wrongWriter.setWriter(address(0xBEEF));
+        vm.expectRevert(Banny721TokenUriResolver.Banny721TokenUriResolver_InvalidSvgStorage.selector);
+        new SvgPublicationHarness(wrongWriter);
+    }
+
+    function test_unboundStorageBlocksPublicationUntilBinding() public {
+        BannySvgStorage svgStorage = new BannySvgStorage(address(this));
+        SvgPublicationHarness unbound = new SvgPublicationHarness(svgStorage);
+        uint256[] memory upcs = new uint256[](1);
+        upcs[0] = 100;
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = keccak256("committed");
+        unbound.setSvgHashesOf(upcs, hashes);
+        string[] memory contents = new string[](1);
+        contents[0] = "committed";
+        vm.expectRevert(abi.encodeWithSelector(BannySvgStorage.BannySvgStorage_Unauthorized.selector, address(unbound)));
+        unbound.setSvgContentsOf(upcs, contents);
+        assertFalse(svgStorage.isStored(100));
+        svgStorage.setWriter(address(unbound));
+        unbound.setSvgContentsOf(upcs, contents);
+        assertEq(svgStorage.read(100), bytes("committed"));
     }
 
     function _strip(string memory value, uint256 prefixLength) internal pure returns (string memory) {

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {BannySvgStorage} from "../../src/BannySvgStorage.sol";
 import {BannyResolverUpgradeGuard} from "../../script/helpers/BannyResolverUpgradeGuard.sol";
 
 contract UpgradeStoreMock {
@@ -57,6 +58,7 @@ contract UpgradeHookMock {
 }
 
 contract UpgradeResolverMock {
+    BannySvgStorage public SVG_STORAGE;
     address public owner;
     address public trustedForwarder;
     string public svgDescription = "description";
@@ -82,6 +84,10 @@ contract UpgradeResolverMock {
 
     function svgOf(address, uint256, bool, bool) external view returns (string memory) {
         return svg;
+    }
+
+    function setSvgStorage(BannySvgStorage value) external {
+        SVG_STORAGE = value;
     }
 
     function setSvg(string memory value) external {
@@ -111,6 +117,9 @@ contract BannyResolverUpgradeGuardTest is Test {
         hook = new UpgradeHookMock(store);
         previous = new UpgradeResolverMock(address(this));
         replacement = new UpgradeResolverMock(address(this));
+        BannySvgStorage svgStorage = new BannySvgStorage(address(this));
+        svgStorage.setWriter(address(replacement));
+        replacement.setSvgStorage(svgStorage);
         store.setResolver(address(previous));
         digest = guard.configurationHash(address(hook), address(previous), 1);
     }
@@ -126,6 +135,26 @@ contract BannyResolverUpgradeGuardTest is Test {
             1
         );
         hook.switchResolver(address(replacement));
+    }
+
+    function testUnboundStoragePreventsSwitch() public {
+        BannySvgStorage svgStorage = new BannySvgStorage(address(this));
+        replacement.setSvgStorage(svgStorage);
+        vm.expectRevert("Storage writer");
+        this.switchBatch();
+        assertEq(store.resolver(), address(previous));
+        svgStorage.setWriter(address(replacement));
+        this.switchBatch();
+        assertEq(store.resolver(), address(replacement));
+    }
+
+    function testWrongWriterPreventsSwitch() public {
+        BannySvgStorage svgStorage = new BannySvgStorage(address(this));
+        svgStorage.setWriter(address(previous));
+        replacement.setSvgStorage(svgStorage);
+        vm.expectRevert("Storage writer");
+        this.switchBatch();
+        assertEq(store.resolver(), address(previous));
     }
 
     function testBeforeMintAtomicSwitch() public {

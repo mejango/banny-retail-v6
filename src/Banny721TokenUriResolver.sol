@@ -66,6 +66,9 @@ contract Banny721TokenUriResolver is
     /// @notice Thrown when a full head and individual head pieces are equipped together.
     error Banny721TokenUriResolver_HeadAlreadyAdded(uint256 category);
 
+    /// @notice Thrown when SVG storage is controlled by another account or bound to another resolver.
+    error Banny721TokenUriResolver_InvalidSvgStorage();
+
     /// @notice Thrown when outfit changes are attempted on a banny body whose lock has not yet expired.
     error Banny721TokenUriResolver_OutfitChangesLocked(address hook, uint256 bannyBodyId, uint256 lockedUntil);
 
@@ -162,7 +165,7 @@ contract Banny721TokenUriResolver is
     //*********************************************************************//
 
     /// @notice Immutable bytecode storage for published artwork.
-    /// @dev Deployed by this resolver so only this resolver can publish hash-validated fragments.
+    /// @dev Supplied during deployment and permanently bound to this resolver before publication.
     BannySvgStorage public immutable SVG_STORAGE;
 
     //*********************************************************************//
@@ -244,6 +247,8 @@ contract Banny721TokenUriResolver is
     // -------------------------- constructor ---------------------------- //
     //*********************************************************************//
 
+    /// @notice Configures the rendering templates, owner, forwarder and separately deployed SVG storage.
+    /// @dev The owner must control storage binding, and any bound writer must be this resolver.
     /// @param bannyBodySvg The SVG of the banny body.
     /// @param defaultNecklaceSvg The SVG of the default necklace.
     /// @param defaultMouthSvg The SVG of the default mouth.
@@ -251,6 +256,7 @@ contract Banny721TokenUriResolver is
     /// @param defaultAlienEyesSvg The SVG of the default alien eyes.
     /// @param owner The owner allowed to add SVG files that correspond to product IDs.
     /// @param trustedForwarder The trusted forwarder for the ERC2771Context.
+    /// @param svgStorage The separately deployed storage to bind to this resolver before publication.
     constructor(
         string memory bannyBodySvg,
         string memory defaultNecklaceSvg,
@@ -258,12 +264,18 @@ contract Banny721TokenUriResolver is
         string memory defaultStandardEyesSvg,
         string memory defaultAlienEyesSvg,
         address owner,
-        address trustedForwarder
+        address trustedForwarder,
+        BannySvgStorage svgStorage
     )
         Ownable(owner)
         ERC2771Context(trustedForwarder)
     {
-        SVG_STORAGE = new BannySvgStorage();
+        // Require the owner to retain binding authority and reject a dependency assigned to another resolver.
+        address writer = svgStorage.writer();
+        if (svgStorage.CONFIGURATOR() != owner || (writer != address(0) && writer != address(this))) {
+            revert Banny721TokenUriResolver_InvalidSvgStorage();
+        }
+        SVG_STORAGE = svgStorage;
         bannyBody = bannyBodySvg;
         defaultNecklace = defaultNecklaceSvg;
         defaultMouth = defaultMouthSvg;

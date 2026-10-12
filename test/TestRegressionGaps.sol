@@ -7,6 +7,7 @@ import {JB721TierFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierFlags.
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "./helpers/BannyResolverDeployment.sol";
 
 /// @notice Mock hook for regression gap testing.
 contract RegressionGapMockHook {
@@ -109,15 +110,27 @@ contract TestRegressionGaps is Test {
 
         // Deploy resolver WITHOUT trusted forwarder (address(0)).
         vm.prank(deployer);
-        resolver = new Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", deployer, address(0)
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: deployer,
+            trustedForwarder: address(0)
+        });
 
         // Deploy resolver WITH trusted forwarder.
         vm.prank(deployer);
-        resolverWithForwarder = new Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", deployer, forwarder
-        );
+        resolverWithForwarder = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: deployer,
+            trustedForwarder: forwarder
+        });
 
         // Set up tier data for both resolvers.
         _setupTier(BODY_TOKEN, 4, 0);
