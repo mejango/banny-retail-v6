@@ -79,7 +79,21 @@ function pinReads(provider, blockNumber) {
 
 function sourceIdentity(items, artifacts, sourceHashes) {
     return createHash('sha256').update(JSON.stringify({ items,
-        artifacts: [...artifacts].sort(([a], [b]) => a.localeCompare(b)),
+        artifacts: [...artifacts].sort(([a], [b]) => a.localeCompare(b)).map(([name, artifact]) => {
+            const metadata = artifact.metadata || JSON.parse(artifact.rawMetadata || '{}');
+            // AST IDs and source maps depend on the compilation group, even when executable code is identical.
+            // Preserve each immutable's reference group while replacing its compiler-local numeric ID.
+            const immutables = Object.values(artifact.deployedBytecode?.immutableReferences || {})
+                .map(references => references.map(({ start, length }) => ({ start, length }))
+                    .sort((a, b) => a.start - b.start || a.length - b.length))
+                .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+            return [name, { abi: artifact.abi, compiler: metadata.compiler || artifact.compiler,
+                settings: metadata.settings || artifact.settings,
+                bytecode: { object: artifact.bytecode?.object ?? artifact.bytecode,
+                    linkReferences: artifact.bytecode?.linkReferences || {} },
+                deployedBytecode: { object: artifact.deployedBytecode?.object ?? artifact.deployedBytecode,
+                    linkReferences: artifact.deployedBytecode?.linkReferences || {}, immutableReferences: immutables } }];
+        }),
         sources: [...sourceHashes].sort(([a], [b]) => a.localeCompare(b)),
     })).digest('hex');
 }

@@ -89,15 +89,45 @@ test('preflight contract reads stay at the selected block', async () => {
     assert.deepEqual(calls[4].params, {});
 });
 
-test('source identity binds raw recipients, imports and exact rebuilt compiler artifacts', () => {
+test('source identity binds recipients, sources, ABI, executable bytes and linking/immutable layouts', () => {
     const items = [{ owner: SAFE, tokenId: 1 }];
-    const artifacts = new Map([['Helper', { bytecode: INIT, compiler: '0.8.28', settings: { optimizer: true } }]]);
+    const artifact = { abi: [], bytecode: { object: INIT, sourceMap: 'compiler bookkeeping',
+        linkReferences: { 'Lib.sol': { Lib: [{ start: 2, length: 20 }] } } },
+    deployedBytecode: { object: INIT, linkReferences: {}, immutableReferences: {
+        12: [{ start: 8, length: 32 }, { start: 64, length: 32 }], 15: [{ start: 128, length: 32 }],
+    } }, ast: { id: 1 }, id: 3, storageLayout: { storage: [{ astId: 12 }] } };
+    const artifacts = new Map([['Helper', artifact]]);
     const sources = new Map([['Helper.sol', 'hash1'], ['Imported.sol', 'hash2']]);
     const identity = sourceIdentity(items, artifacts, sources);
     assert.equal(sourceIdentity(items, artifacts, new Map([...sources].reverse())), identity);
     assert.notEqual(sourceIdentity([{ ...items[0], owner: MODULE }], artifacts, sources), identity);
-    assert.notEqual(sourceIdentity(items, new Map([['Helper', { ...artifacts.get('Helper'), bytecode: INIT + '00' }]]), sources), identity);
-    assert.notEqual(sourceIdentity(items, new Map([['Helper', { ...artifacts.get('Helper'), compiler: '0.8.29' }]]), sources), identity);
+    const bookkeeping = JSON.parse(JSON.stringify(artifact));
+    bookkeeping.ast.id = 99; bookkeeping.id = 71; bookkeeping.storageLayout.storage[0].astId = 112;
+    bookkeeping.bytecode.sourceMap = 'different source IDs';
+    bookkeeping.deployedBytecode.immutableReferences = {
+        215: [{ start: 128, length: 32 }], 212: [{ start: 64, length: 32 }, { start: 8, length: 32 }],
+    };
+    assert.equal(sourceIdentity(items, new Map([['Helper', bookkeeping]]), sources), identity,
+        'Compiler IDs, group keys and reference ordering must not change execution identity');
+    for (const change of [
+        value => { value.abi = [{ type: 'function', name: 'unexpected', inputs: [], outputs: [], stateMutability: 'view' }]; },
+        value => { value.metadata = { compiler: { version: '0.8.29' } }; },
+        value => { value.metadata = { settings: { optimizer: { enabled: false } } }; },
+        value => { value.metadata = { settings: { optimizer: { runs: 1000 } } }; },
+        value => { value.bytecode.object += '00'; },
+        value => { value.deployedBytecode.object += '00'; },
+        value => { value.bytecode.linkReferences['Lib.sol'].Lib[0].start++; },
+        value => { value.bytecode.linkReferences['Lib.sol'].Lib[0].length--; },
+        value => { value.deployedBytecode.linkReferences = { 'Other.sol': { Other: [{ start: 2, length: 20 }] } }; },
+        value => { value.deployedBytecode.immutableReferences[12][0].start++; },
+        value => { value.deployedBytecode.immutableReferences[12][0].length--; },
+        value => { value.deployedBytecode.immutableReferences = { 12: [{ start: 8, length: 32 }],
+            15: [{ start: 64, length: 32 }, { start: 128, length: 32 }] }; },
+    ]) {
+        const changed = JSON.parse(JSON.stringify(artifact)); change(changed);
+        assert.notEqual(sourceIdentity(items, new Map([['Helper', changed]]), sources), identity,
+            'A semantic compiler artifact change must invalidate the prepared workflow');
+    }
     assert.notEqual(sourceIdentity(items, artifacts, new Map([['Helper.sol', 'hash1'], ['Imported.sol', 'changed']])), identity);
 });
 
@@ -107,8 +137,11 @@ test('real ordinary Forge build gains official Sphinx metadata without deleting 
         const source = path.join(directory, 'script/helpers/SafeAirdropExecutor.sol');
         fs.mkdirSync(path.dirname(source), { recursive: true });
         fs.copyFileSync(path.join(__dirname, '../helpers/SafeAirdropExecutor.sol'), source);
+        fs.writeFileSync(path.join(directory, 'script/helpers/AAAUnrelated.sol'),
+            '// SPDX-License-Identifier: MIT\npragma solidity 0.8.28; contract AAAUnrelated { uint256 public counter; }\n');
         fs.writeFileSync(path.join(directory, 'foundry.toml'), '[profile.default]\nsolc = "0.8.28"\nbytecode_hash = "none"\n');
-        const built = await core.spawnAsync('forge', ['build', '--root', directory, '--silent'], { FOUNDRY_BUILD_INFO: 'false' });
+        const built = await core.spawnAsync('forge', ['build', '--skip', 'AAAUnrelated', '--root', directory, '--silent'],
+            { FOUNDRY_BUILD_INFO: 'false' });
         assert.equal(built.code, 0, 'Fixture Forge compilation failed');
         const buildInfoFolder = path.join(directory, 'out/build-info');
         assert(!fs.existsSync(buildInfoFolder) || fs.readdirSync(buildInfoFolder).every(name => {
@@ -127,7 +160,15 @@ test('real ordinary Forge build gains official Sphinx metadata without deleting 
         await ensureBuildInfo(getConfigArtifacts, {}, directory);
         assert.equal(fs.readFileSync(evidence, 'utf8'), '{"root":"preserve-me"}');
         const after = JSON.parse(fs.readFileSync(path.join(directory, 'out/SafeAirdropExecutor.sol/SafeAirdropExecutor.json')));
-        assert.deepEqual(after.bytecode, before.bytecode, 'Metadata repair changed deployable bytecode');
+        assert.equal(after.bytecode.object, before.bytecode.object, 'Metadata repair changed deployable bytecode');
+        assert.equal(after.deployedBytecode.object, before.deployedBytecode.object, 'Metadata repair changed runtime bytecode');
+        assert.deepEqual(after.abi, before.abi, 'Metadata repair changed the ABI');
+        assert.notDeepEqual(Object.keys(after.deployedBytecode.immutableReferences),
+            Object.keys(before.deployedBytecode.immutableReferences), 'Fixture must reproduce compilation-group AST ID drift');
+        const sourceHashes = new Map([['script/helpers/SafeAirdropExecutor.sol',
+            ethers.utils.keccak256(fs.readFileSync(source))]]);
+        assert.equal(sourceIdentity([], new Map([['SafeAirdropExecutor', before]]), sourceHashes),
+            sourceIdentity([], new Map([['SafeAirdropExecutor', after]]), sourceHashes));
         const initCode = after.bytecode.object + ethers.utils.defaultAbiCoder.encode(['address', 'address'], [SAFE, DEPLOYED]).slice(2);
         const { configArtifacts: actualArtifacts, buildInfos: actualBuildInfos } = await getConfigArtifacts([initCode]);
         const fqn = utils.findFullyQualifiedNameForInitCode(initCode, actualArtifacts);
@@ -147,8 +188,9 @@ test('real ordinary Forge build gains official Sphinx metadata without deleting 
         fs.rmSync(buildInfoFolder, { recursive: true, force: true });
         fs.mkdirSync(buildInfoFolder);
         assert.deepEqual((await getConfigArtifacts([initCode])).configArtifacts, {});
-        const readIdentity = () => createHash('sha256').update(fs.readFileSync(
-            path.join(directory, 'out/SafeAirdropExecutor.sol/SafeAirdropExecutor.json'))).digest('hex');
+        const readIdentity = () => sourceIdentity([], new Map([['SafeAirdropExecutor', JSON.parse(fs.readFileSync(
+            path.join(directory, 'out/SafeAirdropExecutor.sol/SafeAirdropExecutor.json')))]]),
+        new Map([['script/helpers/SafeAirdropExecutor.sol', ethers.utils.keccak256(fs.readFileSync(source))]]));
         const frozenIdentity = readIdentity();
         const recovered = await resolveCompilerArtifacts(getConfigArtifacts, [initCode], frozenIdentity, readIdentity, directory);
         assert.equal(utils.findFullyQualifiedNameForInitCode(initCode, recovered.configArtifacts), fqn);
