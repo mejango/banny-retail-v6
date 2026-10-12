@@ -1,0 +1,175 @@
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const { ethers } = require('ethers');
+const core = require('@sphinx-labs/core');
+const { makeSphinxMerkleTree } = require('@sphinx-labs/contracts');
+const adapter = require('./propose-sphinx-resolver-upgrade');
+const upgrade = require('./prepare-resolver-upgrade');
+const exporter = require('./export-safe-airdrop');
+const qualifier = require('./qualify-sphinx-airdrop');
+const SAFE = '0x0000000000000000000000000000000000000001';
+const HOOK = '0x37e35937ecF949d7a44a9Fe878107DE264618B8f';
+const PREVIOUS = '0x0000000000000000000000000000000000000003';
+const HASH = ethers.constants.HashZero;
+const tx = (to, data) => ({ to, data, value: '0', contractMethod: null, contractInputsValues: null });
+
+function fixture() {
+    const artifacts = new Map([
+        ['BannySvgStorage', { abi: ['constructor(address)', 'function setWriter(address)'], bytecode: { object: '0x60006000f3' } }],
+        ['Banny721TokenUriResolver', { abi: ['constructor(string,string,string,string,string,address,address,address)'], bytecode: { object: '0x60016000f3' } }],
+        ['BannyResolverUpgradeGuard', { abi: ['function check(address,address,address,bytes32,bytes32,bytes32,uint256)'], bytecode: { object: '0x60026000f3' } }],
+    ]);
+    const settings = { owner: SAFE, trustedForwarder: SAFE, svgDescription: 'description', svgExternalUrl: 'url', svgBaseUri: 'base',
+        bannyBody: 'body', defaultNecklace: 'necklace', defaultMouth: 'mouth', defaultStandardEyes: 'eyes', defaultAlienEyes: 'alien' };
+    const products = Array.from({ length: 5 }, (_, index) => ({ upc: index + 1, hash: index === 4 ? ethers.utils.id('asset') : HASH, name: index === 4 ? 'Scene' : 'Alien', burned: '0' }));
+    const storage = upgrade.deployment(artifacts.get('BannySvgStorage'), [SAFE], 'bytecode-svg-storage');
+    const resolver = upgrade.deployment(artifacts.get('Banny721TokenUriResolver'),
+        ['body', 'necklace', 'mouth', 'eyes', 'alien', SAFE, SAFE, storage.address], 'bytecode-svg');
+    const guard = upgrade.deployment(artifacts.get('BannyResolverUpgradeGuard'), [], 'before-mint-guard');
+    const evidence = { chainId: 1, safe: SAFE, previous: PREVIOUS, previousCodeHash: HASH, replacementCodeHash: HASH,
+        svgStorage: storage.address, replacement: resolver.address, guard: guard.address,
+        settings, products, maxTierId: 5, configurationHash: upgrade.configurationHash(settings, products, 5) };
+    const iface = new ethers.utils.Interface(['function setMetadata(string,string,string)', 'function setSvgHashesOf(uint256[],bytes32[])',
+        'function setProductNames(uint256[],string[])']);
+    const calls = [[storage.transaction, resolver.transaction, guard.transaction,
+        upgrade.storageBinding(storage.address, ethers.constants.AddressZero, resolver.address)], [
+        tx(resolver.address, iface.encodeFunctionData('setMetadata', ['description', 'url', 'base'])),
+        tx(resolver.address, iface.encodeFunctionData('setSvgHashesOf', [[5], [products[4].hash]])),
+        tx(resolver.address, iface.encodeFunctionData('setProductNames', [[5], ['Scene']])),
+        tx(guard.address, new ethers.utils.Interface(artifacts.get('BannyResolverUpgradeGuard').abi).encodeFunctionData('check',
+            [HOOK, PREVIOUS, resolver.address, HASH, HASH, evidence.configurationHash, 5])),
+        tx(HOOK, new ethers.utils.Interface(['function setMetadata(string,string,string,string,address,uint256,bytes32)'])
+            .encodeFunctionData('setMetadata', ['', '', '', '', resolver.address, 0, HASH])),
+    ]];
+    const envelopes = calls.map((transactions, index) => exporter.wrapBatch(transactions,
+        { chainId: '1', safe: SAFE, stage: index ? 'resolver-switch' : 'resolver-deploy' }, '').safeTransaction);
+    return { chain: { chainId: 1, safe: SAFE, hook: HOOK, evidence, canonicalBatches: calls, envelopes }, build: { artifacts } };
+}
+
+test('resolver canonical stages preserve exact calls and a normal storage-writer CALL', () => {
+    const { chain, build } = fixture();
+    adapter.assertFrozenCalls(chain, build);
+    assert.equal(chain.envelopes[0].transaction.operation, 1);
+    assert.equal(chain.canonicalBatches[0][3].to, chain.evidence.svgStorage);
+    assert.equal(chain.canonicalBatches[0][3].data.slice(0, 10), ethers.utils.id('setWriter(address)').slice(0, 10));
+    const config = { chainId: '1', safeAddress: SAFE, arbitraryChain: false,
+        actionInputs: chain.envelopes.map(envelope => ({ to: envelope.transaction.to, value: '0', txData: envelope.transaction.data,
+            operation: envelope.transaction.operation, requireSuccess: true })) };
+    adapter.validatePrepared(config, chain);
+    config.actionInputs[1].txData = '0x';
+    assert.throws(() => adapter.validatePrepared(config, chain), /canonical atomic envelope/);
+});
+
+test('lowercase registry hooks are normalized before frozen canonical call comparison', () => {
+    const { chain, build } = fixture();
+    const registry = { address: HOOK.toLowerCase() };
+    chain.hook = registry.address;
+    assert.throws(() => adapter.assertFrozenCalls(chain, build), /configuration\/switch calls changed/);
+    chain.hook = ethers.utils.getAddress(registry.address);
+    adapter.assertFrozenCalls(chain, build);
+    // Bind this case to the collector owner so registry parsing cannot silently drop normalization.
+    const source = require('node:fs').readFileSync(require.resolve('./propose-sphinx-resolver-upgrade'), 'utf8');
+    assert.match(source, /const hook = ethers\.utils\.getAddress\(JSON\.parse\(fs\.readFileSync\(/);
+});
+
+test('changing both saved calls and envelope cannot authorize an arbitrary call', () => {
+    const { chain, build } = fixture();
+    chain.canonicalBatches[1][4].to = PREVIOUS;
+    chain.envelopes[1] = exporter.wrapBatch(chain.canonicalBatches[1], chain.envelopes[1], '').safeTransaction;
+    assert.throws(() => adapter.assertFrozenCalls(chain, build), /configuration\/switch calls changed/);
+});
+
+test('deployment artifacts, writer binding, commitments and stage order fail closed', () => {
+    for (const change of [chain => { chain.canonicalBatches[0][3].data = '0x12345678'; },
+        chain => { chain.evidence.products[4].hash = HASH; },
+        chain => { chain.evidence.svgStorage = PREVIOUS; },
+        chain => { chain.canonicalBatches[0].push(chain.canonicalBatches[0][0]); }]) {
+        const { chain, build } = fixture(); change(chain);
+        assert.throws(() => adapter.assertFrozenCalls(chain, build));
+    }
+    const { chain } = fixture(); chain.envelopes.reverse();
+    assert.throws(() => adapter.validatePrepared({ chainId: '1', safeAddress: SAFE, arbitraryChain: false }, chain), /requires deployment/);
+});
+
+test('deployment and configuration are separate complete roots with consecutive module nonces', () => {
+    const config = { chainId: '1', nonce: '8', blockGasLimit: '60000000', safeAddress: SAFE,
+        moduleAddress: HOOK, executorAddress: PREVIOUS, safeInitData: '0x', arbitraryChain: false,
+        actionInputs: [0, 1].map(index => ({ to: SAFE, value: '0', txData: '0x', operation: 0,
+            gas: '1000000', requireSuccess: true, index: String(index + 1), actionType: core.ActionInputType.CALL, contracts: [] })) };
+    const segments = qualifier.packSegments([config], 2, () => true);
+    assert.equal(segments.length, 2);
+    assert.deepEqual(segments.map(segment => segment.networkConfigs[0].nonce), ['8', '9']);
+    assert.deepEqual(segments.map(segment => segment.networkConfigs[0].actionInputs[0].index), ['1', '1']);
+    assert.notEqual(segments[0].merkleTree.root, segments[1].merkleTree.root);
+    assert.equal(makeSphinxMerkleTree(core.makeDeploymentData(segments[0].networkConfigs)).root, segments[0].merkleTree.root);
+});
+
+test('unreviewed contract deployment metadata is rejected', () => {
+    const { chain } = fixture();
+    assert.throws(() => adapter.actionFor({ batch: { transactions: chain.canonicalBatches[0] },
+        safeTransaction: chain.envelopes[0] }, 0, {}), /Unreviewed resolver deployment artifact/);
+});
+
+function mockProvider(chain, changes = {}) {
+    const iface = new ethers.utils.Interface(['function getOwners() view returns(address[])',
+        'function getThreshold() view returns(uint256)', 'function CONFIGURATOR() view returns(address)',
+        'function writer() view returns(address)', 'function SVG_STORAGE() view returns(address)',
+        'function STORE() view returns(address)', 'function balanceOf(address) view returns(uint256)',
+        'function tokenUriResolverOf(address) view returns(address)', 'function totalSupplyOf(address) view returns(uint256)',
+        'function maxTierIdOf(address) view returns(uint256)', 'function numberOfBurnedFor(address,uint256) view returns(uint256)',
+        'function svgHashOf(uint256) view returns(bytes32)', 'function namesOf(address,uint256) view returns(string,string,string)',
+        ...Object.entries(chain.evidence.settings).map(([name, value]) =>
+            `function ${name}() view returns(${ethers.utils.isAddress(value) ? 'address' : 'string'})`)]);
+    const values = { getOwners: [SAFE], getThreshold: 2, CONFIGURATOR: SAFE,
+        writer: chain.evidence.replacement, SVG_STORAGE: chain.evidence.svgStorage,
+        STORE: PREVIOUS, balanceOf: 0, tokenUriResolverOf: chain.evidence.replacement,
+        totalSupplyOf: 0, maxTierIdOf: 5, numberOfBurnedFor: 0, ...chain.evidence.settings, ...changes };
+    const provider = new ethers.providers.StaticJsonRpcProvider('http://127.0.0.1:1', { chainId: 1, name: 'local' });
+    provider.perform = async (method, args) => {
+        if (method === 'getCode') return changes.code || '0x6000';
+        assert.equal(method, 'call');
+        const call = iface.parseTransaction({ data: args.transaction.data });
+        if (call.name === 'svgHashOf') return iface.encodeFunctionResult(call.name,
+            [changes.svgHashOf || chain.evidence.products[call.args[0].toNumber() - 1].hash]);
+        if (call.name === 'namesOf') return iface.encodeFunctionResult(call.name,
+            ['', '', changes.productName || chain.evidence.products[call.args[1].div(1_000_000_000).toNumber() - 1].name]);
+        return iface.encodeFunctionResult(call.name, [values[call.name]]);
+    };
+    return provider;
+}
+
+test('live runtime, configurator, writer and resolver storage are verified before advancing', async () => {
+    const { chain } = fixture();
+    const hash = ethers.utils.keccak256('0x6000');
+    Object.assign(chain.evidence, { storageCodeHash: hash, replacementCodeHash: hash, guardCodeHash: hash });
+    await adapter.assertDeployment(mockProvider(chain), chain);
+    for (const changes of [{ code: '0x6001' }, { CONFIGURATOR: PREVIOUS }, { writer: PREVIOUS }, { SVG_STORAGE: PREVIOUS }]) {
+        await assert.rejects(adapter.assertDeployment(mockProvider(chain, changes), chain));
+    }
+});
+
+test('each participating Safe must retain the qualified owners and threshold', async () => {
+    const { chain } = fixture(); chain.authority = { owners: [SAFE], threshold: '2' };
+    await adapter.assertAuthority(mockProvider(chain), chain);
+    await assert.rejects(adapter.assertAuthority(mockProvider(chain, { getOwners: [PREVIOUS] }), chain), /authority changed/);
+    await assert.rejects(adapter.assertAuthority(mockProvider(chain, { getThreshold: 1 }), chain), /authority changed/);
+});
+
+test('final activation verification binds pointer, every setting/name/hash and zero mint/burn/custody', async () => {
+    const { chain } = fixture(); chain.authority = { owners: [SAFE], threshold: '2' };
+    const hash = ethers.utils.keccak256('0x6000');
+    Object.assign(chain.evidence, { storageCodeHash: hash, replacementCodeHash: hash, guardCodeHash: hash });
+    await adapter.assertSwitched(mockProvider(chain), chain);
+    for (const changes of [{ tokenUriResolverOf: PREVIOUS }, { totalSupplyOf: 1 }, { numberOfBurnedFor: 1 },
+        { balanceOf: 1 }, { svgDescription: 'different' }, { productName: 'different' }, { svgHashOf: ethers.utils.id('different') },
+        { maxTierIdOf: 6 }]) await assert.rejects(adapter.assertSwitched(mockProvider(chain, changes), chain));
+});
+
+test('a completed resume cannot return success without final workflow verification', async () => {
+    const shared = require('./propose-sphinx-airdrop');
+    const originalResume = shared.resumePrepared, originalRead = shared.readPreparedArtifact;
+    shared.resumePrepared = async () => ({ status: 'complete' });
+    shared.readPreparedArtifact = () => ({ workflow: 'airdrop', segments: [] });
+    try { await assert.rejects(adapter.resumePrepared({}, '/tmp/unused'), /Wrong prepared workflow/); }
+    finally { shared.resumePrepared = originalResume; shared.readPreparedArtifact = originalRead; }
+});

@@ -60,7 +60,9 @@
     "bundle:airdrop:safe": "node ./script/outfit_drop/bundle-safe-airdrop.js",
     "export:airdrop:safe-ui": "node ./script/outfit_drop/export-safe-ui-airdrop.js",
     "prepare:airdrop:safe-execution": "bash -c 'set -a; source ./.env && node ./script/outfit_drop/export-safe-airdrop.js --approved-execution \"$@\"' --",
-    "test:airdrop:sphinx": "node --test ./script/outfit_drop/*sphinx-airdrop.test.js"
+    "test:airdrop:sphinx": "node --test ./script/outfit_drop/*sphinx-airdrop.test.js",
+    "deploy:testnets:resolver-upgrade": "bash -c 'set -a; source ./.env && BANNY_AIRDROP_SPHINX_PROJECT=banny-core node ./script/outfit_drop/propose-sphinx-resolver-upgrade.js propose ./script/AirdropV4Bannys.s.sol --target-contract AirdropV4BannysScript --networks testnets \"$@\"' --",
+    "deploy:mainnets:resolver-upgrade": "bash -c 'set -a; source ./.env && node ./script/outfit_drop/propose-sphinx-resolver-upgrade.js propose ./script/AirdropV4Bannys.s.sol --target-contract AirdropV4BannysScript --networks mainnets \"$@\"' --"
   },
   "dependencies": {
     "@bananapus/721-hook-v6": "^1.0.0",

@@ -102,7 +102,17 @@ Deployments are handled through Sphinx using the environments configured in `scr
 
 ### Airdrop through Sphinx
 
-Use the repository's proposal command so the airdrop uses the same guarded, atomic mint-and-migration batches as the Safe exports:
+First deploy and activate the reviewed resolver through the [two-stage resolver upgrade](script/outfit_drop/RESOLVER_UPGRADE.md):
+
+```sh
+forge build
+npm run deploy:testnets:resolver-upgrade -- --dry-run
+npm run deploy:testnets:resolver-upgrade
+```
+
+Sign and execute the deployment proposal on every participating chain, then use its printed resume command to propose the atomic configuration-and-switch stage. Sign and execute that stage, then resume to verify activation. Repeat with `deploy:mainnets:resolver-upgrade` for mainnets. The upgrade mints zero NFTs. Each owner signs two exact roots per profile. A dry run accepts `--dry-run` alone, without `--confirm`.
+
+After the resolver switch is verified, use fresh preparations from the repository's airdrop proposal command so distribution uses the same guarded, atomic mint-and-migration batches as the Safe exports:
 
 ```sh
 npm run deploy:testnets:airdrop -- --dry-run
@@ -123,7 +133,7 @@ node ./script/outfit_drop/propose-sphinx-airdrop.js resume safe-airdrop/sphinx-Y
 
 Resume checks the exact prior roots completed, current module nonces, unchanged sources and canonical remaining calls before submitting the next part. It refuses duplicates while a part is pending or its submission is uncertain. `--dry-run` previews without uploading. Keep the preparation directory and its `proposal-progress.json`; a normal new proposal command starts a new preparation. The published platform [cancels an earlier pending proposal when a different root is proposed](https://github.com/sphinx-labs/sphinx-platform/blob/11e36f431de70bdd5374f21c30f393ee2432931e/website/server/api/propose/index.ts#L266-L309), so parts must follow this serial flow.
 
-Local qualification cannot certify the service's current transaction-gas settings. An upload rejection must be investigated before retrying; retain any successful proposal roots. Sphinx module execution does not consume the ordinary Safe nonce. Existing native approvals remain authorized: keep the old native airdrop queue untouched while using this route, and coordinate with the other signer. This tooling does not repair the separately identified artwork configuration.
+Local qualification cannot certify the service's current transaction-gas settings. An upload rejection must be investigated before retrying; retain any successful proposal roots. Sphinx module execution does not consume the ordinary Safe nonce. Existing native approvals remain authorized; coordinate with the other signer and reconcile old distributions using the [resolver rollout instructions](script/outfit_drop/RESOLVER_UPGRADE.md) before using this route. Never reuse a pre-switch distribution preparation.
 
 ### Airdrop without Sphinx
 

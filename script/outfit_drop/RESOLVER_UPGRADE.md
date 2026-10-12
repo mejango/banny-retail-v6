@@ -1,5 +1,30 @@
 # Before-mint resolver replacement
 
+## Sphinx execution
+
+Use the reviewed resolver-upgrade adapter before starting fresh airdrop proposals. It keeps the original `AirdropV4Bannys.s.sol` project configuration and collects only its configuration getter; it substitutes the same canonical Safe batches described below. It qualifies every chain and both exact roots on loopback before uploading anything. Deployment, storage writer binding and configuration are checked against reviewed compiler artifacts and pinned collection state.
+
+```sh
+forge build
+npm run deploy:testnets:resolver-upgrade -- --dry-run
+npm run deploy:testnets:resolver-upgrade
+```
+
+The live `npm run deploy:testnets:resolver-upgrade` command uploads only the deployment part. Both owners sign that proposal in Sphinx, then execute it on every participating testnet. Use the **exact resume command printed by the adapter**, with `.env` exported in your shell, to upload the atomic configuration-and-switch part. Sign and execute that second proposal on every participating testnet, then resume once more: completion includes fresh verification of the active resolver, all settings, names, artwork commitments, storage binding and zero mint/burn/custody. A pending, uncertain, failed or partially completed root cannot advance to another part. Do not rerun a new proposal command to continue an existing preparation.
+
+Repeat with `npm run deploy:mainnets:resolver-upgrade -- --dry-run` and `npm run deploy:mainnets:resolver-upgrade` for mainnets. There are two exact roots per profile: each owner signs the deployment root once and the configuration-and-switch root once. Each part must finish on every chain in its profile before advancing. Use `--dry-run` without `--confirm`; the SDK rejects that option pair.
+
+After both resolver upgrades complete, generate and qualify **fresh** distribution preparations:
+
+```sh
+npm run generate:airdrop
+forge build
+npm run deploy:testnets:airdrop -- --dry-run
+npm run deploy:testnets:airdrop
+```
+
+Continue distributions using their printed resume commands after each proposal has executed on every participating chain. Repeat the fresh dry run and proposal with `deploy:mainnets:airdrop` for mainnets. The resolver upgrade mints zero NFTs; the distribution proposals perform the airdrop. Saved preparations from before activation remain unusable for this flow. Existing native Safe signatures require the separate nonce reconciliation described below.
+
 `prepare-resolver-upgrade.js` reads a pinned chain and creates unsigned Safe Transaction Builder JSONs. It never sends a proposal, approval or transaction. Use the collection's metadata-authorized Safe. Build the reviewed storage, resolver and guard first.
 
 The replacement keeps `setSvgContentsOf(uint256[],string[])` unchanged. Hash-matching original fragments are stored in immutable STOP-prefixed data contracts, with at most 24,575 content bytes per contract. The resolver reads their exact concatenation. Publish one large asset per transaction; the array interface is not a promise that all artwork fits in one transaction. Publication remains permissionless and one-shot for nonempty content; existing empty-content behavior is preserved.
