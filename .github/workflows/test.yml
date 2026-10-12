@@ -20,6 +20,8 @@ jobs:
         run: npm install
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.0
       - name: Check Safe airdrop exporter
         run: npm run test:airdrop:safe
       - name: Check Sphinx airdrop preparation
