@@ -7,6 +7,7 @@ import {JB721TierFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierFlags.
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "./helpers/BannyResolverDeployment.sol";
 
 /// @notice Minimal mock hook for testing. Tracks owners and categories for mock 721 tokens.
 contract MockHook {
@@ -128,15 +129,15 @@ contract TestBanny721TokenUriResolver is Test {
         hook = new MockHook(address(store));
 
         vm.prank(deployer);
-        resolver = new Banny721TokenUriResolver(
-            "<path/>", // bannyBody
-            "<necklace/>", // defaultNecklace
-            "<mouth/>", // defaultMouth
-            "<eyes/>", // defaultStandardEyes
-            "<alieneyes/>", // defaultAlienEyes
-            deployer, // owner
-            address(0) // trustedForwarder
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: deployer,
+            trustedForwarder: address(0)
+        });
 
         // Set up tier data in mock store for each token.
         _setupTier(BODY_TOKEN, 4, 0); // Original body

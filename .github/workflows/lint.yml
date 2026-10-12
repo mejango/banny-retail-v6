@@ -1,8 +1,6 @@
 name: lint
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
@@ -15,5 +13,7 @@ jobs:
           submodules: recursive
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.0
       - name: Check linting
         run: forge fmt --check

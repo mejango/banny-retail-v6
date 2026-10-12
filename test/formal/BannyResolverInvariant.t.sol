@@ -7,6 +7,7 @@ import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "../helpers/BannyResolverDeployment.sol";
 import {IBanny721TokenUriResolver} from "../../src/interfaces/IBanny721TokenUriResolver.sol";
 
 //*********************************************************************//
@@ -225,7 +226,15 @@ contract BannyResolverInvariant is StdInvariant, Test {
     function setUp() public {
         store = new InvariantMockStore();
         hook = new InvariantMockHook(store);
-        resolver = new Banny721TokenUriResolver("<b/>", "<n/>", "<m/>", "<e/>", "<a/>", address(this), address(0));
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<b/>",
+            defaultNecklaceSvg: "<n/>",
+            defaultMouthSvg: "<m/>",
+            defaultStandardEyesSvg: "<e/>",
+            defaultAlienEyesSvg: "<a/>",
+            owner: address(this),
+            trustedForwarder: address(0)
+        });
         handler = new BannyHandler(resolver, hook, store);
 
         // Move all token ownership so the handler's actors own the seeded tokens (the handler set owners on the hook

@@ -39,6 +39,7 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 
 // Banny.
 import {Banny721TokenUriResolver} from "../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "./helpers/BannyResolverDeployment.sol";
 
 /// @notice Malicious hook for reentrancy testing. Re-enters the resolver during safeTransferFrom.
 contract ReentrantHook {
@@ -1853,9 +1854,15 @@ contract BannyForkTest is Test {
         string memory defaultAlienEyes = '<g class="o"><path d="M190 127h3v3h-3z"/></g>';
 
         vm.prank(multisig);
-        resolver = new Banny721TokenUriResolver(
-            bannyBody, defaultNecklace, defaultMouth, defaultEyes, defaultAlienEyes, multisig, trustedForwarder
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: bannyBody,
+            defaultNecklaceSvg: defaultNecklace,
+            defaultMouthSvg: defaultMouth,
+            defaultStandardEyesSvg: defaultEyes,
+            defaultAlienEyesSvg: defaultAlienEyes,
+            owner: multisig,
+            trustedForwarder: trustedForwarder
+        });
 
         // Set metadata.
         vm.prank(multisig);

@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "../helpers/BannyResolverDeployment.sol";
 
 /// @notice Mismatched array lengths should revert.
 contract ArrayLengthValidationTest is Test {
@@ -12,9 +13,15 @@ contract ArrayLengthValidationTest is Test {
 
     function setUp() public {
         vm.prank(deployer);
-        resolver = new Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", deployer, address(0)
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: deployer,
+            trustedForwarder: address(0)
+        });
     }
 
     function test_setProductNames_revertsOnMismatchedLengths() public {

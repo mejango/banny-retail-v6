@@ -6,6 +6,7 @@ import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannyResolverDeployment} from "../helpers/BannyResolverDeployment.sol";
 import {IBanny721TokenUriResolver} from "../../src/interfaces/IBanny721TokenUriResolver.sol";
 
 /// @notice Minimal mock hook.
@@ -82,9 +83,15 @@ contract MsgSenderEventsTest is Test {
         hook = new MockHook56(address(store));
 
         vm.prank(deployer);
-        resolver = new Banny721TokenUriResolver(
-            "<path/>", "<necklace/>", "<mouth/>", "<eyes/>", "<alieneyes/>", deployer, address(0)
-        );
+        resolver = BannyResolverDeployment.deploy({
+            bannyBodySvg: "<path/>",
+            defaultNecklaceSvg: "<necklace/>",
+            defaultMouthSvg: "<mouth/>",
+            defaultStandardEyesSvg: "<eyes/>",
+            defaultAlienEyesSvg: "<alieneyes/>",
+            owner: deployer,
+            trustedForwarder: address(0)
+        });
     }
 
     /// @notice Verify SetProductName event emits _msgSender() (== deployer) not msg.sender.

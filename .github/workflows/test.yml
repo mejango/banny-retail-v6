@@ -1,8 +1,6 @@
 name: test
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
@@ -20,6 +18,14 @@ jobs:
         run: npm install
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.0
+      - name: Check Safe airdrop exporter
+        run: npm run test:airdrop:safe
+      - name: Check Sphinx airdrop preparation
+        run: npm run test:airdrop:sphinx
+      - name: Check resolver preparation and style
+        run: node --test ./script/outfit_drop/prepare-resolver-upgrade.test.js ./script/outfit_drop/resolver-style.test.js
       - name: Run tests
         run: forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
         env:

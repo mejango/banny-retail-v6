@@ -2,10 +2,15 @@
 pragma solidity 0.8.28;
 
 import {Banny721TokenUriResolver} from "../../src/Banny721TokenUriResolver.sol";
+import {BannySvgStorage} from "../../src/BannySvgStorage.sol";
 
 /// @notice Halmos smoke proofs for Banny resolver helpers that gate composition metadata and retained outfit state.
 contract BannyResolverHalmos is Banny721TokenUriResolver {
-    constructor() Banny721TokenUriResolver("", "", "", "", "", address(1), address(0)) {}
+    /// @notice Deploy the pure-helper proof target with separately deployed artwork storage.
+    /// @dev These proofs never publish artwork, so storage intentionally remains unbound.
+    constructor()
+        Banny721TokenUriResolver("", "", "", "", "", address(1), address(0), new BannySvgStorage(address(1)))
+    {}
 
     /// @notice Checks that all supported category IDs resolve to their intended display names.
     function check_categoryNameBoundaryTable() public pure {

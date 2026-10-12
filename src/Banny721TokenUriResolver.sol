@@ -15,6 +15,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "lib/base64/base64.sol";
 
+import {BannySvgStorage} from "./BannySvgStorage.sol";
+
 import {IBanny721TokenUriResolver} from "./interfaces/IBanny721TokenUriResolver.sol";
 
 /// @notice Manages Banny NFT composition — stores SVG assets (bodies, backgrounds, outfits), dresses banny bodies
@@ -63,6 +65,9 @@ contract Banny721TokenUriResolver is
 
     /// @notice Thrown when a full head and individual head pieces are equipped together.
     error Banny721TokenUriResolver_HeadAlreadyAdded(uint256 category);
+
+    /// @notice Thrown when SVG storage is controlled by another account or bound to another resolver.
+    error Banny721TokenUriResolver_InvalidSvgStorage();
 
     /// @notice Thrown when outfit changes are attempted on a banny body whose lock has not yet expired.
     error Banny721TokenUriResolver_OutfitChangesLocked(address hook, uint256 bannyBodyId, uint256 lockedUntil);
@@ -156,6 +161,14 @@ contract Banny721TokenUriResolver is
     uint8 private constant ORIGINAL_UPC = 4;
 
     //*********************************************************************//
+    // --------------- public immutable stored properties ---------------- //
+    //*********************************************************************//
+
+    /// @notice Immutable bytecode storage for published artwork.
+    /// @dev Supplied during deployment and permanently bound to this resolver before publication.
+    BannySvgStorage public immutable SVG_STORAGE;
+
+    //*********************************************************************//
     // --------------------- public stored properties -------------------- //
     //*********************************************************************//
 
@@ -220,10 +233,6 @@ contract Banny721TokenUriResolver is
     /// @custom:param upc The universal product code that the name belongs to.
     mapping(uint256 upc => string) internal _customProductNameOf;
 
-    /// @notice The banny body and outfit SVG files.
-    /// @custom:param upc The universal product code that the SVG contents represent.
-    mapping(uint256 upc => string) internal _svgContentOf;
-
     /// @notice The ID of the banny body each background is used by.
     /// @custom:param hook The hook address of the collection.
     /// @custom:param backgroundId The ID of the background.
@@ -238,6 +247,8 @@ contract Banny721TokenUriResolver is
     // -------------------------- constructor ---------------------------- //
     //*********************************************************************//
 
+    /// @notice Configures the rendering templates, owner, forwarder and separately deployed SVG storage.
+    /// @dev The owner must control storage binding, and any bound writer must be this resolver.
     /// @param bannyBodySvg The SVG of the banny body.
     /// @param defaultNecklaceSvg The SVG of the default necklace.
     /// @param defaultMouthSvg The SVG of the default mouth.
@@ -245,6 +256,7 @@ contract Banny721TokenUriResolver is
     /// @param defaultAlienEyesSvg The SVG of the default alien eyes.
     /// @param owner The owner allowed to add SVG files that correspond to product IDs.
     /// @param trustedForwarder The trusted forwarder for the ERC2771Context.
+    /// @param svgStorage The separately deployed storage to bind to this resolver before publication.
     constructor(
         string memory bannyBodySvg,
         string memory defaultNecklaceSvg,
@@ -252,11 +264,18 @@ contract Banny721TokenUriResolver is
         string memory defaultStandardEyesSvg,
         string memory defaultAlienEyesSvg,
         address owner,
-        address trustedForwarder
+        address trustedForwarder,
+        BannySvgStorage svgStorage
     )
         Ownable(owner)
         ERC2771Context(trustedForwarder)
     {
+        // Require the owner to retain binding authority and reject a dependency assigned to another resolver.
+        address writer = svgStorage.writer();
+        if (svgStorage.CONFIGURATOR() != owner || (writer != address(0) && writer != address(this))) {
+            revert Banny721TokenUriResolver_InvalidSvgStorage();
+        }
+        SVG_STORAGE = svgStorage;
         bannyBody = bannyBodySvg;
         defaultNecklace = defaultNecklaceSvg;
         defaultMouth = defaultMouthSvg;
@@ -1090,7 +1109,7 @@ contract Banny721TokenUriResolver is
     /// @return The SVG content string, either from storage or decoded from IPFS.
     function _svgOf(address hook, uint256 upc) internal view returns (string memory) {
         // Keep a reference to the stored svg contents.
-        string memory svgContents = _svgContentOf[upc];
+        string memory svgContents = string(SVG_STORAGE.read(upc));
 
         if (bytes(svgContents).length != 0) return svgContents;
 
@@ -1349,7 +1368,7 @@ contract Banny721TokenUriResolver is
             string memory svgContent = svgContents[i];
 
             // Make sure there isn't already contents for the specified universal product code.
-            if (bytes(_svgContentOf[upc]).length != 0) {
+            if (SVG_STORAGE.isStored(upc)) {
                 revert Banny721TokenUriResolver_ContentsAlreadyStored({upc: upc});
             }
 
@@ -1368,7 +1387,7 @@ contract Banny721TokenUriResolver is
             }
 
             // Store the svg contents.
-            _svgContentOf[upc] = svgContent;
+            _storeSvg({upc: upc, svgContent: svgContent});
 
             emit SetSvgContent({upc: upc, svgContent: svgContent, caller: sender});
             unchecked {
@@ -1772,6 +1791,14 @@ contract Banny721TokenUriResolver is
             // Persist the merged-and-sorted attachment list so later reads and redecorations see a stable order.
             _attachedOutfitIdsOf[hook][bannyBodyId] = mergedOutfitIds;
         }
+    }
+
+    /// @notice Publish a product's SVG fragment in immutable bytecode storage.
+    /// @dev The calling setter must validate the content hash and publication uniqueness before writing.
+    /// @param upc The universal product code whose artwork to publish.
+    /// @param svgContent The complete SVG fragment matching the product's committed hash.
+    function _storeSvg(uint256 upc, string memory svgContent) internal {
+        SVG_STORAGE.write({upc: upc, contents: bytes(svgContent)});
     }
 
     /// @notice Transfer a token from one address to another.
