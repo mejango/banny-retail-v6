@@ -1090,7 +1090,7 @@ contract Banny721TokenUriResolver is
     /// @return The SVG content string, either from storage or decoded from IPFS.
     function _svgOf(address hook, uint256 upc) internal view returns (string memory) {
         // Keep a reference to the stored svg contents.
-        string memory svgContents = _svgContentOf[upc];
+        string memory svgContents = _storedSvgOf(upc);
 
         if (bytes(svgContents).length != 0) return svgContents;
 
@@ -1101,6 +1101,21 @@ contract Banny721TokenUriResolver is
             }),
             '" width="400" height="400"/>'
         );
+    }
+
+    /// @notice Read published artwork independently of its storage representation.
+    function _storedSvgOf(uint256 upc) internal view returns (string memory) {
+        return _svgContentOf[upc];
+    }
+
+    /// @notice Whether nonempty artwork has already been published.
+    function _hasStoredSvg(uint256 upc) internal view returns (bool) {
+        return bytes(_svgContentOf[upc]).length != 0;
+    }
+
+    /// @notice Publish artwork after the caller has validated its commitment.
+    function _storeSvg(uint256 upc, string memory svgContent) internal {
+        _svgContentOf[upc] = svgContent;
     }
 
     /// @notice Validate that an array of outfit IDs does not violate category exclusivity rules.
@@ -1349,7 +1364,7 @@ contract Banny721TokenUriResolver is
             string memory svgContent = svgContents[i];
 
             // Make sure there isn't already contents for the specified universal product code.
-            if (bytes(_svgContentOf[upc]).length != 0) {
+            if (_hasStoredSvg(upc)) {
                 revert Banny721TokenUriResolver_ContentsAlreadyStored({upc: upc});
             }
 
@@ -1368,7 +1383,7 @@ contract Banny721TokenUriResolver is
             }
 
             // Store the svg contents.
-            _svgContentOf[upc] = svgContent;
+            _storeSvg(upc, svgContent);
 
             emit SetSvgContent({upc: upc, svgContent: svgContent, caller: sender});
             unchecked {
