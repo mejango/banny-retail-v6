@@ -8,7 +8,8 @@ const { ethers } = require('ethers');
 const core = require('@sphinx-labs/core');
 const { makeSphinxMerkleTree, SphinxLeafType, getPermissionlessRelayAddress } = require('@sphinx-labs/contracts');
 const { NOOP, actionFor, selectChunks, pinReads, sourceIdentity, ensureBuildInfo, makeAirdropPropose, safeError,
-    readPreparedArtifact, nextReadyPart, resumePrepared, writePreparedArtifact, assertProjectIdentity } = require('./propose-sphinx-airdrop');
+    readPreparedArtifact, nextReadyPart, resumePrepared, writePreparedArtifact, assertProjectIdentity,
+    resolveCompilerArtifacts } = require('./propose-sphinx-airdrop');
 const { FACTORY, MULTISEND, networksFor } = require('./export-safe-airdrop');
 const { actionDigest } = require('./qualify-sphinx-airdrop');
 
@@ -142,6 +143,18 @@ test('real ordinary Forge build gains official Sphinx metadata without deleting 
         assert.deepEqual(fs.readdirSync(buildInfoFolder), metadataFiles, 'Matching metadata should not rebuild again');
         await ensureBuildInfo(getConfigArtifacts, null, directory, () => [initCode]);
         assert.deepEqual(fs.readdirSync(buildInfoFolder), metadataFiles, 'Explicit matching initcode must reuse official metadata');
+        // Context collection can erase full metadata after the initial repair; recover at the final lookup boundary.
+        fs.rmSync(buildInfoFolder, { recursive: true, force: true });
+        fs.mkdirSync(buildInfoFolder);
+        assert.deepEqual((await getConfigArtifacts([initCode])).configArtifacts, {});
+        const readIdentity = () => createHash('sha256').update(fs.readFileSync(
+            path.join(directory, 'out/SafeAirdropExecutor.sol/SafeAirdropExecutor.json'))).digest('hex');
+        const frozenIdentity = readIdentity();
+        const recovered = await resolveCompilerArtifacts(getConfigArtifacts, [initCode], frozenIdentity, readIdentity, directory);
+        assert.equal(utils.findFullyQualifiedNameForInitCode(initCode, recovered.configArtifacts), fqn);
+        assert.equal(fs.readFileSync(evidence, 'utf8'), '{"root":"preserve-me"}');
+        await assert.rejects(resolveCompilerArtifacts(getConfigArtifacts, [initCode], frozenIdentity,
+            () => 'changed', directory), /identity changed/);
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 

@@ -186,7 +186,20 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
     }
     const initCodes = preparedByChain.flat().filter(batch => batch.safeTransaction.stage === 'setup')
         .flatMap(batch => batch.batch.transactions.map(tx => core.decodeDeterministicDeploymentProxyData(tx.data).initCodeWithArgs));
-    const { configArtifacts, buildInfos } = await getConfigArtifacts(initCodes);
+    const inputIdentity = sourceIdentity(items, artifacts, sourceHashes);
+    const { configArtifacts, buildInfos } = await resolveCompilerArtifacts(getConfigArtifacts, initCodes, inputIdentity, () => {
+        // Compiler collection can replace artifacts; reread every input rather than trusting cached identities.
+        const freshItems = generator.loadRawItems();
+        const freshHelpers = generator.buildCombinedContractsByChain(freshItems);
+        const freshSources = new Map();
+        const freshArtifacts = new Map([['SafeAirdropExecutor', exporter.readCompiledArtifact('SafeAirdropExecutor',
+            'script/helpers/SafeAirdropExecutor.sol', ROOT, freshSources)]]);
+        for (const chain of preparedChains) {
+            const plan = freshHelpers[chain.network.sourceChainId][0];
+            freshArtifacts.set(plan.contractName, exporter.readArtifact(plan, ROOT, freshSources));
+        }
+        return sourceIdentity(freshItems, freshArtifacts, freshSources);
+    });
     for (let index = 0; index < entries.length; index++) {
         entries[index].networkConfig.actionInputs = preparedByChain[index].map((batch, actionIndex) =>
             actionFor(batch, actionIndex, configArtifacts));
@@ -194,7 +207,6 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
     await sphinxContext.assertNoLinkedLibraries(scriptPath, foundryToml.cachePath,
         foundryToml.artifactFolder, projectRoot, targetContract);
     const { qualifyProfile } = require('./qualify-sphinx-airdrop');
-    const inputIdentity = sourceIdentity(items, artifacts, sourceHashes);
     fs.writeFileSync(path.join(reportDir, 'inputs.json'), `${JSON.stringify({ inputIdentity,
         rawItemsSha256: createHash('sha256').update(JSON.stringify(items)).digest('hex'),
         sources: Object.fromEntries(sourceHashes),
@@ -211,6 +223,13 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
     }
     assert(qualification.segments?.length, 'Qualification returned no proposal parts');
     return { ...qualification, entries, preparedChains, configArtifacts, buildInfos, reportDir, inputIdentity };
+}
+
+async function resolveCompilerArtifacts(getConfigArtifacts, initCodes, expectedIdentity, readIdentity, root = ROOT) {
+    // Forge inspection/context collection can replace full compiler metadata; recover it after those operations.
+    await ensureBuildInfo(getConfigArtifacts, {}, root, () => initCodes);
+    assert.equal(readIdentity(), expectedIdentity, 'Compiler/source identity changed during metadata recovery');
+    return getConfigArtifacts(initCodes);
 }
 
 function safeError(error) {
@@ -536,4 +555,4 @@ if (require.main === module) {
 module.exports = { NOOP, selectChunks, actionFor, deploymentsFor, pinReads, sourceIdentity, ensureBuildInfo,
     collectNetworkContext, collectAndQualify, makeAirdropPropose, safeError, writePreparedArtifact, readPreparedArtifact,
     nextReadyPart, assertPreparedFresh, assertReadyToSubmit, resumePrepared, assertCanonicalActions, assertActionsMatchEnvelopes,
-    assertProjectIdentity, providerFor, progressFile, resumeCommand };
+    assertProjectIdentity, providerFor, progressFile, resumeCommand, resolveCompilerArtifacts };
