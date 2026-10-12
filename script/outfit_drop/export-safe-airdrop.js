@@ -502,15 +502,20 @@ async function prepareApprovedExecution(envelope, provider) {
     };
 }
 
+function readHookAddress(network, { root = ROOT,
+    deployments = path.resolve(root, process.env.BANNY_AIRDROP_DEPLOYMENTS_PATH || '../deploy-all-v6/deployments') } = {}) {
+    return address(JSON.parse(fs.readFileSync(
+        path.join(deployments, network.folder, 'JB721TiersHook__ProjectBAN.json'), 'utf8',
+    )).address, 'hook');
+}
+
 // Canonical per-chain preparation shared by unsigned export transports. Provider reads,
 // setup omission and optional Safe nonce binding retain the CLI's existing behavior.
 async function prepareChain({ network, profile, safe, provider, root = ROOT,
-    deployments = path.resolve(root, process.env.BANNY_AIRDROP_DEPLOYMENTS_PATH || '../deploy-all-v6/deployments'),
+    deployments,
     plans, helperPlans, executorArtifact, sourceHashes = new Map(), startNonce }) {
     const batches = [];
-    const hook = address(JSON.parse(fs.readFileSync(
-        path.join(deployments, network.folder, 'JB721TiersHook__ProjectBAN.json'), 'utf8',
-    )).address, 'hook');
+    const hook = readHookAddress(network, { root, deployments });
     const { resolver, threshold, owners } = await preflight({ network, safe, hook, provider, root });
     if (startNonce !== undefined) {
         const safeContract = new ethers.Contract(safe, ['function nonce() view returns(uint256)'], provider);
@@ -581,7 +586,6 @@ async function main() {
     }
     const safe = address(values.safe || defaultSafe(), 'Safe');
     const output = path.resolve(ROOT, values.out || path.join('safe-airdrop', values.profile));
-    const deployments = path.resolve(ROOT, process.env.BANNY_AIRDROP_DEPLOYMENTS_PATH || '../deploy-all-v6/deployments');
     const items = loadRawItems();
     const plans = buildContractsByChain(items);
     const helperPlans = buildCombinedContractsByChain(items);
@@ -595,7 +599,7 @@ async function main() {
         const rpc = process.env[network.rpc];
         if (!rpc) throw new Error(`Missing ${network.rpc}; load .env before exporting`);
         const provider = new ethers.providers.JsonRpcProvider({ url: rpc, timeout: 30000 });
-        const { chain, batches } = await prepareChain({ network, profile: values.profile, safe, provider, deployments,
+        const { chain, batches } = await prepareChain({ network, profile: values.profile, safe, provider,
             plans, helperPlans, executorArtifact, sourceHashes, startNonce });
         for (const prepared of batches) {
             add(prepared.builderFile, prepared.batch);
@@ -617,6 +621,6 @@ if (require.main === module) {
     });
 }
 
-module.exports = { prepareChain, wrapBatch, buildBatch, combineMigrationBatches, readArtifact, readCompiledArtifact, assertGeneratedSnapshot, networksFor, preflight, writeExports, defaultSafe,
+module.exports = { readHookAddress, prepareChain, wrapBatch, buildBatch, combineMigrationBatches, readArtifact, readCompiledArtifact, assertGeneratedSnapshot, networksFor, preflight, writeExports, defaultSafe,
     bindNonce, encodeApprovedExecution, prepareApprovedExecution, partitionPlan, needsSetup, MAX_MINTS_PER_TRANSACTION,
     executorNeedsSetup, SAFE_TRANSACTION_FIELDS, FACTORY, MULTISEND, NETWORKS };

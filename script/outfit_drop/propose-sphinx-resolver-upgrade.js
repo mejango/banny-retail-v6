@@ -239,9 +239,7 @@ async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInte
         const { provider, chainId, profile, network, block, entry } = await shared.collectNetworkContext({
             scriptPath, safe, rpcUrl, pluginInterface, targetContract, reportDir });
         assert(!preparedChains.some(chain => chain.chainId === chainId), 'Duplicate resolver chain');
-        const deployments = path.resolve(ROOT, process.env.BANNY_AIRDROP_DEPLOYMENTS_PATH || '../deploy-all-v6/deployments');
-        const hook = ethers.utils.getAddress(JSON.parse(fs.readFileSync(
-            path.join(deployments, network.folder, 'JB721TiersHook__ProjectBAN.json'))).address);
+        const hook = exporter.readHookAddress(network);
         const evidence = await upgrade.prepare({ provider, hook, safe, output: path.join(reportDir, String(chainId)), block: block.number });
         const prepared = batchesFor(evidence);
         assert.deepEqual(prepared.map(batch => batch.safeTransaction.stage), ['resolver-deploy', 'resolver-switch'],

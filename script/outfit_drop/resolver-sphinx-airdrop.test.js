@@ -65,11 +65,14 @@ test('lowercase registry hooks are normalized before frozen canonical call compa
     const registry = { address: HOOK.toLowerCase() };
     chain.hook = registry.address;
     assert.throws(() => adapter.assertFrozenCalls(chain, build), /configuration\/switch calls changed/);
-    chain.hook = ethers.utils.getAddress(registry.address);
-    adapter.assertFrozenCalls(chain, build);
-    // Bind this case to the collector owner so registry parsing cannot silently drop normalization.
-    const source = require('node:fs').readFileSync(require.resolve('./propose-sphinx-resolver-upgrade'), 'utf8');
-    assert.match(source, /const hook = ethers\.utils\.getAddress\(JSON\.parse\(fs\.readFileSync\(/);
+    const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-hook-registry-'));
+    try {
+        fs.mkdirSync(path.join(directory, 'ethereum'));
+        fs.writeFileSync(path.join(directory, 'ethereum', 'JB721TiersHook__ProjectBAN.json'), JSON.stringify(registry));
+        chain.hook = exporter.readHookAddress({ folder: 'ethereum' }, { deployments: directory });
+        adapter.assertFrozenCalls(chain, build);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('changing both saved calls and envelope cannot authorize an arbitrary call', () => {
