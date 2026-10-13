@@ -689,14 +689,16 @@ test('an old resume owner cannot remove a replacement lock', async () => {
 });
 
 // Node resolves symlinked dependencies to real paths, which can leave the repository.
-test('startup snapshot binds loaded JS and JSON outside the repository', () => {
+test('startup snapshot binds every loaded dependency including outside repository paths', () => {
     const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'banny-loaded-dependency-')));
-    const files = [path.join(directory, 'dependency.js'), path.join(directory, 'config.json')];
+    const files = [path.join(directory, 'dependency.js'), path.join(directory, 'config.json'), path.join(directory, 'dependency.cjs')];
     try {
         fs.writeFileSync(files[0], 'module.exports = 1;');
         fs.writeFileSync(files[1], '{"value":1}');
+        fs.writeFileSync(files[2], 'module.exports = 2;');
         files.forEach(file => require(file));
         const sources = snapshotRuntimeSources();
+        Object.keys(require.cache).filter(file => !file.endsWith('.test.js')).forEach(file => assert(file in sources, `Missing loaded dependency ${file}`));
         files.forEach(file => assert.equal(sources[file], createHash('sha256').update(fs.readFileSync(file)).digest('hex')));
         fs.writeFileSync(files[1], '{"value":2}');
         assert.notEqual(sources[files[1]], createHash('sha256').update(fs.readFileSync(files[1])).digest('hex'));

@@ -504,7 +504,7 @@ function snapshotRuntimeSources() {
     require('./prepare-resolver-upgrade');
     require('./qualify-resolver-live-rpc');
     return Object.fromEntries(Object.keys(require.cache)
-        .filter(file => !file.endsWith('.test.js') && (file.endsWith('.js') || file.endsWith('.json')))
+        .filter(file => !file.endsWith('.test.js'))
         .map(file => [file, sha256(fs.readFileSync(file))]));
 }
 
