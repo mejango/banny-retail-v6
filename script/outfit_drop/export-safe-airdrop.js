@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { parseArgs } = require('node:util');
 const { ethers } = require('ethers');
+const { runtimeHash, immutableIds } = require('./prepare-resolver-upgrade');
 const {
     DETERMINISTIC_DEPLOYMENT_PROXY_ADDRESS: FACTORY,
     MultiSendCallOnlyArtifact,
@@ -398,6 +399,7 @@ async function preflight({ network, safe, hook, provider, root = ROOT }) {
     const hookContract = new ethers.Contract(hook, [
         'function owner() view returns(address)',
         'function STORE() view returns(address)',
+        'function trustedForwarder() view returns(address)',
         'function projectId() view returns(uint256)',
         'function PERMISSIONS() view returns(address)',
     ], provider);
@@ -421,7 +423,42 @@ async function preflight({ network, safe, hook, provider, root = ROOT }) {
         'function tokenUriResolverOf(address) view returns(address)',
     ], provider);
     const resolver = address(await storeContract.tokenUriResolverOf(hook), 'resolver');
-    if (await provider.getCode(resolver) === '0x') throw new Error('Resolver is not deployed');
+    const resolverCode = await provider.getCode(resolver);
+    if (resolverCode === '0x') throw new Error('Resolver is not deployed');
+    const replacement = new ethers.Contract(resolver, [
+        'function SVG_STORAGE() view returns(address)', 'function owner() view returns(address)',
+        'function trustedForwarder() view returns(address)',
+    ], provider);
+    const [storageAddress, resolverOwner, forwarder, hookForwarder] = await Promise.all([
+        replacement.SVG_STORAGE().catch(error => {
+            if (error.code === 'CALL_EXCEPTION') throw new Error('Replacement resolver is not active: active resolver has no SVG_STORAGE binding');
+            throw error;
+        }), replacement.owner(), replacement.trustedForwarder(), hookContract.trustedForwarder(),
+    ]);
+    if (forwarder.toLowerCase() !== hookForwarder.toLowerCase()) throw new Error('Replacement trusted forwarder differs from hook');
+    const svgStorage = address(storageAddress, 'SVG storage');
+    if (resolverOwner.toLowerCase() !== safe.toLowerCase()) throw new Error('Safe is not replacement resolver owner');
+    const storageCode = await provider.getCode(svgStorage);
+    if (storageCode === '0x') throw new Error('SVG storage is not deployed');
+    const storageContract = new ethers.Contract(svgStorage, [
+        'function CONFIGURATOR() view returns(address)', 'function writer() view returns(address)',
+    ], provider);
+    const [configurator, writer] = await Promise.all([storageContract.CONFIGURATOR(), storageContract.writer()]);
+    if (configurator.toLowerCase() !== safe.toLowerCase()) throw new Error('Safe is not SVG storage configurator');
+    if (writer.toLowerCase() !== resolver.toLowerCase()) throw new Error('SVG storage writer is not active resolver');
+    // Both native and Sphinx distributions require the reviewed bytecode-storage replacement.
+    // Validate transitive sources before deriving immutable IDs from the same build.
+    const sources = new Map();
+    readCompiledArtifact('Banny721TokenUriResolver', 'src/Banny721TokenUriResolver.sol', root, sources);
+    readCompiledArtifact('BannySvgStorage', 'src/BannySvgStorage.sol', root, sources);
+    const ids = immutableIds(root);
+    const compiled = readCompiledArtifact('Banny721TokenUriResolver', 'src/Banny721TokenUriResolver.sol', root);
+    const storageArtifact = readCompiledArtifact('BannySvgStorage', 'src/BannySvgStorage.sol', root);
+    const resolverHash = runtimeHash(compiled, { [ids.forwarder]: hookForwarder, [ids.storage]: svgStorage });
+    if (ethers.utils.keccak256(resolverCode) !== resolverHash) throw new Error('Active resolver runtime is not the reviewed replacement');
+    if (ethers.utils.keccak256(storageCode) !== runtimeHash(storageArtifact, { [ids.configurator]: safe })) {
+        throw new Error('SVG storage runtime does not match reviewed artifact');
+    }
     return { resolver, threshold: threshold.toString(), owners };
 }
 
@@ -469,7 +506,56 @@ function encodeApprovedExecution(envelope, owners) {
     };
 }
 
-async function prepareApprovedExecution(envelope, provider) {
+function assertApprovedCallBindings(envelope, hook, resolver, helperArtifact) {
+    const tx = envelope.transaction;
+    let calls = [tx];
+    if (Number(tx.operation) === 1) {
+        if (tx.to.toLowerCase() !== MULTISEND.toLowerCase()) throw new Error('Approved exporter transaction has unexpected delegatecall target');
+        const [packed] = MULTISEND_INTERFACE.decodeFunctionData('multiSend', tx.data);
+        const size = ethers.utils.hexDataLength(packed);
+        calls = [];
+        for (let offset = 0; offset < size;) {
+            if (size - offset < 85) throw new Error('Truncated approved MultiSend call');
+            const operation = Number(ethers.utils.hexDataSlice(packed, offset, offset + 1));
+            const to = ethers.utils.getAddress(ethers.utils.hexDataSlice(packed, offset + 1, offset + 21));
+            const value = ethers.BigNumber.from(ethers.utils.hexDataSlice(packed, offset + 21, offset + 53));
+            const length = ethers.BigNumber.from(ethers.utils.hexDataSlice(packed, offset + 53, offset + 85)).toNumber();
+            if (length > size - offset - 85) throw new Error('Truncated approved MultiSend calldata');
+            calls.push({ to, value, operation, data: ethers.utils.hexDataSlice(packed, offset + 85, offset + 85 + length) });
+            offset += 85 + length;
+        }
+    }
+    const execute = new ethers.utils.Interface(['function execute(bytes[])']);
+    const helper = new ethers.utils.Interface(helperArtifact.abi);
+    const same = (actual, expected) => actual.toLowerCase() === expected.toLowerCase();
+    const beneficiaries = new Set();
+    for (const call of calls) {
+        if (Number(call.operation) !== 0 || !ethers.BigNumber.from(call.value).isZero()) {
+            throw new Error('Approved exporter call must use CALL without ETH');
+        }
+        if (same(call.to, FACTORY)) continue;
+        if (call.data.startsWith(HOOK_INTERFACE.getSighash('mintFor'))) {
+            if (!same(call.to, hook)) throw new Error('Signed mint hook differs from canonical hook');
+            const [, beneficiary] = HOOK_INTERFACE.decodeFunctionData('mintFor', call.data);
+            beneficiaries.add(beneficiary.toLowerCase());
+        } else if (call.data.startsWith(execute.getSighash('execute'))) {
+            if (!beneficiaries.has(call.to.toLowerCase())) throw new Error('Signed executor is not a signed mint beneficiary');
+            const [inner] = execute.decodeFunctionData('execute', call.data);
+            for (const data of inner) {
+                const parsed = helper.parseTransaction({ data });
+                if (!['decorateBannys', 'transferRegular', 'requireNoBalance'].includes(parsed.name)) {
+                    throw new Error('Approved exporter transaction contains an unexpected helper call');
+                }
+                if (!same(parsed.args[0], hook)) throw new Error('Signed helper hook differs from canonical hook');
+                if (parsed.name === 'decorateBannys' && !same(parsed.args[1], resolver)) {
+                    throw new Error('Signed decoration resolver differs from active replacement');
+                }
+            }
+        } else throw new Error('Approved exporter transaction contains an unexpected call');
+    }
+}
+
+async function prepareApprovedExecution(envelope, provider, { root = ROOT, deployments } = {}) {
     if (envelope.transaction?.nonce === null || envelope.transaction?.nonce === undefined
         || !ethers.utils.isHexString(envelope.safeTxHash, 32)) {
         throw new Error('Execution requires a nonce-bound .safe-tx.json with safeTxHash');
@@ -493,6 +579,17 @@ async function prepareApprovedExecution(envelope, provider) {
     if (approvingOwners.length < threshold.toNumber()) {
         throw new Error(`Only ${approvingOwners.length}/${threshold.toString()} current Safe owners have approved this hash`);
     }
+    // Stage labels are unsigned metadata. Gate setup too, so relabeling a signed migration cannot bypass resolver-first.
+    const network = Object.values(NETWORKS).flat().find(item => String(item.chainId) === String(envelope.chainId));
+    if (!network) throw new Error('Unsupported proposal chain');
+    const hook = readHookAddress(network, { root, deployments });
+    if (hook.toLowerCase() !== address(envelope.hook, 'proposal hook').toLowerCase()) throw new Error('Proposal hook differs from canonical hook');
+    const { resolver } = await preflight({ network, safe: safeAddress, hook, provider, root });
+    if (resolver.toLowerCase() !== address(envelope.resolver, 'proposal resolver').toLowerCase()) {
+        throw new Error('Approved proposal resolver differs from active replacement');
+    }
+    const helperPlan = buildCombinedContractsByChain(loadRawItems())[network.sourceChainId][0];
+    assertApprovedCallBindings(envelope, hook, resolver, readArtifact(helperPlan, root));
     // Removed owners' approvals do not count. Include exactly the current threshold to keep calldata small.
     const selected = approvingOwners.slice(0, threshold.toNumber());
     return {

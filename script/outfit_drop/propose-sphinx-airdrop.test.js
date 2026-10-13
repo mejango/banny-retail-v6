@@ -9,7 +9,7 @@ const core = require('@sphinx-labs/core');
 const { makeSphinxMerkleTree, SphinxLeafType, getPermissionlessRelayAddress } = require('@sphinx-labs/contracts');
 const { NOOP, actionFor, selectChunks, pinReads, sourceIdentity, ensureBuildInfo, makeAirdropPropose, safeError,
     readPreparedArtifact, nextReadyPart, resumePrepared, writePreparedArtifact, assertProjectIdentity,
-    resolveCompilerArtifacts } = require('./propose-sphinx-airdrop');
+    resolveCompilerArtifacts, assertBuildInfoSources } = require('./propose-sphinx-airdrop');
 const { FACTORY, MULTISEND, networksFor } = require('./export-safe-airdrop');
 const { actionDigest } = require('./qualify-sphinx-airdrop');
 
@@ -91,7 +91,8 @@ test('preflight contract reads stay at the selected block', async () => {
 
 test('source identity binds recipients, sources, ABI, executable bytes and linking/immutable layouts', () => {
     const items = [{ owner: SAFE, tokenId: 1 }];
-    const artifact = { abi: [], bytecode: { object: INIT, sourceMap: 'compiler bookkeeping',
+    const artifact = { metadata: { compiler: { version: '0.8.28' }, settings: { optimizer: { enabled: true, runs: 200 } } },
+        abi: [], bytecode: { object: INIT, sourceMap: 'compiler bookkeeping',
         linkReferences: { 'Lib.sol': { Lib: [{ start: 2, length: 20 }] } } },
     deployedBytecode: { object: INIT, linkReferences: {}, immutableReferences: {
         12: [{ start: 8, length: 32 }, { start: 64, length: 32 }], 15: [{ start: 128, length: 32 }],
@@ -111,9 +112,9 @@ test('source identity binds recipients, sources, ABI, executable bytes and linki
         'Compiler IDs, group keys and reference ordering must not change execution identity');
     for (const change of [
         value => { value.abi = [{ type: 'function', name: 'unexpected', inputs: [], outputs: [], stateMutability: 'view' }]; },
-        value => { value.metadata = { compiler: { version: '0.8.29' } }; },
-        value => { value.metadata = { settings: { optimizer: { enabled: false } } }; },
-        value => { value.metadata = { settings: { optimizer: { runs: 1000 } } }; },
+        value => { value.metadata.compiler.version = '0.8.29'; },
+        value => { value.metadata.settings.optimizer.enabled = false; },
+        value => { value.metadata.settings.optimizer.runs = 1000; },
         value => { value.bytecode.object += '00'; },
         value => { value.deployedBytecode.object += '00'; },
         value => { value.bytecode.linkReferences['Lib.sol'].Lib[0].start++; },
@@ -129,6 +130,25 @@ test('source identity binds recipients, sources, ABI, executable bytes and linki
             'A semantic compiler artifact change must invalidate the prepared workflow');
     }
     assert.notEqual(sourceIdentity(items, artifacts, new Map([['Helper.sol', 'hash1'], ['Imported.sol', 'changed']])), identity);
+});
+
+test('uploaded build-info binds exact artifact sources and current disk including comment-only edits', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-build-sources-'));
+    try {
+        const content = 'contract Helper {}';
+        fs.writeFileSync(path.join(directory, 'Helper.sol'), content);
+        const compiled = { configArtifacts: { Helper: { buildInfoId: 'build', artifact: { metadata: {
+            sources: { 'Helper.sol': { keccak256: ethers.utils.keccak256(ethers.utils.toUtf8Bytes(content)) } },
+        } } } }, buildInfos: structuredClone(buildInfos) };
+        assertBuildInfoSources(compiled, directory);
+        compiled.buildInfos.build.input.sources['Helper.sol'].content += '// stale comment';
+        assert.throws(() => assertBuildInfoSources(compiled, directory), /differs from compiled artifact/);
+        compiled.buildInfos.build.input.sources['Helper.sol'].content = content;
+        fs.writeFileSync(path.join(directory, 'Helper.sol'), content + '// new comment');
+        assert.throws(() => assertBuildInfoSources(compiled, directory), /changed on disk/);
+        delete compiled.buildInfos.build.input.sources['Helper.sol'];
+        assert.throws(() => assertBuildInfoSources(compiled, directory), /source is missing/);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('real ordinary Forge build gains official Sphinx metadata without deleting prior cache evidence', async () => {
