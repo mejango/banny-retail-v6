@@ -130,13 +130,18 @@ async function ensureBuildInfo(getConfigArtifacts, helperPlans, root = ROOT, rea
     } finally { fs.rmSync(temporaryCache, { recursive: true, force: true }); }
 }
 
-async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface, targetContract, reportDir }) {
-    const provider = new ethers.providers.JsonRpcProvider({ url: rpcUrl, timeout: 30000 });
+async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface, targetContract, reportDir }, {
+    createProvider = url => new ethers.providers.JsonRpcProvider({ url, timeout: 30000 }),
+    spawn = core.spawnAsync,
+} = {}) {
+    const provider = createProvider(rpcUrl);
     const chainId = (await provider.getNetwork()).chainId;
     const profile = Object.keys(exporter.NETWORKS).find(key => exporter.NETWORKS[key].some(n => n.chainId === chainId));
     assert(profile, `Unsupported airdrop chain ${chainId}`);
     const network = exporter.NETWORKS[profile].find(n => n.chainId === chainId);
-    const block = await provider.getBlock('latest');
+    // RPC replicas can return a latest header before its state is available to Forge.
+    // Finalized collection is still followed by the existing live freshness checks before upload.
+    const block = await provider.getBlock('finalized');
     assert(block && block.hash && block.number > 0, `Missing chain ${chainId} block`);
     pinReads(provider, block.number);
     const collectionPath = path.join(reportDir, `${chainId}-context.json`);
@@ -144,9 +149,23 @@ async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface
         '--sig', 'sphinxCollectProposal(bytes,string,uint64)', NOOP, collectionPath,
         '--always-use-create-2-factory', String(core.DEFAULT_CALL_DEPTH)];
     if (targetContract) args.push('--target-contract', targetContract);
-    const output = await core.spawnAsync('forge', args, { FOUNDRY_BUILD_INFO: 'false' });
-    // Forge errors can contain its credential-bearing RPC argument. Keep those logs local to the process.
-    assert.equal(output.code, 0, `Sphinx context collection failed on ${network.folder}; no proposal was submitted`);
+    const output = await spawn('forge', args, { FOUNDRY_BUILD_INFO: 'false' });
+    if (output.code !== 0) {
+        // Redact before truncating, including the exact endpoint if Forge prints it without a scheme.
+        const endpoint = new URL(rpcUrl);
+        let detail = String(output.stderr || output.stdout || 'Forge returned no diagnostic');
+        for (const value of [rpcUrl, rpcUrl.replace(/^https?:\/\//i, ''), endpoint.username, endpoint.password,
+            ...endpoint.pathname.split('/').filter(Boolean), ...endpoint.searchParams.values()]) {
+            if (value) detail = detail.split(value).join('[redacted]');
+            // Providers may decode URL credentials in their own diagnostic text.
+            try {
+                const decoded = decodeURIComponent(value);
+                if (decoded) detail = detail.split(decoded).join('[redacted]');
+            } catch { /* Malformed escapes still have their literal value redacted above. */ }
+        }
+        detail = safeError(new Error(detail)).message.slice(-2000);
+        throw new Error(`Sphinx context collection failed on ${network.folder} (Forge exit ${output.code}); no proposal was submitted\n${detail}`);
+    }
     const info = decodeDeploymentInfo(fs.readFileSync(collectionPath, 'utf8'), pluginInterface, block.number);
     assert.equal(info.chainId, String(chainId));
     assert.equal(info.safeAddress.toLowerCase(), safe.toLowerCase(), 'Collected Safe differs from project config');

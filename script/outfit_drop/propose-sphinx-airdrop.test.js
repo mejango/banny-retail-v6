@@ -9,7 +9,7 @@ const core = require('@sphinx-labs/core');
 const { makeSphinxMerkleTree, SphinxLeafType, getPermissionlessRelayAddress } = require('@sphinx-labs/contracts');
 const { NOOP, actionFor, selectChunks, pinReads, sourceIdentity, ensureBuildInfo, makeAirdropPropose, safeError,
     readPreparedArtifact, nextReadyPart, resumePrepared, writePreparedArtifact, assertProjectIdentity,
-    resolveCompilerArtifacts, assertBuildInfoSources } = require('./propose-sphinx-airdrop');
+    resolveCompilerArtifacts, assertBuildInfoSources, collectNetworkContext } = require('./propose-sphinx-airdrop');
 const { FACTORY, MULTISEND, networksFor } = require('./export-safe-airdrop');
 const { actionDigest } = require('./qualify-sphinx-airdrop');
 
@@ -87,6 +87,41 @@ test('preflight contract reads stay at the selected block', async () => {
     await provider.perform('getBlockNumber', {});
     assert(calls.slice(0, 4).every(call => call.params.blockTag === '0x64'));
     assert.deepEqual(calls[4].params, {});
+});
+
+test('context collection pins finalized state and reports Forge failures without RPC credentials', async () => {
+    const rpcUrl = 'https://operator:private%2Dpassword@rpc.example/api/private%2Dpath-key?token=private%2Dquery-key';
+    const tags = [];
+    const provider = { getNetwork: async () => ({ chainId: 11155111 }),
+        getBlock: async tag => { tags.push(tag); return { number: 100, hash: '0x1234' }; },
+        perform: async () => {} };
+    for (const stream of ['stderr', 'stdout']) {
+        await assert.rejects(collectNetworkContext({ scriptPath: 'script/AirdropV4Bannys.s.sol', safe: SAFE,
+            rpcUrl, reportDir: '/tmp/context-fixture' }, { createProvider: () => provider,
+            spawn: async (command, args, env) => {
+                assert.equal(command, 'forge');
+                assert.equal(args[args.indexOf('--fork-block-number') + 1], '100');
+                assert.equal(args[args.indexOf('--sig') + 1], 'sphinxCollectProposal(bytes,string,uint64)');
+                assert.equal(args[args.indexOf('--sig') + 2], NOOP);
+                assert(!args.includes('--broadcast'));
+                assert.deepEqual(env, { FOUNDRY_BUILD_INFO: 'false' });
+                return { code: 1, [stream]: `Error: block not found: 100, endpoint ${rpcUrl}\n`
+                    + 'operator private-password private-path-key private-query-key\n'
+                    + rpcUrl.replace('https://', '') };
+            } }), error => {
+            assert.match(error.message, /sepolia \(Forge exit 1\); no proposal was submitted/);
+            assert.match(error.message, /block not found: 100/);
+            for (const secret of ['operator', 'private-password', 'private-path-key', 'private-query-key', 'rpc.example']) {
+                assert(!error.message.includes(secret), `Leaked ${secret}`);
+            }
+            return true;
+        });
+    }
+    assert.deepEqual(tags, ['finalized', 'finalized']);
+    await assert.rejects(collectNetworkContext({ rpcUrl, reportDir: '/tmp/context-fixture' }, {
+        createProvider: () => ({ ...provider, getBlock: async () => null }),
+        spawn: async () => assert.fail('Missing finalized state must stop before Forge'),
+    }), /Missing chain 11155111 block/);
 });
 
 test('source identity binds recipients, sources, ABI, executable bytes and linking/immutable layouts', () => {
