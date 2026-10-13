@@ -8,7 +8,7 @@ const { createHash } = require('node:crypto');
 const { ethers } = require('ethers');
 const { makeSphinxMerkleTree, SphinxLeafType } = require('@sphinx-labs/contracts');
 const { makeDeploymentData, estimateGasViaManagedService, getMaxGasLimit,
-    isActionTransactionBatchingEnabled } = require('@sphinx-labs/core');
+    isActionTransactionBatchingEnabled, executeBatchActions } = require('@sphinx-labs/core');
 const { startFork, receiptFor, impersonate, failureTrace, gasBudget, migrationPlan, verifyRecipients } = require('./simulate-safe-airdrop');
 const { MAX_MINTS_PER_TRANSACTION } = require('./export-safe-airdrop');
 const { buildContractsByChain, loadRawItems } = require('./generate-v6-airdrop');
@@ -38,9 +38,50 @@ function actionDigest(action) {
 }
 
 function outerBudget(config) {
-    const budget = gasBudget(config.chainId, config.blockGasLimit).budget;
+    const budget = gasBudget(config.chainId, config.observedBlockGasLimit || config.blockGasLimit).budget;
     return Number(BigInt(budget) < getMaxGasLimit(BigInt(config.blockGasLimit))
         ? BigInt(budget) : getMaxGasLimit(BigInt(config.blockGasLimit)));
+}
+
+// The SDK consumes blockGasLimit as its execution batching ceiling. Keep the actual
+// observed header separately; this setting is neither a new header nor signed action gas.
+function capExecutionConfig(config) {
+    assert(!config.observedBlockGasLimit, 'Execution config is already capped.');
+    const observed = BigInt(config.blockGasLimit);
+    const budget = BigInt(outerBudget(config));
+    const ceiling = budget > 16_000_000n ? budget * 2n
+        : budget > 8_500_000n ? budget * 5n / 4n : budget;
+    const capped = { ...config, observedBlockGasLimit: observed.toString(),
+        blockGasLimit: (ceiling < observed ? ceiling : observed).toString() };
+    assertExecutionConfig(capped);
+    return capped;
+}
+
+function assertExecutionConfig(config) {
+    assert(config.observedBlockGasLimit, 'SDK execution ceiling needs the observed block gas limit.');
+    assert(BigInt(config.blockGasLimit) > 0n && BigInt(config.blockGasLimit) <= BigInt(config.observedBlockGasLimit),
+        'SDK execution ceiling exceeds the observed block gas limit.');
+    assert(getMaxGasLimit(BigInt(config.blockGasLimit)) <= BigInt(gasBudget(config.chainId, config.observedBlockGasLimit).budget),
+        'SDK execution batching exceeds the reviewed transaction budget.');
+}
+
+// Reuse the installed SDK's batch selection, including its network policy and strict
+// gas comparison. A read-only module model records the batches without sending calls.
+async function sdkExecutionBatches(config, leaves) {
+    assertExecutionConfig(config);
+    assert(leaves.length, 'Cannot plan an empty execution.');
+    let next = BigInt(leaves[0].leaf.index);
+    const end = BigInt(leaves.at(-1).leaf.index) + 1n;
+    const module = { activeMerkleRoot: async () => ethers.constants.HashZero,
+        merkleRootStates: async () => ({ status: next === end ? 2 : 1, leavesExecuted: next }),
+        getAddress: async () => config.moduleAddress };
+    const result = await executeBatchActions(leaves, module, BigInt(config.blockGasLimit), {}, 0,
+        async batch => { next += BigInt(batch.length); return { status: 1 }; }, estimateGasViaManagedService,
+        { deployment: { chainId: config.chainId } });
+    assert.deepEqual(result.batches.flat(), leaves, 'SDK batching changed leaf order or omitted actions.');
+    for (const batch of result.batches) assert(estimateBatch(config, batch) <= outerBudget(config),
+        'SDK execution batch exceeds the reviewed transaction budget.');
+    return result.batches;
 }
 
 function worstProofLeaf(config, action, proofDepth) {
@@ -97,7 +138,8 @@ function assertHeadroom(signedGas, grossGas) {
     return headroom.toString();
 }
 
-function packSegments(configs, proofDepth, shouldSplit = () => false) {
+function packSegments(configs, proofDepth, shouldSplit = () => false, options = {}) {
+    if (options.multipleExecutionTransactions) for (const config of configs) assertExecutionConfig(config);
     const partsByChain = configs.map(config => {
         assert(config.actionInputs.length > 0, 'Cannot qualify an empty chain.');
         const parts = [];
@@ -106,7 +148,7 @@ function packSegments(configs, proofDepth, shouldSplit = () => false) {
             const leaf = worstProofLeaf(config, action, proofDepth);
             assert(estimateBatch(config, [leaf]) <= outerBudget(config), 'Buffered atomic shard exceeds the chain budget; split and requalify it.');
             const candidate = [...pending, action];
-            if (pending.length && (shouldSplit(pending, action, config) ||
+            if (!options.multipleExecutionTransactions && pending.length && (shouldSplit(pending, action, config) ||
                 estimateBatch(config, candidate.map(item => worstProofLeaf(config, item, proofDepth))) > outerBudget(config))) {
                 parts.push(pending);
                 pending = [action];
@@ -124,7 +166,8 @@ function packSegments(configs, proofDepth, shouldSplit = () => false) {
         const merkleTree = treeOf(networkConfigs);
         for (const config of networkConfigs) {
             const leaves = executeLeaves(merkleTree, config.chainId);
-            assert(estimateBatch(config, leaves) <= outerBudget(config), 'Exact complete part exceeds the chain budget.');
+            if (!options.multipleExecutionTransactions) assert(estimateBatch(config, leaves) <= outerBudget(config),
+                'Exact complete part exceeds the chain budget.');
         }
         return { networkConfigs, merkleTree };
     });
@@ -233,7 +276,9 @@ async function openContext(entry, prepared, report, validate = validatePrepared)
         const block = await provider.getBlock(pin);
         assert(/^0x[\da-f]{64}$/i.test(prepared.blockHash || ''), 'Prepared chain needs its collected block hash.');
         assert.equal(block.hash.toLowerCase(), prepared.blockHash.toLowerCase(), 'Pinned block hash changed.');
-        assert.equal(block.gasLimit.toString(), String(config.blockGasLimit), 'Collected block gas limit differs from the real pinned header.');
+        assert.equal(block.gasLimit.toString(), String(config.observedBlockGasLimit || config.blockGasLimit),
+            'Collected block gas limit differs from the real pinned header.');
+        if (config.observedBlockGasLimit) assertExecutionConfig(config);
         const safe = new ethers.Contract(config.safeAddress, SAFE_ABI, provider);
         const module = new ethers.Contract(config.moduleAddress, MODULE_ARTIFACT.abi, provider);
         assert(await safe.isModuleEnabled(module.address), 'Sphinx module is not enabled.');
@@ -252,6 +297,8 @@ async function openContext(entry, prepared, report, validate = validatePrepared)
             blockGasLimit: block.gasLimit.toString(), safe: safe.address, module: module.address, relay: config.executorAddress,
             safeNonce, moduleNonce: config.nonce, threshold, outerGasBudget: outerBudget(config), anvilHardfork: 'osaka',
             batchingEnabled: isActionTransactionBatchingEnabled(BigInt(config.chainId)), calibration: [], final: [] });
+        if (config.observedBlockGasLimit) Object.assign(report, { sdkBlockGasLimit: config.blockGasLimit,
+            sdkMaxExecutionGas: getMaxGasLimit(BigInt(config.blockGasLimit)).toString() });
         report.runtimeKeccak256 = Object.fromEntries(await Promise.all([
             ['safe', config.safeAddress], ['moduleProxy', config.moduleAddress], ['relay', config.executorAddress],
         ].map(async ([name, address]) => [name, ethers.utils.keccak256(await provider.getCode(address))])));
@@ -288,13 +335,15 @@ async function executeRoot(context, config, tree, mode, records, save, requireHe
     await approveRoot(context, config, tree);
     const { provider, module } = context;
     const leaves = executeLeaves(tree, config.chainId);
-    const batches = mode === 'cold' ? leaves.map(leaf => [leaf]) : [leaves];
+    const batches = mode === 'cold' ? leaves.map(leaf => [leaf])
+        : mode === 'sdk-batches' ? await sdkExecutionBatches(config, leaves) : [leaves];
     const measured = [];
     for (const batch of batches) {
         const indices = batch.map(entry => Number(entry.leaf.index));
         const receipt = await relaySend(context, module.interface.encodeFunctionData('execute', [batch]));
         const record = { root: tree.root, mode, indices, transactionHash: receipt.transactionHash,
             outerReceiptStatus: receipt.status, receiptGasUsed: receipt.gasUsed.toString() };
+        if (mode === 'sdk-batches') record.sdkEstimatedGas = estimateBatch(config, batch);
         records.push(record);
         record.events = moduleEvents(receipt, module);
         record.firstFailureIndex = record.events.find(event => event.name === 'SphinxActionFailed')?.index;
@@ -442,6 +491,8 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
     const original = JSON.stringify(artifact);
     const qualification = JSON.parse(fs.readFileSync(path.join(directory, 'qualification.json')));
     assert.equal(qualification.status, 'passed', 'Replay needs passed qualification.');
+    const executionPolicy = workflow.multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : 'bounded-part-v1';
+    assert.equal(qualification.executionPolicy || 'bounded-part-v1', executionPolicy, 'Replay execution policy changed; requalify.');
     const checkSources = () => {
         for (const [file, hash] of Object.entries(qualification.sourceSha256)) {
             assert.equal(sha256(fs.readFileSync(path.join(ROOT, file))), hash, 'Replay workflow source changed; requalify.');
@@ -451,7 +502,7 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
     const reportDirectory = fs.mkdtempSync(path.join(directory, `replay-part-${part + 1}-`));
     const reportFile = path.join(reportDirectory, 'replay.json');
     const report = { startedAt: new Date().toISOString(), status: 'running', localForkOnly: true, part,
-        root: tree.root, sourceSha256: qualification.sourceSha256, chains: segment.networkConfigs.map(() => ({})),
+        root: tree.root, executionPolicy, sourceSha256: qualification.sourceSha256, chains: segment.networkConfigs.map(() => ({})),
         limitations: qualification.limitations };
     const save = () => fs.writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`);
     // Internal dependency injection for orchestration tests; there is no CLI/env bypass.
@@ -466,10 +517,19 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
             assert(block && Number.isSafeInteger(block.number) && block.number > 0, 'Replay needs a fresh pinned header.');
             Object.assign(report.chains[index], { chainId: String(frozen.chainId), blockNumber: block.number,
                 blockHash: block.hash, blockGasLimit: block.gasLimit.toString() }); save();
-            const config = { ...frozen, blockNumber: String(block.number), blockGasLimit: block.gasLimit.toString() };
+            const config = workflow.multipleExecutionTransactions
+                ? { ...frozen, blockNumber: String(block.number), observedBlockGasLimit: block.gasLimit.toString() }
+                : { ...frozen, blockNumber: String(block.number), blockGasLimit: block.gasLimit.toString() };
+            if (workflow.multipleExecutionTransactions) {
+                assert(frozen.observedBlockGasLimit, 'Frozen SDK execution config lacks observed header evidence.');
+                assertExecutionConfig(config);
+                Object.assign(report.chains[index], { sdkBlockGasLimit: config.blockGasLimit,
+                    sdkMaxExecutionGas: getMaxGasLimit(BigInt(config.blockGasLimit)).toString() });
+                await sdkExecutionBatches(config, executeLeaves(tree, config.chainId));
+            }
             assert.equal(treeOf(segment.networkConfigs.map(network => network === frozen ? config : network)).root,
                 tree.root, 'Fresh header changed the signed root.');
-            assert(estimateBatch(config, executeLeaves(tree, config.chainId)) <= outerBudget(config),
+            if (!workflow.multipleExecutionTransactions) assert(estimateBatch(config, executeLeaves(tree, config.chainId)) <= outerBudget(config),
                 'Frozen complete part exceeds the fresh chain budget.');
             const offset = artifact.segments.slice(0, part).flatMap(previous => previous.networkConfigs)
                 .filter(network => String(network.chainId) === String(config.chainId))
@@ -492,7 +552,8 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
             await deps.executeRoot(context, config, tree, 'cold', context.report.records, save);
             await (workflow.verifyFinal || verifyFinal)(context); save();
             assert(await context.provider.send('evm_revert', [context.initialSnapshot]), 'Cannot restore pre-replay state.');
-            await deps.executeRoot(context, config, tree, 'full-part', context.report.records, save);
+            await deps.executeRoot(context, config, tree, workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part',
+                context.report.records, save);
             await (workflow.verifyFinal || verifyFinal)(context);
             context.report.finalModuleNonce = (await context.module.merkleRootNonce()).toString();
             assert.equal(context.report.finalModuleNonce, (BigInt(config.nonce) + 1n).toString(), 'Replay module nonce differs.');
@@ -514,6 +575,8 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
 async function qualifyProfile(entries, preparedChains, reportDirectory, calibrationSeed, workflow = {}) {
     assert(Array.isArray(entries) && entries.length > 0 && entries.length <= 4, 'Qualify one network profile at a time.');
     assert.equal(new Set(entries.map(entry => String(entry.networkConfig.chainId))).size, entries.length, 'Repeated chain.');
+    if (workflow.multipleExecutionTransactions) entries = entries.map(entry => ({ ...entry,
+        networkConfig: capExecutionConfig(entry.networkConfig) }));
     fs.mkdirSync(reportDirectory, { recursive: true });
     const reportFile = path.join(reportDirectory, 'qualification.json');
     assert(!fs.existsSync(reportFile), 'Preserve earlier qualification; use a new report directory.');
@@ -521,10 +584,12 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
         'script/outfit_drop/simulate-safe-airdrop.js', 'script/outfit_drop/export-safe-airdrop.js', 'script/outfit_drop/generate-v6-airdrop.js',
         'script/outfit_drop/prepare-resolver-upgrade.js',
         'node_modules/@sphinx-labs/core/dist/actions/execute.js', 'node_modules/@sphinx-labs/core/dist/networks.js',
+        'node_modules/@sphinx-labs/core/dist/utils.js',
         'node_modules/@sphinx-labs/core/dist/tasks/index.js', 'node_modules/@sphinx-labs/contracts/dist/merkle-tree.js',
         'node_modules/@sphinx-labs/contracts/contract-artifacts/sphinx/SphinxModule.sol/SphinxModule.json',
         ...(workflow.sourceFiles || [])];
     const report = { startedAt: new Date().toISOString(), status: 'running', localForkOnly: true,
+        executionPolicy: workflow.multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : 'bounded-part-v1',
         sourceSha256: Object.fromEntries(sourceFiles.map(file => [file, sha256(fs.readFileSync(path.join(ROOT, file)))])),
         chains: entries.map(() => ({})), segments: [],
         limitations: 'Local Osaka EVM qualification. Arbitrum proof excludes Nitro posting fees and Nitro-specific execution behavior. Hosted executor must preserve the submitted signed actions and supported SDK batching policy.' };
@@ -568,7 +633,10 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
         save();
         for (const [index, config] of calibrated.entries()) assert.deepEqual(config.actionInputs.map(actionDigest),
             contexts[index].config.actionInputs.map(actionDigest), 'Calibration changed canonical action bytes or order.');
-        const segments = packSegments(calibrated, proofDepth, workflow.shouldSplit);
+        const segments = packSegments(calibrated, proofDepth, workflow.shouldSplit, workflow);
+        if (workflow.multipleExecutionTransactions) for (const segment of segments) for (const config of segment.networkConfigs) {
+            await sdkExecutionBatches(config, executeLeaves(segment.merkleTree, config.chainId));
+        }
         report.segments = segments.map((segment, index) => ({ index, root: segment.merkleTree.root,
             chains: segment.networkConfigs.map(config => ({ chainId: config.chainId, moduleNonce: config.nonce,
                 actions: config.actionInputs.map(action => ({ digest: actionDigest(action), signedGas: action.gas })) })) }));
@@ -582,7 +650,8 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
                 await executeRoot(context, config, segment.merkleTree, 'cold', records, save);
                 if (config.actionInputs.length > 1) {
                     assert(await context.provider.send('evm_revert', [snapshot]), 'Cannot restore pre-segment state.');
-                    await executeRoot(context, config, segment.merkleTree, 'full-part', records, save);
+                    await executeRoot(context, config, segment.merkleTree,
+                        workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part', records, save);
                 }
             });
         }
@@ -605,5 +674,5 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     }
 }
 
-module.exports = { qualifyProfile, replayPreparedPart, actionDigest, outerBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom,
+module.exports = { qualifyProfile, replayPreparedPart, capExecutionConfig, sdkExecutionBatches, actionDigest, outerBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom,
     packSegments, safeFrames, measureSafeFrame, moduleEvents, assertActionEvents, captureFailure, validateEnvelopes, validatePrepared, validateSeedCalibration, readCalibrationSeed };

@@ -18,7 +18,7 @@ const upgrade = require('./prepare-resolver-upgrade');
 const qualifier = require('./qualify-sphinx-airdrop');
 
 const ROOT = path.resolve(__dirname, '../..');
-const WORKFLOW = 'banny-resolver-upgrade-v1';
+const WORKFLOW = 'banny-resolver-upgrade-v2';
 const CONTRACTS = [
     ['BannySvgStorage', 'src/BannySvgStorage.sol'],
     ['Banny721TokenUriResolver', 'src/Banny721TokenUriResolver.sol'],
@@ -51,7 +51,7 @@ function actionFor(batch, index, configArtifacts) {
         const { create2Address: address, initCodeWithArgs } = core.decodeDeterministicDeploymentProxyData(tx.data);
         const fullyQualifiedName = utils.findFullyQualifiedNameForInitCode(initCodeWithArgs, configArtifacts);
         assert(CONTRACTS.some(([name, source]) => fullyQualifiedName === `${source}:${name}`), 'Unreviewed resolver deployment artifact');
-        assert.equal(envelope.guardStage, 'deploy', 'Sphinx guard must deploy before the switch root');
+        assert.equal(envelope.guardStage, 'deploy', 'Sphinx guard must deploy before the switch action');
         assert.equal(envelope.stage, 'resolver-deploy', 'Deployment outside its guarded stage');
         return { address, initCodeWithArgs, fullyQualifiedName };
     });
@@ -90,7 +90,7 @@ function validatePrepared(config, prepared) {
 
 function assertFrozenCalls(chain, build = readBuild()) {
     const evidence = chain.evidence;
-    assert.equal(evidence.guardStage, 'deploy', 'Sphinx guard must deploy before the switch root');
+    assert.equal(evidence.guardStage, 'deploy', 'Sphinx guard must deploy before the switch action');
     for (const envelope of chain.envelopes) assert.equal(envelope.guardStage, evidence.guardStage, 'Frozen guard stage differs');
     assert(Number.isSafeInteger(evidence.maxTierId) && evidence.maxTierId > 0 && evidence.maxTierId <= 1000,
         'Invalid frozen product count');
@@ -196,6 +196,7 @@ async function assertCollectionFresh(provider, chain, block) {
 
 async function assertPreparedFresh(artifact, directory, part) {
     assert.equal(artifact.workflow, WORKFLOW, 'Wrong prepared workflow');
+    assert.equal(artifact.segments.length, 1, 'Resolver upgrade requires one proposal; do not reuse two-root preparations');
     shared.assertCanonicalActions(artifact);
     const report = JSON.parse(fs.readFileSync(path.join(directory, 'qualification.json')));
     for (const [file, hash] of Object.entries(report.sourceSha256)) {
@@ -211,35 +212,25 @@ async function assertPreparedFresh(artifact, directory, part) {
         await assertAuthority(provider, chain);
         const block = await provider.getBlockNumber();
         const fresh = await assertCollectionFresh(provider, chain, block);
-        // Refresh appearance evidence even if publication happens between the two roots. This never changes signed calls.
+        // Refresh appearance evidence before submission without changing signed calls.
         const observation = fs.mkdtempSync(path.join(directory, `artwork-observation-${chain.chainId}-`));
         fs.writeFileSync(path.join(observation, 'evidence.json'),
             `${JSON.stringify({ chainId: chain.chainId, blockNumber: block, previous: fresh.previous,
                 oldArtworkHash: fresh.oldArtworkHash, products: fresh.products, ...upgrade.artworkRecovery(fresh.products) }, null, 2)}\n`);
-        if (part > 0) {
-            await assertDeployment(provider, chain);
-            const candidate = new ethers.Contract(chain.evidence.replacement,
-                ['function svgHashOf(uint256) view returns(bytes32)', 'function owner() view returns(address)'], provider);
-            assert(same(await candidate.owner(), chain.safe), 'Candidate owner changed');
-            for (const product of chain.evidence.products) assert.equal(await candidate.svgHashOf(product.upc), ethers.constants.HashZero,
-                'Candidate already configured outside the atomic switch');
-        } else {
-            // Fresh native preparation also proves omitted existing deployments and writer binding remain valid.
-            const temp = fs.mkdtempSync(path.join(directory, 'fresh-'));
-            try {
-                const evidence = await upgrade.prepare({ provider, hook: chain.hook, safe: chain.safe, output: temp, guardStage: 'deploy' });
-                assert.deepEqual(batchesFor(evidence).map(batch => batch.batch.transactions), chain.canonicalBatches,
-                    'Pending deployment/configuration calls changed');
-            } finally { fs.rmSync(temp, { recursive: true, force: true }); }
-        }
+        // Fresh preparation also proves omitted existing deployments and writer binding remain valid.
+        const temp = fs.mkdtempSync(path.join(directory, 'fresh-'));
+        try {
+            const evidence = await upgrade.prepare({ provider, hook: chain.hook, safe: chain.safe, output: temp, guardStage: 'deploy' });
+            assert.deepEqual(batchesFor(evidence).map(batch => batch.batch.transactions), chain.canonicalBatches,
+                'Pending deployment/configuration calls changed');
+        } finally { fs.rmSync(temp, { recursive: true, force: true }); }
     }
 }
 
 const replayPreparedPart = (artifact, directory, part) => qualifier.replayPreparedPart(artifact, directory, part, {
-    validatePrepared: (config, prepared) => { qualifier.validateEnvelopes(config, prepared); return new Map(); },
+    multipleExecutionTransactions: true, validatePrepared,
     verifyFinal: async fork => {
-        if (part === 0) { await assertDeployment(fork.provider, fork.prepared); fork.report.resolverDeploymentVerified = true; }
-        else { await assertSwitched(fork.provider, fork.prepared); fork.report.resolverUpgradeVerified = true; }
+        await assertSwitched(fork.provider, fork.prepared); fork.report.resolverUpgradeVerified = true;
     },
 });
 const assertReady = (artifact, directory, progress, part) =>
@@ -293,10 +284,10 @@ async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInte
         sources: Object.fromEntries(build.sources), artifacts: Object.fromEntries([...build.artifacts].map(([name, artifact]) => [name, sha256(JSON.stringify(artifact))])),
         chains: preparedChains }, null, 2));
     const qualified = await qualifier.qualifyProfile(entries, preparedChains, reportDir, undefined, {
-        validatePrepared, shouldSplit: () => true, sourceFiles: SOURCE_FILES,
+        validatePrepared, multipleExecutionTransactions: true, sourceFiles: SOURCE_FILES,
         verifyFinal: async fork => { await assertSwitched(fork.provider, fork.prepared); fork.report.resolverUpgradeVerified = true; },
     });
-    assert.equal(qualified.segments.length, 2, 'Resolver upgrade must have exactly two separately approved roots');
+    assert.equal(qualified.segments.length, 1, 'Resolver upgrade must have exactly one approved root');
     return { ...qualified, entries, preparedChains, configArtifacts, buildInfos, reportDir, inputIdentity: build.identity };
 }
 
