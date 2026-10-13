@@ -45,14 +45,18 @@ function outerBudget(config) {
 
 // The SDK consumes blockGasLimit as its execution batching ceiling. Keep the actual
 // observed header separately; this setting is neither a new header nor signed action gas.
+function batchingCeiling(budget, observed) {
+    const ceiling = budget > 16_000_000n ? budget * 2n
+        : budget > 8_500_000n ? budget * 5n / 4n : budget;
+    return ceiling < observed ? ceiling : observed;
+}
+
 function capExecutionConfig(config) {
     assert(!config.observedBlockGasLimit, 'Execution config is already capped.');
     const observed = BigInt(config.blockGasLimit);
     const budget = BigInt(outerBudget(config));
-    const ceiling = budget > 16_000_000n ? budget * 2n
-        : budget > 8_500_000n ? budget * 5n / 4n : budget;
     const capped = { ...config, observedBlockGasLimit: observed.toString(),
-        blockGasLimit: (ceiling < observed ? ceiling : observed).toString() };
+        blockGasLimit: batchingCeiling(budget, observed).toString() };
     assertExecutionConfig(capped);
     return capped;
 }
