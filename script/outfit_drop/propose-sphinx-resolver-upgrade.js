@@ -16,9 +16,10 @@ const shared = require('./propose-sphinx-airdrop');
 const exporter = require('./export-safe-airdrop');
 const upgrade = require('./prepare-resolver-upgrade');
 const qualifier = require('./qualify-sphinx-airdrop');
+const live = require('./qualify-resolver-live-rpc');
 
 const ROOT = path.resolve(__dirname, '../..');
-const WORKFLOW = 'banny-resolver-upgrade-v2';
+const WORKFLOW = 'banny-resolver-upgrade-v3-live-rpc';
 const CONTRACTS = [
     ['BannySvgStorage', 'src/BannySvgStorage.sol'],
     ['Banny721TokenUriResolver', 'src/Banny721TokenUriResolver.sol'],
@@ -208,9 +209,10 @@ async function assertPreparedFresh(artifact, directory, part) {
         assertFrozenCalls(chain, build);
         const provider = shared.providerFor(chain);
         assert.equal(String((await provider.getNetwork()).chainId), String(chain.chainId), 'RPC chain changed');
+        const block = await provider.getBlockNumber();
+        shared.pinReads(provider, block);
         if (part >= artifact.segments.length) { await assertSwitched(provider, chain); continue; }
         await assertAuthority(provider, chain);
-        const block = await provider.getBlockNumber();
         const fresh = await assertCollectionFresh(provider, chain, block);
         // Refresh appearance evidence before submission without changing signed calls.
         const observation = fs.mkdtempSync(path.join(directory, `artwork-observation-${chain.chainId}-`));
@@ -220,26 +222,34 @@ async function assertPreparedFresh(artifact, directory, part) {
         // Fresh preparation also proves omitted existing deployments and writer binding remain valid.
         const temp = fs.mkdtempSync(path.join(directory, 'fresh-'));
         try {
-            const evidence = await upgrade.prepare({ provider, hook: chain.hook, safe: chain.safe, output: temp, guardStage: 'deploy' });
+            const evidence = await upgrade.prepare({ provider, hook: chain.hook, safe: chain.safe, output: temp, block, guardStage: 'deploy' });
             assert.deepEqual(batchesFor(evidence).map(batch => batch.batch.transactions), chain.canonicalBatches,
                 'Pending deployment/configuration calls changed');
         } finally { fs.rmSync(temp, { recursive: true, force: true }); }
     }
 }
 
-const replayPreparedPart = (artifact, directory, part) => qualifier.replayPreparedPart(artifact, directory, part, {
-    multipleExecutionTransactions: true, validatePrepared,
+const replayPreparedPart = async (artifact, directory, part) => {
+    await live.replay(artifact, directory);
+    return qualifier.replayPreparedPart(artifact, directory, part, {
+    multipleExecutionTransactions: true, liveRpc: true, validatePrepared,
     verifyFinal: async fork => {
         await assertSwitched(fork.provider, fork.prepared); fork.report.resolverUpgradeVerified = true;
     },
-});
+    });
+};
 const assertReady = (artifact, directory, progress, part) =>
-    shared.assertReadyToSubmit(artifact, directory, progress, part, assertPreparedFresh, replayPreparedPart);
+    live.assertHandoff(artifact, directory).then(async handoff => {
+        await shared.assertReadyToSubmit(artifact, directory, progress, part, assertPreparedFresh, replayPreparedPart);
+        const after = await live.assertHandoff(artifact, directory);
+        assert.deepEqual(after, handoff, 'Executor handoff changed during readiness checks');
+    });
 
 const resolveCompilerArtifacts = shared.resolveCompilerArtifacts;
 
 async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInterface,
     foundryToml, projectRoot, getConfigArtifacts, context, targetContract, spinner) {
+    await live.provenance();
     assert.equal(path.resolve(projectRoot), ROOT, 'Run from the Banny repository');
     assert.equal(path.resolve(ROOT, scriptPath), path.join(ROOT, 'script/AirdropV4Bannys.s.sol'), 'Use the original Sphinx project script');
     assert.equal(calldata, ethers.utils.id('run()').slice(0, 10), 'Resolver proposal supports run() only');
@@ -267,7 +277,7 @@ async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInte
             'Fresh resolver workflow requires both stages; reconcile existing deployments before proposing');
         const safeContract = new ethers.Contract(safe, SAFE_ABI, provider);
         const [owners, threshold] = await Promise.all([safeContract.getOwners(), safeContract.getThreshold()]);
-        const chain = { chainId, blockHash: block.hash, network, profile, safe, hook, evidence,
+        const chain = { chainId, blockHash: block.hash, blockTimestamp: block.timestamp, network, profile, safe, hook, evidence,
             authority: { owners, threshold: threshold.toString() }, plans: [],
             envelopes: prepared.map(batch => batch.safeTransaction), canonicalBatches: prepared.map(batch => batch.batch.transactions) };
         assertFrozenCalls(chain, build);
@@ -284,11 +294,29 @@ async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInte
         sources: Object.fromEntries(build.sources), artifacts: Object.fromEntries([...build.artifacts].map(([name, artifact]) => [name, sha256(JSON.stringify(artifact))])),
         chains: preparedChains }, null, 2));
     const qualified = await qualifier.qualifyProfile(entries, preparedChains, reportDir, undefined, {
-        validatePrepared, multipleExecutionTransactions: true, sourceFiles: SOURCE_FILES,
+        validatePrepared, multipleExecutionTransactions: true, liveRpc: true, sourceFiles: SOURCE_FILES,
         verifyFinal: async fork => { await assertSwitched(fork.provider, fork.prepared); fork.report.resolverUpgradeVerified = true; },
     });
     assert.equal(qualified.segments.length, 1, 'Resolver upgrade must have exactly one approved root');
+    const reports = qualified.report.liveRpc.final.files.map(file =>
+        live.readEvidence(reportDir, file).response.results[0].report);
+    fs.writeFileSync(path.join(reportDir, 'executor-handoff.json'), `${JSON.stringify(live.handoffTemplate({
+        segments: qualified.segments, qualificationSha256: sha256(fs.readFileSync(path.join(reportDir, 'qualification.json'))),
+    }, reportDir, reports), null, 2)}\n`, { flag: 'wx' });
     return { ...qualified, entries, preparedChains, configArtifacts, buildInfos, reportDir, inputIdentity: build.identity };
+}
+
+function resolverArgs(argv) {
+    const args = [...argv];
+    for (let index = 0; index < args.length; index++) {
+        if (args[index] === '--gas-estimator' || args[index].startsWith('--gas-estimator=')) {
+            const equals = args[index].includes('=');
+            const estimator = equals ? args[index].slice('--gas-estimator='.length) : args[index + 1];
+            assert.equal(estimator, 'live-rpc', 'Resolver upgrades require --gas-estimator live-rpc; no Anvil fallback');
+            args.splice(index, equals ? 1 : 2); index--;
+        }
+    }
+    return args;
 }
 
 function makePropose(context, options = {}) {
@@ -307,20 +335,23 @@ async function resumePrepared(context, directory, args = {}, options = {}) {
 }
 
 if (require.main === module) {
+    const argv = resolverArgs(process.argv.slice(2));
     const context = makeSphinxContext();
-    if (process.argv[2] === 'resume') {
-        const { values, positionals } = parseArgs({ args: process.argv.slice(3), allowPositionals: true,
+    if (argv[0] === 'resume') {
+        const { values, positionals } = parseArgs({ args: argv.slice(1), allowPositionals: true,
             options: { 'dry-run': { type: 'boolean' }, confirm: { type: 'boolean' } } });
         assert.equal(positionals.length, 1, 'Use resume PREPARED_DIRECTORY [--dry-run] [--confirm]');
         resumePrepared(context, positionals[0], { isDryRun: Boolean(values['dry-run']), confirm: Boolean(values.confirm) })
             .catch(error => { console.error(shared.safeError(error).message); process.exitCode = 1; });
     } else {
-        assert(['propose', '--help', '-h'].includes(process.argv[2]), 'Use propose script/AirdropV4Bannys.s.sol --networks <profile>');
+        assert(['propose', '--help', '-h'].includes(argv[0]), 'Use propose script/AirdropV4Bannys.s.sol --networks <profile>');
         context.propose = makePropose(context);
-        makeCLI(process.argv.slice(2), context);
+        if (argv.includes('--help') || argv.includes('-h')) makeCLI(argv, context);
+        else live.provenance().then(() => makeCLI(argv, context))
+            .catch(error => { console.error(shared.safeError(error).message); process.exitCode = 1; });
     }
 }
 
 module.exports = { WORKFLOW, actionFor, batchesFor, validatePrepared, assertFrozenCalls, assertAuthority,
     assertDeployment, assertSwitched, assertCollectionFresh, assertPreparedFresh, collectAndQualify, makePropose, resumePrepared, readBuild,
-    resolveCompilerArtifacts, replayPreparedPart };
+    resolveCompilerArtifacts, replayPreparedPart, resolverArgs };

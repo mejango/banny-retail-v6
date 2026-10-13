@@ -366,10 +366,24 @@ function isArbitrum(chainId) {
     return [42161, 421614].includes(Number(chainId));
 }
 
-function gasBudget(chainId, blockGasLimit) {
+function gasBudget(chainId, blockGasLimit, { liveRpc = false, blockTimestamp } = {}) {
     const executionGasCap = isArbitrum(chainId) ? 32_000_000 : GAS_CEILING;
     const budget = Math.floor(executionGasCap * 95 / 100);
     if (blockGasLimit !== undefined) assert(BigInt(blockGasLimit.toString()) >= BigInt(budget), 'Fork block gas limit is below the required selection budget.');
+    if (liveRpc) {
+        assert(blockGasLimit !== undefined, 'Live total gas needs an observed block limit.');
+        // Geth validation:true can skip the pre-Amsterdam EIP-7825 total cap.
+        // Higher total gas therefore needs a reviewed activation, not merely
+        // simulation acceptance. Pinned Sepolia chainspec:
+        // ethereum/go-ethereum@d68cf359f9876a58fa41c1beab28cd05bc9df9a0,
+        // params/chainspecs/sepolia.json, amsterdamTime=1791294816.
+        const reservoirActive = Number(chainId) === 11155111 && Number.isSafeInteger(blockTimestamp)
+            && blockTimestamp >= 1791294816;
+        const observed = BigInt(blockGasLimit.toString());
+        const reviewed = reservoirActive ? 0xffff_ffffn : BigInt(executionGasCap);
+        return { executionGasCap, budget, headroomPercent: 5,
+            outerGasCap: Number(observed < reviewed ? observed : reviewed) };
+    }
     return { executionGasCap, budget, headroomPercent: 5 };
 }
 

@@ -130,6 +130,16 @@ async function ensureBuildInfo(getConfigArtifacts, helperPlans, root = ROOT, rea
     } finally { fs.rmSync(temporaryCache, { recursive: true, force: true }); }
 }
 
+async function readFinalizedBlock(provider, chainId) {
+    // Raw RPC fails immediately on unavailable finalized state instead of ethers polling a null header.
+    const header = await provider.send('eth_getBlockByNumber', ['finalized', false]);
+    assert(header, `Missing chain ${chainId} finalized block`);
+    const block = provider.formatter.block(header);
+    assert(block && block.hash && Number.isSafeInteger(block.number) && block.number > 0,
+        `Missing chain ${chainId} finalized block`);
+    return block;
+}
+
 async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface, targetContract, reportDir }, {
     createProvider = url => new ethers.providers.JsonRpcProvider({ url, timeout: 30000 }),
     spawn = core.spawnAsync,
@@ -142,10 +152,7 @@ async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface
     // RPC replicas can return a latest header before its state is available to Forge.
     // Finalized collection is still followed by the existing live freshness checks before upload.
     // ethers v5 getBlock polls indefinitely when a named block tag returns null.
-    const header = await provider.send('eth_getBlockByNumber', ['finalized', false]);
-    assert(header, `Missing chain ${chainId} finalized block`);
-    const block = provider.formatter.block(header);
-    assert(block && block.hash && block.number > 0, `Missing chain ${chainId} finalized block`);
+    const block = await readFinalizedBlock(provider, chainId);
     pinReads(provider, block.number);
     const collectionPath = path.join(reportDir, `${chainId}-context.json`);
     const args = ['script', scriptPath, '--rpc-url', rpcUrl, '--fork-block-number', String(block.number),
@@ -490,14 +497,34 @@ async function assertReadyToSubmit(artifact, directory, progress, part, assertFr
     assertBuildInfoSources(artifact);
 }
 
+function snapshotRuntimeSources() {
+    // Load workflow owners before the SDK's asynchronous compilation or resume
+    // checks, so later lazy imports cannot escape the startup snapshot.
+    require('./qualify-sphinx-airdrop');
+    require('./prepare-resolver-upgrade');
+    require('./qualify-resolver-live-rpc');
+    return Object.fromEntries(Object.keys(require.cache)
+        .filter(file => !file.endsWith('.test.js') && (file.endsWith('.js') || file.endsWith('.json')))
+        .map(file => [file, sha256(fs.readFileSync(file))]));
+}
+
 function makeAirdropPropose(context, { officialPropose = propose, prepare = collectAndQualify,
-    loaded, assertReady = assertReadyToSubmit, workflowTag, label = 'Airdrop', resumeCommand: command = resumeCommand } = {}) {
+    loaded, assertReady = assertReadyToSubmit, workflowTag, label = 'Airdrop', resumeCommand: command = resumeCommand,
+    runtimeSources = snapshotRuntimeSources() } = {}) {
+    // SDK compilation can take minutes after these modules were loaded. A later
+    // on-disk hash cannot certify the earlier in-memory implementation.
+    const assertRuntimeSources = () => {
+        for (const [file, hash] of Object.entries(runtimeSources)) assert.equal(sha256(fs.readFileSync(file)), hash,
+            'Loaded proposal implementation changed; restart the command');
+    };
     return async args => {
+        assertRuntimeSources();
         let artifact = loaded?.artifact;
         let directory = loaded?.directory;
         const outcomes = loaded ? loaded.progress.parts.map(({ status, deploymentConfigId }) => ({ status, deploymentConfigId })) : [];
         let part = loaded?.part || 0;
         let processed = 0;
+        const storedThisRun = new Map();
         const progress = () => ({ parts: artifact.segments.map((segment, index) => ({
             part: index + 1, root: segment.merkleTree.root,
             chains: segment.networkConfigs.map(config => ({ chainId: config.chainId, nonce: config.nonce })),
@@ -508,6 +535,7 @@ function makeAirdropPropose(context, { officialPropose = propose, prepare = coll
         };
         const scoped = { ...context,
             buildNetworkConfigArray: async (...collectionArgs) => {
+                assertRuntimeSources();
                 if (!artifact) {
                     const prepared = await prepare(...collectionArgs);
                     directory = prepared.reportDir;
@@ -526,19 +554,29 @@ function makeAirdropPropose(context, { officialPropose = propose, prepare = coll
                         rpcUrl: process.env[artifact.preparedChains.find(chain => String(chain.chainId) === networkConfig.chainId).network.rpc] })) };
             },
             storeDeploymentConfig: async (apiKey, orgId, data) => {
+                assertRuntimeSources();
                 assert(artifact, 'Qualification must finish before upload');
                 const config = JSON.parse(data);
                 assert.equal(config.merkleTree.root, artifact.segments[part].merkleTree.root, 'Upload root differs from qualification');
                 assert.deepEqual(config.networkConfigs, artifact.segments[part].networkConfigs,
                     'Upload actions differ from qualification');
                 await assertReady(artifact, directory, progress(), part);
+                assertRuntimeSources();
                 outcomes[part].status = 'uploading-config'; save();
                 const id = await context.storeDeploymentConfig(apiKey, orgId, data);
+                assert.equal(typeof id, 'string', 'Stored deployment config has no ID');
+                assert(id.length, 'Stored deployment config has no ID');
                 outcomes[part] = { status: 'config-stored', deploymentConfigId: id }; save();
+                storedThisRun.set(part, id);
                 return id;
             },
             relayProposal: async request => {
+                assertRuntimeSources();
                 assert.equal(request.tree.root, artifact.segments[part].merkleTree.root, 'Proposal root differs from qualification');
+                assert(storedThisRun.has(part) && outcomes[part].status === 'config-stored',
+                    'Relay requires readiness-checked config storage in this invocation');
+                assert.equal(request.deploymentConfigId, storedThisRun.get(part),
+                    'Relay deployment config differs from readiness-checked upload');
                 outcomes[part].status = 'submission-unknown'; save();
                 await context.relayProposal(request);
                 outcomes[part].status = 'submitted'; save();
@@ -567,9 +605,36 @@ function makeAirdropPropose(context, { officialPropose = propose, prepare = coll
     };
 }
 
-async function resumePrepared(context, directory, args = {}, { officialPropose = propose,
+async function resumePrepared(context, directory, args = {}, options = {}) {
+    const runtimeSources = options.runtimeSources || snapshotRuntimeSources();
+    directory = fs.realpathSync(directory);
+    const lockFile = path.join(directory, 'proposal-resume.lock');
+    let lock;
+    try {
+        lock = fs.openSync(lockFile, 'wx', 0o600);
+    } catch (error) {
+        if (error.code === 'EEXIST') throw new Error(
+            `Another resume owns ${lockFile}. Reconcile any interrupted submission before removing a stale lock.`);
+        throw error;
+    }
+    try {
+        fs.writeFileSync(lock, `${JSON.stringify({ pid: process.pid })}\n`);
+        return await resumeOwned(context, directory, args, { ...options, runtimeSources });
+    } finally {
+        const owned = fs.fstatSync(lock);
+        try {
+            const current = fs.statSync(lockFile);
+            if (owned.dev === current.dev && owned.ino === current.ino) fs.unlinkSync(lockFile);
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+        } finally { fs.closeSync(lock); }
+    }
+}
+
+async function resumeOwned(context, directory, args = {}, { officialPropose = propose,
     readState = readPartState, assertReady = assertReadyToSubmit, assertFresh = assertPreparedFresh,
-    assertProject = assertProjectIdentity, workflowTag, label = 'Airdrop', resumeCommand: command = resumeCommand } = {}) {
+    assertProject = assertProjectIdentity, workflowTag, label = 'Airdrop', resumeCommand: command = resumeCommand,
+    runtimeSources } = {}) {
     directory = path.resolve(directory);
     const artifact = readPreparedArtifact(directory);
     assert.equal(artifact.workflow, workflowTag, 'Prepared workflow differs from this entrypoint');
@@ -590,7 +655,7 @@ async function resumePrepared(context, directory, args = {}, { officialPropose =
         }
         await assertFresh(artifact, directory, ready.part);
         return await makeAirdropPropose(context, { officialPropose, assertReady, workflowTag, label, resumeCommand: command,
-            loaded: { artifact, progress, directory, part: ready.part } })({ ...artifact.proposalArgs, ...args });
+            loaded: { artifact, progress, directory, part: ready.part }, runtimeSources })({ ...artifact.proposalArgs, ...args });
     } finally {
         if (previousProject === undefined) delete process.env.BANNY_AIRDROP_SPHINX_PROJECT;
         else process.env.BANNY_AIRDROP_SPHINX_PROJECT = previousProject;
@@ -613,6 +678,6 @@ if (require.main === module) {
 }
 
 module.exports = { NOOP, selectChunks, actionFor, deploymentsFor, pinReads, sourceIdentity, ensureBuildInfo,
-    collectNetworkContext, collectAndQualify, makeAirdropPropose, safeError, writePreparedArtifact, readPreparedArtifact,
+    readFinalizedBlock, collectNetworkContext, collectAndQualify, makeAirdropPropose, safeError, writePreparedArtifact, readPreparedArtifact,
     nextReadyPart, assertPreparedFresh, assertReadyToSubmit, resumePrepared, assertCanonicalActions, assertActionsMatchEnvelopes,
-    assertProjectIdentity, providerFor, progressFile, resumeCommand, resolveCompilerArtifacts, assertBuildInfoSources };
+    assertProjectIdentity, providerFor, progressFile, resumeCommand, resolveCompilerArtifacts, assertBuildInfoSources, snapshotRuntimeSources };
