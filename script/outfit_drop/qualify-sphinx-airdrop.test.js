@@ -5,10 +5,10 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { test } = require('node:test');
 const { ethers } = require('ethers');
-const { estimateGasViaManagedService, makeDeploymentData } = require('@sphinx-labs/core');
+const { estimateGasViaManagedService, makeDeploymentData, getMaxGasLimit } = require('@sphinx-labs/core');
 const { makeSphinxMerkleTree, SphinxLeafType } = require('@sphinx-labs/contracts');
 const { buildContractsByChain, loadRawItems } = require('./generate-v6-airdrop');
-const { actionDigest, outerBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom, packSegments,
+const { actionDigest, outerBudget, capExecutionConfig, sdkExecutionBatches, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom, packSegments,
     safeFrames, measureSafeFrame, moduleEvents, assertActionEvents, captureFailure, validatePrepared,
     validateSeedCalibration, readCalibrationSeed, replayPreparedPart } = require('./qualify-sphinx-airdrop');
 
@@ -149,6 +149,50 @@ test('cannot silently clamp an oversized buffered shard to a cap', () => {
     assert.throws(() => packSegments([config(42161, 1, '30400000')], 3), /split and requalify/);
 });
 
+test('one proposal preserves action bytes, gas and nonce while the installed SDK selects bounded execution transactions', async () => {
+    for (const chainId of headers.keys()) {
+        const network = config(chainId, 5, '7000000');
+        const original = structuredClone(network);
+        assert(packSegments([network], 4).length > 1, 'Default distribution roots must remain bounded.');
+        const capped = capExecutionConfig(network);
+        assert.equal(capped.observedBlockGasLimit, network.blockGasLimit);
+        assert(BigInt(capped.blockGasLimit) <= BigInt(network.blockGasLimit));
+        assert(getMaxGasLimit(BigInt(capped.blockGasLimit)) <= BigInt(outerBudget(network)));
+        const parts = packSegments([capped], 4, () => { throw new Error('No stage partitioning in one-root mode.'); },
+            { multipleExecutionTransactions: true });
+        assert.equal(parts.length, 1);
+        const frozen = parts[0].networkConfigs[0];
+        assert.equal(frozen.nonce, '8');
+        assert.deepEqual(frozen.actionInputs, network.actionInputs);
+        assert.equal(parts[0].merkleTree.root, makeSphinxMerkleTree(makeDeploymentData([network])).root,
+            'Execution ceiling must not change the signed action/root.');
+        const leaves = parts[0].merkleTree.leavesWithProofs.filter(entry => entry.leaf.leafType === SphinxLeafType.EXECUTE);
+        assert(estimateGasViaManagedService(MODULE, leaves, BigInt(chainId)) > outerBudget(capped),
+            'The total proposal exceeds one execution transaction.');
+        const batches = await sdkExecutionBatches(frozen, leaves);
+        assert(batches.length > 1);
+        assert.deepEqual(batches.flat(), leaves);
+        for (const batch of batches) assert(estimateGasViaManagedService(MODULE, batch, BigInt(chainId)) <= outerBudget(capped));
+        assert.deepEqual(network, original, 'Execution policy must not mutate the observed configuration.');
+    }
+});
+
+test('SDK batches compatible small actions together and refuses unproven or oversized execution settings', async () => {
+    const raw = config(84532, 2, '1000000');
+    const capped = capExecutionConfig(raw);
+    const tree = makeSphinxMerkleTree(makeDeploymentData([capped]));
+    const leaves = tree.leavesWithProofs.filter(entry => entry.leaf.leafType === SphinxLeafType.EXECUTE);
+    assert.equal((await sdkExecutionBatches(capped, leaves)).length, 1, 'Use SDK grouping when the batch fits.');
+    await assert.rejects(sdkExecutionBatches(raw, leaves), /needs the observed/);
+    await assert.rejects(sdkExecutionBatches({ ...capped, blockGasLimit: raw.blockGasLimit }, leaves), /reviewed transaction budget/);
+    assert.throws(() => capExecutionConfig(capped), /already capped/);
+    assert.throws(() => packSegments([raw], 3, undefined, { multipleExecutionTransactions: true }), /needs the observed/);
+    assert.throws(() => packSegments([capExecutionConfig(config(84532, 1, '16000000'))], 3, undefined,
+        { multipleExecutionTransactions: true }), /split and requalify/);
+    await assert.rejects(sdkExecutionBatches({ ...capped, observedBlockGasLimit: '18000000', blockGasLimit: '19922943' }, leaves),
+        /exceeds the observed/);
+});
+
 test('cold measurement selects the outer module-to-Safe call and checks exact signed bytes, output and gas', () => {
     const tx = action();
     const frame = { type: 'CALL', from: MODULE, to: SAFE, gas: ethers.utils.hexValue(Number(tx.gas)), gasUsed: '0x2625a0',
@@ -236,10 +280,11 @@ test('explicit stage boundaries preserve exact actions even when stages fit toge
     assert.throws(() => packSegments([config(8453, 1, '16000000')], 3, () => true), /split and requalify/);
 });
 
-function replayFixture() {
+function replayFixture({ multipleExecutionTransactions = false, gas = '1000000' } = {}) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-replay-test-'));
-    const first = config(1);
-    const second = { ...config(1, 2, '1000000'), nonce: '9' };
+    const first = multipleExecutionTransactions ? capExecutionConfig(config(1)) : config(1);
+    const rawSecond = { ...config(1, 2, gas), nonce: '9' };
+    const second = multipleExecutionTransactions ? capExecutionConfig(rawSecond) : rawSecond;
     const segments = [first, second].map(network => ({ networkConfigs: [network],
         merkleTree: JSON.parse(JSON.stringify(makeSphinxMerkleTree(makeDeploymentData([network])),
             (_, value) => typeof value === 'bigint' ? value.toString() : value)) }));
@@ -250,6 +295,7 @@ function replayFixture() {
                 transaction: { to: tx.to, data: tx.txData, value: tx.value, operation: tx.operation } })) }] };
     const runtimes = { safe: ROOT, moduleProxy: ROOT, relay: ROOT };
     fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ status: 'passed', sourceSha256: {},
+        executionPolicy: multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : undefined,
         chains: [{ chainId: '1', runtimeKeccak256: runtimes }] }));
     const calls = [];
     let moduleNonce = '9';
@@ -259,6 +305,7 @@ function replayFixture() {
         provider: { send: async (method, args) => { calls.push([method, args]); moduleNonce = '9'; return true; },
             removeAllListeners: () => calls.push(['cleanup']) }, child: { kill: () => calls.push(['kill']) } };
     const workflow = {
+        multipleExecutionTransactions,
         validatePrepared: () => new Map(),
         verifyFinal: async fork => { calls.push(['verify', fork.prepared.envelopes.flatMap(item => item.expectedTokenIds)]); },
         replayDependencies: {
@@ -266,7 +313,8 @@ function replayFixture() {
                 block: { number: 456, hash: ROOT, gasLimit: ethers.BigNumber.from('50000000') } }; },
             openContext: async (entry, prepared, report, validate) => {
                 assert.equal(entry.networkConfig.blockNumber, '456');
-                assert.equal(entry.networkConfig.blockGasLimit, '50000000');
+                assert.equal(entry.networkConfig.blockGasLimit, multipleExecutionTransactions ? second.blockGasLimit : '50000000');
+                if (multipleExecutionTransactions) assert.equal(entry.networkConfig.observedBlockGasLimit, '50000000');
                 assert.deepEqual(entry.networkConfig.actionInputs, second.actionInputs);
                 assert.equal(entry.networkConfig.nonce, '9');
                 calls.push(['open']);
@@ -277,7 +325,7 @@ function replayFixture() {
             executeRoot: async (fork, network, tree, mode, records, save) => {
                 calls.push([mode]);
                 assert.equal(tree.root, artifact.segments[1].merkleTree.root);
-                assert.deepEqual(network.actionInputs.map(tx => tx.gas), ['1000000', '1000000']);
+                assert.deepEqual(network.actionInputs.map(tx => tx.gas), [gas, gas]);
                 records.push({ mode, root: tree.root, events: [{ name: 'SphinxMerkleRootCompleted' }],
                     actions: network.actionInputs.map(tx => ({ signedGas: tx.gas, grossSafeGas: '800000',
                         headroom: assertHeadroom(tx.gas, '800000') })) });
@@ -301,6 +349,27 @@ test('fresh replay preserves frozen root/actions/gas and verifies only this part
         assert.deepEqual(JSON.parse(fs.readFileSync(reportFile)).chains[0].records.map(record => record.mode), ['cold', 'full-part']);
         const again = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
         assert.notEqual(again.reportFile, reportFile, 'Retain every replay attempt.');
+    } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+});
+
+test('one-root replay retains the uploaded SDK ceiling and qualifies SDK batches against fresh observed headers', async () => {
+    const fixture = replayFixture({ multipleExecutionTransactions: true, gas: '8000000' });
+    try {
+        const before = structuredClone(fixture.artifact);
+        const { report } = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
+        assert.equal(report.status, 'passed');
+        assert.equal(report.executionPolicy, 'sdk-bounded-transactions-v1');
+        assert.equal(report.chains[0].blockGasLimit, '50000000', 'Report actual fresh chain header.');
+        assert.equal(report.chains[0].sdkBlockGasLimit, before.segments[1].networkConfigs[0].blockGasLimit);
+        assert.deepEqual(fixture.artifact, before);
+        assert(fixture.calls.some(call => call[0] === 'sdk-batches'));
+        assert(!fixture.calls.some(call => call[0] === 'full-part'));
+        await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1,
+            { ...fixture.workflow, multipleExecutionTransactions: false }), /execution policy changed/);
+        fixture.workflow.replayDependencies.readHeader = async () => ({ rpcUrl: 'https://read-only.invalid',
+            block: { number: 457, hash: ROOT, gasLimit: ethers.BigNumber.from('19000000') } });
+        await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow),
+            /SDK execution ceiling exceeds the observed/);
     } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
 });
 

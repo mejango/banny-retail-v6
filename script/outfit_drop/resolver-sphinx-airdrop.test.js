@@ -94,16 +94,16 @@ test('deployment artifacts, writer binding, commitments and stage order fail clo
     assert.throws(() => adapter.validatePrepared({ chainId: '1', safeAddress: SAFE, arbitraryChain: false }, chain), /requires deployment/);
 });
 
-test('deployment and configuration are separate complete roots with consecutive module nonces', () => {
+test('deployment and atomic configuration share one root, preserving order and one module nonce', () => {
     const config = { chainId: '1', nonce: '8', blockGasLimit: '60000000', safeAddress: SAFE,
         moduleAddress: HOOK, executorAddress: PREVIOUS, safeInitData: '0x', arbitraryChain: false,
         actionInputs: [0, 1].map(index => ({ to: SAFE, value: '0', txData: '0x', operation: 0,
-            gas: '1000000', requireSuccess: true, index: String(index + 1), actionType: core.ActionInputType.CALL, contracts: [] })) };
-    const segments = qualifier.packSegments([config], 2, () => true);
-    assert.equal(segments.length, 2);
-    assert.deepEqual(segments.map(segment => segment.networkConfigs[0].nonce), ['8', '9']);
-    assert.deepEqual(segments.map(segment => segment.networkConfigs[0].actionInputs[0].index), ['1', '1']);
-    assert.notEqual(segments[0].merkleTree.root, segments[1].merkleTree.root);
+            gas: '10000000', requireSuccess: true, index: String(index + 1), actionType: core.ActionInputType.CALL, contracts: [] })) };
+    const segments = qualifier.packSegments([qualifier.capExecutionConfig(config)], 2, undefined, { multipleExecutionTransactions: true });
+    assert.equal(segments.length, 1);
+    assert.equal(segments[0].networkConfigs[0].nonce, '8');
+    assert.deepEqual(segments[0].networkConfigs[0].actionInputs.map(action => action.index), ['1', '2']);
+    assert.deepEqual(segments[0].networkConfigs[0].actionInputs, config.actionInputs);
     assert.equal(makeSphinxMerkleTree(core.makeDeploymentData(segments[0].networkConfigs)).root, segments[0].merkleTree.root);
 });
 
@@ -184,7 +184,7 @@ test('a completed resume cannot return success without final workflow verificati
 });
 
 
-test('permissionless old artwork publication between roots preserves activation authority', async () => {
+test('permissionless old artwork publication preserves activation authority', async () => {
     const { chain } = fixture();
     const contents = '<path d="M1 1"/>';
     const rendered = '<svg width="400" height="400" viewBox="0 0 400 400" fill="white" xmlns="http://www.w3.org/2000/svg"><style>.o{fill:#050505;}.w{fill:#f9f9f9;}</style>' + contents + '</svg>';
@@ -203,37 +203,33 @@ test('permissionless old artwork publication between roots preserves activation 
         { tokenUriResolverOf: PREVIOUS, allSvg: '<image href="different"/>' }), chain, 124), /products changed/);
 });
 
-test('fresh resolver part replay uses canonical envelopes and verifies the reached stage', async () => {
+test('fresh single-root replay verifies both canonical actions and the final resolver swap', async () => {
     const original = qualifier.replayPreparedPart;
     const { chain } = fixture();
     chain.authority = { owners: [SAFE], threshold: '2' };
     const hash = ethers.utils.keccak256('0x6000');
     Object.assign(chain.evidence, { storageCodeHash: hash, replacementCodeHash: hash, guardCodeHash: hash });
-    const artifact = { segments: [{}, {}], preparedChains: [chain] };
-    let calls = 0;
+    const artifact = { segments: [{}], preparedChains: [chain] };
     qualifier.replayPreparedPart = async (a, directory, part, workflow) => {
-        assert.equal(a, artifact); assert.equal(directory, '/tmp/replay'); calls++;
+        assert.equal(a, artifact); assert.equal(directory, '/tmp/replay'); assert.equal(part, 0);
+        assert.equal(workflow.multipleExecutionTransactions, true);
         const config = { chainId: '1', safeAddress: SAFE, arbitraryChain: false,
-            actionInputs: [{ ...chain.envelopes[part].transaction, txData: chain.envelopes[part].transaction.data, requireSuccess: true }] };
-        const prepared = { ...chain, envelopes: [chain.envelopes[part]] };
-        assert.equal(workflow.validatePrepared(config, prepared).size, 0);
-        config.actionInputs[0].txData = '0x';
-        assert.throws(() => workflow.validatePrepared(config, prepared), /canonical atomic Safe envelope/);
-        const fork = { provider: mockProvider(chain), prepared, report: {} };
+            actionInputs: chain.envelopes.map(envelope => ({ ...envelope.transaction, txData: envelope.transaction.data, requireSuccess: true })) };
+        assert.equal(workflow.validatePrepared(config, chain).size, 0);
+        config.actionInputs[1].txData = '0x';
+        assert.throws(() => workflow.validatePrepared(config, chain), /canonical atomic envelope/);
+        const fork = { provider: mockProvider(chain), prepared: chain, report: {} };
         await workflow.verifyFinal(fork);
-        assert.equal(fork.report[part ? 'resolverUpgradeVerified' : 'resolverDeploymentVerified'], true);
+        assert.equal(fork.report.resolverUpgradeVerified, true);
         await assert.rejects(workflow.verifyFinal({ ...fork, provider: mockProvider(chain, { writer: PREVIOUS }) }));
         return { status: 'passed' };
     };
-    try {
-        assert.deepEqual(await adapter.replayPreparedPart(artifact, '/tmp/replay', 0), { status: 'passed' });
-        assert.deepEqual(await adapter.replayPreparedPart(artifact, '/tmp/replay', 1), { status: 'passed' });
-        assert.equal(calls, 2);
-    } finally { qualifier.replayPreparedPart = original; }
+    try { assert.deepEqual(await adapter.replayPreparedPart(artifact, '/tmp/replay', 0), { status: 'passed' }); }
+    finally { qualifier.replayPreparedPart = original; }
 });
 
 
-test('Sphinx requires the guard after the deployment root as well as after activation', async () => {
+test('Sphinx requires the deployed guard as well as final activation verification', async () => {
     const { chain } = fixture(); chain.authority = { owners: [SAFE], threshold: '2' };
     const hash = ethers.utils.keccak256('0x6000');
     Object.assign(chain.evidence, { storageCodeHash: hash, replacementCodeHash: hash, guardCodeHash: hash });
@@ -308,11 +304,11 @@ test('a guard appearing after preparation refuses the stale deployment root befo
     try {
         fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ sourceSha256: {} }));
         await assert.rejects(loaded.exports.assertPreparedFresh({ workflow: adapter.WORKFLOW, inputIdentity: 'frozen',
-            preparedChains: [chain], segments: [{}, {}] }, directory, 0), /Pending deployment\/configuration calls changed/);
+            preparedChains: [chain], segments: [{}] }, directory, 0), /Pending deployment\/configuration calls changed/);
         const observations = fs.readdirSync(directory).filter(file => file.startsWith('artwork-observation-'));
         assert.equal(observations.length, 1);
         await assert.rejects(loaded.exports.assertPreparedFresh({ workflow: adapter.WORKFLOW, inputIdentity: 'frozen',
-            preparedChains: [chain], segments: [{}, {}] }, directory, 0), /Pending deployment\/configuration calls changed/);
+            preparedChains: [chain], segments: [{}] }, directory, 0), /Pending deployment\/configuration calls changed/);
         assert.equal(fs.readdirSync(directory).filter(file => file.startsWith('artwork-observation-')).length, 2);
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
