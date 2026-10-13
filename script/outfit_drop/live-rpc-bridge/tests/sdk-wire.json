@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "clientRevision": "9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c",
+  "mode": "final",
+  "networks": [
+    {
+      "rpcEnv": "RPC_ETHEREUM_SEPOLIA",
+      "expectedBlockHash": "0x988e5e339d356dc9a96c6bd532b8854497e435a35db5293f25755033dae87456",
+      "config": {
+        "safe_address": "0x0000000000000000000000000000000000000001",
+        "module_address": "0x0000000000000000000000000000000000000002",
+        "executor_address": "0xa2ea7657440875bf916cbfc0cfa88f13e38ad463",
+        "safe_init_data": "0x",
+        "nonce": "0x7",
+        "chain_id": "0xaa36a7",
+        "block_gas_limit": "0xbebc200",
+        "block_number": "0x64",
+        "new_config": {
+          "project_name": "banny-core",
+          "org_id": "org",
+          "owners": [
+            "0x0000000000000000000000000000000000000001"
+          ],
+          "threshold": "0x1",
+          "salt_nonce": "0x0",
+          "mainnets": [],
+          "testnets": [
+            "ethereum_sepolia"
+          ]
+        },
+        "initial_state": {
+          "is_safe_deployed": true,
+          "is_module_deployed": true,
+          "is_executing": false
+        },
+        "is_system_deployed": true,
+        "arbitrary_chain": false,
+        "libraries": [],
+        "git_commit": null,
+        "action_inputs": [
+          {
+            "index": 1,
+            "to": "0x0000000000000000000000000000000000000001",
+            "value": "0x0",
+            "gas": "0x989680",
+            "tx_data": "0x1234",
+            "operation": "DelegateCall",
+            "require_success": true,
+            "action_type": "Call",
+            "deployed_address": null,
+            "init_code": null
+          },
+          {
+            "index": 2,
+            "to": "0x0000000000000000000000000000000000000001",
+            "value": "0x0",
+            "gas": "0x6acfc0",
+            "tx_data": "0x5678",
+            "operation": "DelegateCall",
+            "require_success": true,
+            "action_type": "Call",
+            "deployed_address": null,
+            "init_code": null
+          }
+        ]
+      },
+      "report": {
+        "chain_id": "11155111",
+        "block_number": 100,
+        "block_hash": "0x988e5e339d356dc9a96c6bd532b8854497e435a35db5293f25755033dae87456",
+        "base_timestamp": 1791294816,
+        "simulated_block_interval_seconds": 1,
+        "safe": "0x0000000000000000000000000000000000000001",
+        "module": "0x0000000000000000000000000000000000000002",
+        "executor": "0xA2eA7657440875bF916CBFC0cfA88F13e38aD463",
+        "authorization_scope": "synthetic sender, no approval gas proof",
+        "execution_shape": "one execution leaf per transaction; exact outer budgets required",
+        "final_merkle_root": "0xac55cd4d1824c05407b280002da8fd4a1410c5f8b92a0f1e61713db0335f71eb",
+        "actions": [
+          {
+            "index": 1,
+            "signed_inner_gas": 10000000,
+            "outer_gas": 11000000,
+            "calldata_hash": "0xe67cf00e95d663e32cfabb71137d4c6016c52290520dd9274edc820bae213370",
+            "initial_probe_attempts": 1,
+            "final_proof_attempts": 1
+          },
+          {
+            "index": 2,
+            "signed_inner_gas": 7000000,
+            "outer_gas": 8000000,
+            "calldata_hash": "0x133d55ee2edd7737286cc2588c159ce8d33a357fd911e30196a96d3406b75781",
+            "initial_probe_attempts": 1,
+            "final_proof_attempts": 1
+          }
+        ]
+      }
+    }
+  ],
+  "tree": {
+    "root": "0xac55cd4d1824c05407b280002da8fd4a1410c5f8b92a0f1e61713db0335f71eb",
+    "leaves_with_proofs": [
+      {
+        "leaf": {
+          "chain_id": "0xaa36a7",
+          "index": "0x0",
+          "leaf_type": "Approve",
+          "data": "0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000003000000000000000000000000a2ea7657440875bf916cbfc0cfa88f13e38ad46300000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "proof": [
+          "0x7f85d2620e32bd6529ee784c4c5a8f3b5ec3f6c023f8b55b7b6c14b883881718",
+          "0xb836715d2e7883f63eff289914711e1a56bbb1a75c9e50308c211939086ed400"
+        ]
+      },
+      {
+        "leaf": {
+          "chain_id": "0xaa36a7",
+          "index": "0x1",
+          "leaf_type": "Execute",
+          "data": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000098968000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000021234000000000000000000000000000000000000000000000000000000000000"
+        },
+        "proof": [
+          "0x381cf12f655a18831632a2784f672435de5488837855561995804f2d8d5f64ff",
+          "0xb836715d2e7883f63eff289914711e1a56bbb1a75c9e50308c211939086ed400"
+        ]
+      },
+      {
+        "leaf": {
+          "chain_id": "0xaa36a7",
+          "index": "0x2",
+          "leaf_type": "Execute",
+          "data": "0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006acfc000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000025678000000000000000000000000000000000000000000000000000000000000"
+        },
+        "proof": [
+          "0x5c1d69175c28dc565b17eb6f96a66c63d87cce1d8c11d4e9f873ad5a4c5dfa43"
+        ]
+      }
+    ]
+  }
+}
