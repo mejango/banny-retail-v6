@@ -2,7 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { test } = require('node:test');
+const { test, after } = require('node:test');
+const { execFileSync } = require('node:child_process');
 const { ethers } = require('ethers');
 const { MultiSendCallOnlyArtifact } = require('@sphinx-labs/contracts');
 const generator = require('./generate-v6-airdrop');
@@ -17,9 +18,46 @@ const HOOK = generator.V6_MAINNET_HOOK;
 const RESOLVER = '0x0000000000000000000000000000000000000002';
 const STORE = '0x0000000000000000000000000000000000000003';
 const PERMISSIONS = '0x0000000000000000000000000000000000000004';
+const SVG_STORAGE = '0x0000000000000000000000000000000000000005';
+const FORWARDER = '0x0000000000000000000000000000000000000006';
+// Build a tiny genuine immutable-bearing artifact rather than bypassing the shared preflight gate.
+const identityRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-resolver-identity-'));
+fs.mkdirSync(path.join(identityRoot, 'src'));
+fs.writeFileSync(path.join(identityRoot, 'foundry.toml'), '[profile.default]\nscript = "unused-script"\ntest = "unused-test"\nsolc = "0.8.28"\nbytecode_hash = "none"\n');
+fs.writeFileSync(path.join(identityRoot, 'src/Banny721TokenUriResolver.sol'), `pragma solidity ^0.8.28;
+contract Banny721TokenUriResolver {
+    address private immutable forwarder;
+    address public immutable SVG_STORAGE;
+    constructor(address f, address s) { forwarder = f; SVG_STORAGE = s; }
+    function trustedForwarder() public view returns (address) { return forwarder; }
+}`);
+fs.writeFileSync(path.join(identityRoot, 'src/BannySvgStorage.sol'), `pragma solidity ^0.8.28;
+contract BannySvgStorage {
+    address public immutable CONFIGURATOR;
+    constructor(address c) { CONFIGURATOR = c; }
+}`);
+execFileSync('forge', ['build'], { cwd: identityRoot, stdio: 'pipe' });
+const { immutableIds } = require('./prepare-resolver-upgrade');
+const identityIds = immutableIds(identityRoot);
+const resolverArtifact = JSON.parse(fs.readFileSync(path.join(identityRoot, 'out/Banny721TokenUriResolver.sol/Banny721TokenUriResolver.json')));
+const storageArtifact = JSON.parse(fs.readFileSync(path.join(identityRoot, 'out/BannySvgStorage.sol/BannySvgStorage.json')));
+function fixtureRuntime(compiled, values) {
+    const bytes = ethers.utils.arrayify(compiled.deployedBytecode.object);
+    for (const [id, value] of Object.entries(values)) for (const { start } of compiled.deployedBytecode.immutableReferences[id]) {
+        bytes.set(ethers.utils.arrayify(ethers.utils.hexZeroPad(value, 32)), start);
+    }
+    return ethers.utils.hexlify(bytes);
+}
+const resolverRuntime = fixtureRuntime(resolverArtifact, { [identityIds.forwarder]: FORWARDER, [identityIds.storage]: SVG_STORAGE });
+const storageRuntime = fixtureRuntime(storageArtifact, { [identityIds.configurator]: SAFE });
+// Operator authority reads retain the owning permission IDs.
+fs.mkdirSync(path.join(identityRoot, 'node_modules/@bananapus/permission-ids-v6/src'), { recursive: true });
+fs.copyFileSync(path.join(ROOT, 'node_modules/@bananapus/permission-ids-v6/src/JBPermissionIds.sol'),
+    path.join(identityRoot, 'node_modules/@bananapus/permission-ids-v6/src/JBPermissionIds.sol'));
+after(() => fs.rmSync(identityRoot, { recursive: true, force: true }));
 const plans = generator.buildContractsByChain(generator.loadRawItems());
 const helperPlans = generator.buildCombinedContractsByChain(generator.loadRawItems());
-// Encoding tests intentionally need no local Solidity build; real artifacts are validated during export.
+// Encoding tests use synthetic helpers; resolver preflight uses the genuine tiny Forge fixture above.
 const artifact = {
     abi: [
         'function decorateBannys(address,address,address,address,address,bool,uint256[],uint256[],uint256[],uint256[],uint256[])',
@@ -33,6 +71,24 @@ const executorArtifact = {
     abi: ['constructor(address safe,address implementation)', 'function execute(bytes[])'],
     bytecode: { object: '0x60016000f3' }, deployedBytecode: { object: '0x00' },
 };
+const identityOptions = { root: identityRoot, deployments: path.join(identityRoot, 'deployments') };
+for (const network of Object.values(NETWORKS).flat()) {
+    const folder = path.join(identityOptions.deployments, network.folder);
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, 'JB721TiersHook__ProjectBAN.json'), JSON.stringify({ address: HOOK }));
+}
+for (const helperPlan of Object.values(helperPlans).map(plans => plans[0])) {
+    const source = `script/${helperPlan.fileName}`;
+    const text = generator.generateAirdropContract(helperPlan);
+    fs.mkdirSync(path.dirname(path.join(identityRoot, source)), { recursive: true });
+    fs.writeFileSync(path.join(identityRoot, source), text);
+    const folder = path.join(identityRoot, 'out', path.basename(source));
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, `${helperPlan.contractName}.json`), JSON.stringify({ ...artifact, metadata: {
+        settings: { compilationTarget: { [source]: helperPlan.contractName } },
+        sources: { [source]: { keccak256: ethers.utils.id(text) } },
+    } }));
+}
 const migration = new ethers.utils.Interface(artifact.abi);
 const executor = new ethers.utils.Interface(executorArtifact.abi);
 const mint = new ethers.utils.Interface(['function mintFor(uint16[],address)']);
@@ -272,6 +328,7 @@ test('recipient-only snapshot drift is rejected even when helper Solidity is unc
 });
 
 function mockProvider({ chainId = 11155111, owner = SAFE, authorized = false, missingCode, factoryCode,
+    resolverOwner = SAFE, configurator = SAFE, writer = RESOLVER, resolverForwarder = FORWARDER, oldResolver = false,
     owners = [SAFE], threshold = 1, nonce = 17, approvedOwners = [], executorSafe = SAFE, implementation = STORE, codeOverrides = {} } = {}) {
     const provider = new ethers.providers.StaticJsonRpcProvider(undefined, { chainId: 11155111, name: 'fixture' });
     const reads = new ethers.utils.Interface([
@@ -279,6 +336,8 @@ function mockProvider({ chainId = 11155111, owner = SAFE, authorized = false, mi
         'function owner() view returns(address)', 'function STORE() view returns(address)',
         'function projectId() view returns(uint256)', 'function PERMISSIONS() view returns(address)',
         'function tokenUriResolverOf(address) view returns(address)',
+        'function SVG_STORAGE() view returns(address)', 'function trustedForwarder() view returns(address)',
+        'function CONFIGURATOR() view returns(address)', 'function writer() view returns(address)',
         'function hasPermission(address,address,uint256,uint256,bool,bool) view returns(bool)',
         'function nonce() view returns(uint256)',
         'function approvedHashes(address,bytes32) view returns(uint256)',
@@ -288,6 +347,7 @@ function mockProvider({ chainId = 11155111, owner = SAFE, authorized = false, mi
     const codes = {
         [FACTORY.toLowerCase()]: factoryCode || '0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3',
         [MULTISEND.toLowerCase()]: MultiSendCallOnlyArtifact.deployedBytecode,
+        [RESOLVER.toLowerCase()]: resolverRuntime, [SVG_STORAGE.toLowerCase()]: storageRuntime,
         ...Object.fromEntries(Object.entries(codeOverrides).map(([address, code]) => [address.toLowerCase(), code])),
     };
     provider.send = async (method, params) => {
@@ -295,7 +355,8 @@ function mockProvider({ chainId = 11155111, owner = SAFE, authorized = false, mi
         if (method === 'eth_getCode') return params[0].toLowerCase() === missingCode?.toLowerCase() ? '0x' : codes[params[0].toLowerCase()] || '0x01';
         assert.equal(method, 'eth_call');
         const call = reads.parseTransaction(params[0]);
-        const results = { getThreshold: threshold, getOwners: owners, nonce, owner, STORE, projectId: 69, PERMISSIONS,
+        if (oldResolver && call.name === 'SVG_STORAGE') return '0x';
+        const results = { SVG_STORAGE, trustedForwarder: params[0].to.toLowerCase() === RESOLVER.toLowerCase() ? resolverForwarder : FORWARDER, CONFIGURATOR: configurator, writer, getThreshold: threshold, getOwners: owners, nonce, owner: params[0].to.toLowerCase() === RESOLVER.toLowerCase() ? resolverOwner : owner, STORE, projectId: 69, PERMISSIONS,
             tokenUriResolverOf: RESOLVER, hasPermission: authorized, SAFE: executorSafe, IMPLEMENTATION: implementation };
         if (call.name === 'hasPermission') {
             assert.deepEqual(call.args.slice(0, 2), [SAFE, owner]);
@@ -312,6 +373,9 @@ function mockProvider({ chainId = 11155111, owner = SAFE, authorized = false, mi
 
 function chainPreparationFixture(network, profile) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-safe-prepare-'));
+    for (const entry of ['src', 'out', 'foundry.toml', 'node_modules']) {
+        fs.cpSync(path.join(identityRoot, entry), path.join(root, entry), { recursive: true });
+    }
     const deployments = path.join(root, 'deployments');
     const helperPlan = helperPlans[network.sourceChainId][0];
     const source = `script/${helperPlan.fileName}`;
@@ -404,15 +468,45 @@ test('chain preparation preserves partial setup omission, runtime checks and non
 });
 
 test('preflight checks destination RPC, deployed infrastructure and owner/operator authority', async () => {
-    const input = { network: NETWORKS.testnets[0], safe: SAFE, hook: HOOK };
+    const input = { network: NETWORKS.testnets[0], safe: SAFE, hook: HOOK, root: identityRoot };
     assert.equal((await preflight({ ...input, provider: mockProvider() })).resolver, RESOLVER);
     assert.equal((await preflight({ ...input, provider: mockProvider({ owner: RESOLVER, authorized: true }) })).threshold, '1');
     await assert.rejects(preflight({ ...input, provider: mockProvider({ owner: RESOLVER }) }), /neither hook owner nor authorized/);
     await assert.rejects(preflight({ ...input, provider: mockProvider({ chainId: 1 }) }), /RPC chain mismatch/);
     await assert.rejects(preflight({ ...input, provider: mockProvider({ factoryCode: '0x00' }) }), /Unexpected deterministic/);
-    for (const missingCode of [FACTORY, MULTISEND, SAFE, HOOK, RESOLVER]) {
-        await assert.rejects(preflight({ ...input, provider: mockProvider({ missingCode }) }), /No deployed contract|Resolver is not deployed/);
+    for (const missingCode of [FACTORY, MULTISEND, SAFE, HOOK, RESOLVER, SVG_STORAGE]) {
+        await assert.rejects(preflight({ ...input, provider: mockProvider({ missingCode }) }), /No deployed contract|Resolver is not deployed|SVG storage is not deployed/);
     }
+});
+
+test('shared distribution preflight rejects old resolvers, unsafe bindings and executable drift', async () => {
+    const input = { network: NETWORKS.testnets[0], safe: SAFE, hook: HOOK, root: identityRoot };
+    await assert.rejects(preflight({ ...input, provider: mockProvider({ oldResolver: true }) }), /Replacement resolver is not active/);
+    await assert.rejects(preflight({ ...input, provider: mockProvider({ writer: HOOK }) }), /writer is not active resolver/);
+    await assert.rejects(preflight({ ...input, provider: mockProvider({ configurator: HOOK }) }), /not SVG storage configurator/);
+    await assert.rejects(preflight({ ...input, provider: mockProvider({ resolverOwner: HOOK }) }), /not replacement resolver owner/);
+    // A genuine clone's getter agrees with its malicious immutable: runtime self-consistency alone is insufficient.
+    await assert.rejects(preflight({ ...input, provider: mockProvider({ resolverForwarder: HOOK,
+        codeOverrides: { [RESOLVER]: fixtureRuntime(resolverArtifact, { [identityIds.forwarder]: HOOK, [identityIds.storage]: SVG_STORAGE }) },
+    }) }), /trusted forwarder differs from hook/);
+    for (const [target, code, message] of [
+        [RESOLVER, `${resolverRuntime.slice(0, -2)}00`, /resolver runtime/],
+        [SVG_STORAGE, `${storageRuntime.slice(0, -2)}00`, /storage runtime/],
+        [RESOLVER, fixtureRuntime(resolverArtifact, { [identityIds.forwarder]: HOOK, [identityIds.storage]: SVG_STORAGE }), /resolver runtime/],
+        [SVG_STORAGE, fixtureRuntime(storageArtifact, { [identityIds.configurator]: HOOK }), /storage runtime/],
+    ]) await assert.rejects(preflight({ ...input, provider: mockProvider({ codeOverrides: { [target]: code } }) }), message);
+    assert.equal((await preflight({ ...input, provider: mockProvider() })).resolver, RESOLVER);
+});
+
+test('shared distribution preflight requires fresh resolver and storage build inputs', async () => {
+    const fixture = chainPreparationFixture(NETWORKS.mainnets[1], 'mainnets');
+    try {
+        const storageSource = path.join(fixture.root, 'src/BannySvgStorage.sol');
+        fs.appendFileSync(storageSource, '\n// source drift\n');
+        await assert.rejects(prepareChain(fixture.input), /Stale BannySvgStorage artifact/);
+        fs.rmSync(path.join(fixture.root, 'out/Banny721TokenUriResolver.sol/Banny721TokenUriResolver.json'));
+        await assert.rejects(prepareChain(fixture.input), /Missing .*Banny721TokenUriResolver.*run forge build/);
+    } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
 test('resume omits deployed setup only after runtime and immutable authority validation', async () => {
@@ -456,6 +550,34 @@ test('approved execution requires the bound current nonce and unchanged hash', a
     await assert.rejects(prepareApprovedExecution(bound, mockProvider()), /Only 0\/1/);
 });
 
+test('approved execution gates signed migrations and unsigned stage relabeling on the active replacement', async () => {
+    const { safeTransaction, setup } = buildBatch({ plan: plans[1][0], artifact, profile: 'testnets', chainId: 11155111,
+        safe: SAFE, hook: HOOK, resolver: RESOLVER, chunk: 1 });
+    const provider = mockProvider({ approvedOwners: [SAFE] });
+    const bound = await bindNonce(safeTransaction, 17, provider);
+    for (const stage of ['migration', 'setup', undefined]) {
+        const relabeled = { ...bound, stage };
+        await assert.rejects(prepareApprovedExecution(relabeled, mockProvider({ approvedOwners: [SAFE], oldResolver: true }),
+            identityOptions), /Replacement resolver is not active/);
+        await assert.rejects(prepareApprovedExecution(relabeled, mockProvider({ approvedOwners: [SAFE], writer: HOOK }),
+            identityOptions), /writer is not active resolver/);
+    }
+    await assert.rejects(prepareApprovedExecution({ ...bound, resolver: HOOK }, provider, identityOptions),
+        /proposal resolver differs from active replacement/);
+    await assert.rejects(prepareApprovedExecution({ ...bound, hook: STORE }, provider, identityOptions),
+        /Proposal hook differs from canonical hook/);
+    const oldResolver = HOOK;
+    const old = buildBatch({ plan: plans[1][0], artifact, profile: 'testnets', chainId: 11155111,
+        safe: SAFE, hook: HOOK, resolver: oldResolver, chunk: 1 }).safeTransaction;
+    const oldBound = await bindNonce(old, 17, provider);
+    await assert.rejects(prepareApprovedExecution({ ...oldBound, resolver: RESOLVER, stage: 'setup' }, provider, identityOptions),
+        /Signed decoration resolver differs from active replacement/);
+    const execution = await prepareApprovedExecution(bound, provider, identityOptions);
+    assert.equal(execution.safeTxHash, bound.safeTxHash);
+    const setupBound = await bindNonce(setup.safeTransaction, 17, provider);
+    assert.equal((await prepareApprovedExecution(setupBound, provider, identityOptions)).safeTxHash, setupBound.safeTxHash);
+});
+
 test('execution uses current approved owners, sorted signatures and every exact approved transaction field', async () => {
     const { safeTransaction } = buildBatch({ plan: plans[1][0], artifact, profile: 'testnets', chainId: 11155111,
         safe: SAFE, hook: HOOK, resolver: RESOLVER, chunk: 1 });
@@ -467,7 +589,7 @@ test('execution uses current approved owners, sorted signatures and every exact 
     const bound = await bindNonce(safeTransaction, 17, provider);
     await assert.rejects(prepareApprovedExecution(bound, mockProvider({ owners: [SAFE, STORE, RESOLVER],
         threshold: 2, approvedOwners: [RESOLVER, PERMISSIONS] })), /Only 1\/2/);
-    const execution = await prepareApprovedExecution(bound, provider);
+    const execution = await prepareApprovedExecution(bound, provider, identityOptions);
     assert.deepEqual(execution.approvingOwners, [RESOLVER, SAFE]);
     assert.equal(execution.safeTxHash, bound.safeTxHash);
     assert.equal(execution.nonce, '17');

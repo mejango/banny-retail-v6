@@ -48,10 +48,11 @@ function actionFor(batch, index, configArtifacts) {
     const envelope = batch.safeTransaction;
     assert(['resolver-deploy', 'resolver-switch'].includes(envelope.stage), 'Unknown resolver upgrade stage');
     const contracts = batch.batch.transactions.filter(tx => same(tx.to, exporter.FACTORY)).map(tx => {
-        assert.equal(envelope.stage, 'resolver-deploy', 'Deployment outside the deployment stage');
         const { create2Address: address, initCodeWithArgs } = core.decodeDeterministicDeploymentProxyData(tx.data);
         const fullyQualifiedName = utils.findFullyQualifiedNameForInitCode(initCodeWithArgs, configArtifacts);
         assert(CONTRACTS.some(([name, source]) => fullyQualifiedName === `${source}:${name}`), 'Unreviewed resolver deployment artifact');
+        assert.equal(envelope.guardStage, 'deploy', 'Sphinx guard must deploy before the switch root');
+        assert.equal(envelope.stage, 'resolver-deploy', 'Deployment outside its guarded stage');
         return { address, initCodeWithArgs, fullyQualifiedName };
     });
     return { actionType: core.ActionInputType.CALL, to: envelope.transaction.to, value: '0',
@@ -66,7 +67,7 @@ function batchesFor(evidence) {
         const batch = JSON.parse(fs.readFileSync(filename));
         const stage = filename.endsWith('-01-deploy.json') ? 'resolver-deploy' : 'resolver-switch';
         return exporter.wrapBatch(batch.transactions, { chainId: String(evidence.chainId), safe: evidence.safe,
-            stage, resolver: evidence.replacement, storage: evidence.svgStorage }, batch.meta.name);
+            stage, guardStage: evidence.guardStage, resolver: evidence.replacement, storage: evidence.svgStorage }, batch.meta.name);
     });
 }
 
@@ -89,6 +90,8 @@ function validatePrepared(config, prepared) {
 
 function assertFrozenCalls(chain, build = readBuild()) {
     const evidence = chain.evidence;
+    assert.equal(evidence.guardStage, 'deploy', 'Sphinx guard must deploy before the switch root');
+    for (const envelope of chain.envelopes) assert.equal(envelope.guardStage, evidence.guardStage, 'Frozen guard stage differs');
     assert(Number.isSafeInteger(evidence.maxTierId) && evidence.maxTierId > 0 && evidence.maxTierId <= 1000,
         'Invalid frozen product count');
     assert.deepEqual(evidence.products.map(product => product.upc),
@@ -137,7 +140,8 @@ async function assertAuthority(provider, chain) {
 async function assertDeployment(provider, chain) {
     const e = chain.evidence;
     for (const [address, expected] of [[e.svgStorage, e.storageCodeHash], [e.replacement, e.replacementCodeHash], [e.guard, e.guardCodeHash]]) {
-        assert.equal(ethers.utils.keccak256(await provider.getCode(address)), expected, 'Resolver rollout runtime changed');
+        const code = await provider.getCode(address);
+        assert.equal(ethers.utils.keccak256(code), expected, 'Resolver rollout runtime changed');
     }
     const storage = new ethers.Contract(e.svgStorage, STORAGE_ABI, provider);
     assert(same(await storage.CONFIGURATOR(), chain.safe), 'Storage configurator changed');
@@ -174,6 +178,22 @@ async function assertSwitched(provider, chain) {
     }
 }
 
+async function assertCollectionFresh(provider, chain, block) {
+    const fresh = await upgrade.collect(provider, chain.hook, chain.safe, block);
+    for (const key of ['previous', 'previousCodeHash', 'configurationHash', 'maxTierId', 'hookTrustedForwarder']) {
+        assert.equal(fresh[key], chain.evidence[key], `Collection ${key} changed before resolver activation`);
+    }
+    assert.deepEqual(fresh.settings, chain.evidence.settings, 'Resolver settings changed');
+    // Only correctly committed artwork may change without fresh action qualification. All other product fields remain pinned.
+    const authority = product => {
+        const { renderedSvg, svgContents, inline, ...bound } = product;
+        if (product.hash !== ethers.constants.HashZero) delete bound.svgHash;
+        return bound;
+    };
+    assert.deepEqual(fresh.products.map(authority), chain.evidence.products.map(authority), 'Resolver products changed');
+    return fresh;
+}
+
 async function assertPreparedFresh(artifact, directory, part) {
     assert.equal(artifact.workflow, WORKFLOW, 'Wrong prepared workflow');
     shared.assertCanonicalActions(artifact);
@@ -189,12 +209,13 @@ async function assertPreparedFresh(artifact, directory, part) {
         assert.equal(String((await provider.getNetwork()).chainId), String(chain.chainId), 'RPC chain changed');
         if (part >= artifact.segments.length) { await assertSwitched(provider, chain); continue; }
         await assertAuthority(provider, chain);
-        const fresh = await upgrade.collect(provider, chain.hook, chain.safe, await provider.getBlockNumber());
-        for (const key of ['previous', 'previousCodeHash', 'configurationHash', 'oldArtworkHash', 'maxTierId']) {
-            assert.equal(fresh[key], chain.evidence[key], `Collection ${key} changed before resolver activation`);
-        }
-        assert.deepEqual(fresh.settings, chain.evidence.settings, 'Resolver settings changed');
-        assert.deepEqual(fresh.products, chain.evidence.products, 'Resolver products changed');
+        const block = await provider.getBlockNumber();
+        const fresh = await assertCollectionFresh(provider, chain, block);
+        // Refresh appearance evidence even if publication happens between the two roots. This never changes signed calls.
+        const observation = fs.mkdtempSync(path.join(directory, `artwork-observation-${chain.chainId}-`));
+        fs.writeFileSync(path.join(observation, 'evidence.json'),
+            `${JSON.stringify({ chainId: chain.chainId, blockNumber: block, previous: fresh.previous,
+                oldArtworkHash: fresh.oldArtworkHash, products: fresh.products, ...upgrade.artworkRecovery(fresh.products) }, null, 2)}\n`);
         if (part > 0) {
             await assertDeployment(provider, chain);
             const candidate = new ethers.Contract(chain.evidence.replacement,
@@ -206,7 +227,7 @@ async function assertPreparedFresh(artifact, directory, part) {
             // Fresh native preparation also proves omitted existing deployments and writer binding remain valid.
             const temp = fs.mkdtempSync(path.join(directory, 'fresh-'));
             try {
-                const evidence = await upgrade.prepare({ provider, hook: chain.hook, safe: chain.safe, output: temp });
+                const evidence = await upgrade.prepare({ provider, hook: chain.hook, safe: chain.safe, output: temp, guardStage: 'deploy' });
                 assert.deepEqual(batchesFor(evidence).map(batch => batch.batch.transactions), chain.canonicalBatches,
                     'Pending deployment/configuration calls changed');
             } finally { fs.rmSync(temp, { recursive: true, force: true }); }
@@ -214,8 +235,15 @@ async function assertPreparedFresh(artifact, directory, part) {
     }
 }
 
+const replayPreparedPart = (artifact, directory, part) => qualifier.replayPreparedPart(artifact, directory, part, {
+    validatePrepared: (config, prepared) => { qualifier.validateEnvelopes(config, prepared); return new Map(); },
+    verifyFinal: async fork => {
+        if (part === 0) { await assertDeployment(fork.provider, fork.prepared); fork.report.resolverDeploymentVerified = true; }
+        else { await assertSwitched(fork.provider, fork.prepared); fork.report.resolverUpgradeVerified = true; }
+    },
+});
 const assertReady = (artifact, directory, progress, part) =>
-    shared.assertReadyToSubmit(artifact, directory, progress, part, assertPreparedFresh);
+    shared.assertReadyToSubmit(artifact, directory, progress, part, assertPreparedFresh, replayPreparedPart);
 
 const resolveCompilerArtifacts = shared.resolveCompilerArtifacts;
 
@@ -242,7 +270,7 @@ async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInte
             scriptPath, safe, rpcUrl, pluginInterface, targetContract, reportDir });
         assert(!preparedChains.some(chain => chain.chainId === chainId), 'Duplicate resolver chain');
         const hook = exporter.readHookAddress(network);
-        const evidence = await upgrade.prepare({ provider, hook, safe, output: path.join(reportDir, String(chainId)), block: block.number });
+        const evidence = await upgrade.prepare({ provider, hook, safe, output: path.join(reportDir, String(chainId)), block: block.number, guardStage: 'deploy' });
         const prepared = batchesFor(evidence);
         assert.deepEqual(prepared.map(batch => batch.safeTransaction.stage), ['resolver-deploy', 'resolver-switch'],
             'Fresh resolver workflow requires both stages; reconcile existing deployments before proposing');
@@ -303,5 +331,5 @@ if (require.main === module) {
 }
 
 module.exports = { WORKFLOW, actionFor, batchesFor, validatePrepared, assertFrozenCalls, assertAuthority,
-    assertDeployment, assertSwitched, assertPreparedFresh, collectAndQualify, makePropose, resumePrepared, readBuild,
-    resolveCompilerArtifacts };
+    assertDeployment, assertSwitched, assertCollectionFresh, assertPreparedFresh, collectAndQualify, makePropose, resumePrepared, readBuild,
+    resolveCompilerArtifacts, replayPreparedPart };

@@ -11,6 +11,7 @@ const { makeDeploymentData, estimateGasViaManagedService, getMaxGasLimit,
     isActionTransactionBatchingEnabled } = require('@sphinx-labs/core');
 const { startFork, receiptFor, impersonate, failureTrace, gasBudget, migrationPlan, verifyRecipients } = require('./simulate-safe-airdrop');
 const { MAX_MINTS_PER_TRANSACTION } = require('./export-safe-airdrop');
+const { buildContractsByChain, loadRawItems } = require('./generate-v6-airdrop');
 
 const MODULE_ARTIFACT = require('@sphinx-labs/contracts/contract-artifacts/sphinx/SphinxModule.sol/SphinxModule.json');
 const SAFE_ABI = [
@@ -402,6 +403,114 @@ async function verifyFinal(context) {
     context.report.tokenCount = context.prepared.envelopes.reduce((sum, envelope) => sum + envelope.expectedTokenIds.length, 0);
 }
 
+async function latestReplayHeader(chain) {
+    const rpcUrl = process.env[chain.network.rpc];
+    assert(rpcUrl, `Missing ${chain.network.rpc}`);
+    const provider = new ethers.providers.JsonRpcProvider({ url: rpcUrl, timeout: 30000 });
+    assert.equal(String((await provider.getNetwork()).chainId), String(chain.chainId), 'Replay RPC chain changed.');
+    return { rpcUrl, block: await provider.getBlock('latest') };
+}
+
+function validateReplayPrepared(config, prepared) {
+    validateEnvelopes(config, prepared);
+    const plans = new Map(prepared.plans.map(plan => [plan.contractName, plan]));
+    const ids = [];
+    for (const envelope of prepared.envelopes) {
+        assert(['setup', 'migration'].includes(envelope.stage), 'Unknown airdrop replay stage.');
+        assert(!envelope.components, 'Replay needs canonical atomic shards.');
+        if (envelope.stage === 'migration') {
+            const plan = migrationPlan(envelope, plans);
+            assert(plan.assignments.expectedTokenIds.length <= MAX_MINTS_PER_TRANSACTION, 'Replay shard exceeds the reviewed mint limit.');
+            ids.push(...plan.assignments.expectedTokenIds);
+        }
+    }
+    assert.equal(new Set(ids).size, ids.length, 'Replay repeats NFT allocations.');
+    return plans;
+}
+
+// Replay the frozen next root, never recalibrate or repack it. Public RPCs are only read;
+// the existing context/executor owns all writes and restricts them to its loopback fork.
+async function replayPreparedPart(artifact, directory, part, workflow = {}) {
+    assert(Number.isInteger(part) && part >= 0 && part < artifact.segments.length, 'Invalid replay part.');
+    const segment = artifact.segments[part];
+    assert(segment.networkConfigs.length > 0 && segment.networkConfigs.length <= 4, 'Replay one bounded profile part.');
+    assert.equal(new Set(segment.networkConfigs.map(config => String(config.chainId))).size,
+        segment.networkConfigs.length, 'Repeated replay chain.');
+    const tree = treeOf(segment.networkConfigs);
+    assert.deepEqual(JSON.parse(JSON.stringify(tree, (_, value) => typeof value === 'bigint' ? value.toString() : value)),
+        segment.merkleTree, 'Frozen replay tree changed.');
+    const original = JSON.stringify(artifact);
+    const qualification = JSON.parse(fs.readFileSync(path.join(directory, 'qualification.json')));
+    assert.equal(qualification.status, 'passed', 'Replay needs passed qualification.');
+    const checkSources = () => {
+        for (const [file, hash] of Object.entries(qualification.sourceSha256)) {
+            assert.equal(sha256(fs.readFileSync(path.join(ROOT, file))), hash, 'Replay workflow source changed; requalify.');
+        }
+    };
+    checkSources();
+    const reportDirectory = fs.mkdtempSync(path.join(directory, `replay-part-${part + 1}-`));
+    const reportFile = path.join(reportDirectory, 'replay.json');
+    const report = { startedAt: new Date().toISOString(), status: 'running', localForkOnly: true, part,
+        root: tree.root, sourceSha256: qualification.sourceSha256, chains: segment.networkConfigs.map(() => ({})),
+        limitations: qualification.limitations };
+    const save = () => fs.writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`);
+    // Internal dependency injection for orchestration tests; there is no CLI/env bypass.
+    const deps = { readHeader: latestReplayHeader, openContext, executeRoot, ...workflow.replayDependencies };
+    const contexts = [];
+    save();
+    try {
+        await allContexts(segment.networkConfigs, async (frozen, index) => {
+            const chain = artifact.preparedChains.find(chain => String(chain.chainId) === String(frozen.chainId));
+            assert(chain, 'Frozen replay chain missing.');
+            const { rpcUrl, block } = await deps.readHeader(chain);
+            assert(block && Number.isSafeInteger(block.number) && block.number > 0, 'Replay needs a fresh pinned header.');
+            Object.assign(report.chains[index], { chainId: String(frozen.chainId), blockNumber: block.number,
+                blockHash: block.hash, blockGasLimit: block.gasLimit.toString() }); save();
+            const config = { ...frozen, blockNumber: String(block.number), blockGasLimit: block.gasLimit.toString() };
+            assert.equal(treeOf(segment.networkConfigs.map(network => network === frozen ? config : network)).root,
+                tree.root, 'Fresh header changed the signed root.');
+            assert(estimateBatch(config, executeLeaves(tree, config.chainId)) <= outerBudget(config),
+                'Frozen complete part exceeds the fresh chain budget.');
+            const offset = artifact.segments.slice(0, part).flatMap(previous => previous.networkConfigs)
+                .filter(network => String(network.chainId) === String(config.chainId))
+                .reduce((sum, network) => sum + network.actionInputs.length, 0);
+            const prepared = { ...chain, blockHash: block.hash,
+                envelopes: chain.envelopes.slice(offset, offset + config.actionInputs.length) };
+            if (!workflow.validatePrepared) {
+                prepared.plans = chain.plans || buildContractsByChain(loadRawItems())[chain.network.sourceChainId]
+                    .filter(plan => chain.planNames.includes(plan.contractName));
+            }
+            const context = await deps.openContext({ rpcUrl, networkConfig: config }, prepared, report.chains[index],
+                workflow.validatePrepared || validateReplayPrepared);
+            contexts.push(context); save();
+            assert.deepEqual({ owners: await context.safe.getOwners(), threshold: String(context.report.threshold) },
+                chain.authority, 'Replay Safe authority changed.');
+            const prior = qualification.chains.find(item => String(item.chainId) === String(config.chainId));
+            assert(prior, 'Replay lacks qualified runtime evidence.');
+            assert.deepEqual(context.report.runtimeKeccak256, prior.runtimeKeccak256, 'Replay Safe/module/relay runtime changed.');
+            context.report.records = []; save();
+            await deps.executeRoot(context, config, tree, 'cold', context.report.records, save);
+            await (workflow.verifyFinal || verifyFinal)(context); save();
+            assert(await context.provider.send('evm_revert', [context.initialSnapshot]), 'Cannot restore pre-replay state.');
+            await deps.executeRoot(context, config, tree, 'full-part', context.report.records, save);
+            await (workflow.verifyFinal || verifyFinal)(context);
+            context.report.finalModuleNonce = (await context.module.merkleRootNonce()).toString();
+            assert.equal(context.report.finalModuleNonce, (BigInt(config.nonce) + 1n).toString(), 'Replay module nonce differs.');
+            assert.equal((await context.safe.nonce()).toString(), context.safeNonce, 'Replay changed ordinary Safe nonce.');
+            context.report.status = 'passed'; save();
+        });
+        checkSources();
+        assert.equal(JSON.stringify(artifact), original, 'Replay mutated frozen preparation.');
+        report.status = 'passed'; report.finishedAt = new Date().toISOString(); save();
+        return { report, reportFile };
+    } catch (error) {
+        report.status = 'failed'; report.error = safeError(error); report.finishedAt = new Date().toISOString(); save();
+        throw new Error(`${report.error} Replay evidence: ${reportFile}`);
+    } finally {
+        for (const context of contexts) { context.provider.removeAllListeners(); context.child.kill(); }
+    }
+}
+
 async function qualifyProfile(entries, preparedChains, reportDirectory, calibrationSeed, workflow = {}) {
     assert(Array.isArray(entries) && entries.length > 0 && entries.length <= 4, 'Qualify one network profile at a time.');
     assert.equal(new Set(entries.map(entry => String(entry.networkConfig.chainId))).size, entries.length, 'Repeated chain.');
@@ -410,6 +519,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     assert(!fs.existsSync(reportFile), 'Preserve earlier qualification; use a new report directory.');
     const sourceFiles = ['script/outfit_drop/qualify-sphinx-airdrop.js', 'script/outfit_drop/propose-sphinx-airdrop.js',
         'script/outfit_drop/simulate-safe-airdrop.js', 'script/outfit_drop/export-safe-airdrop.js', 'script/outfit_drop/generate-v6-airdrop.js',
+        'script/outfit_drop/prepare-resolver-upgrade.js',
         'node_modules/@sphinx-labs/core/dist/actions/execute.js', 'node_modules/@sphinx-labs/core/dist/networks.js',
         'node_modules/@sphinx-labs/core/dist/tasks/index.js', 'node_modules/@sphinx-labs/contracts/dist/merkle-tree.js',
         'node_modules/@sphinx-labs/contracts/contract-artifacts/sphinx/SphinxModule.sol/SphinxModule.json',
@@ -495,5 +605,5 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     }
 }
 
-module.exports = { qualifyProfile, actionDigest, outerBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom,
+module.exports = { qualifyProfile, replayPreparedPart, actionDigest, outerBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom,
     packSegments, safeFrames, measureSafeFrame, moduleEvents, assertActionEvents, captureFailure, validateEnvelopes, validatePrepared, validateSeedCalibration, readCalibrationSeed };

@@ -78,8 +78,22 @@ function pinReads(provider, blockNumber) {
 }
 
 function sourceIdentity(items, artifacts, sourceHashes) {
-    return createHash('sha256').update(JSON.stringify({ items,
-        artifacts: [...artifacts].sort(([a], [b]) => a.localeCompare(b)),
+    return createHash('sha256').update(JSON.stringify({ version: 2, items,
+        artifacts: [...artifacts].sort(([a], [b]) => a.localeCompare(b)).map(([name, artifact]) => {
+            const metadata = artifact.metadata || JSON.parse(artifact.rawMetadata || '{}');
+            // AST IDs and source maps depend on the compilation group, even when executable code is identical.
+            // Preserve each immutable's reference group while replacing its compiler-local numeric ID.
+            const immutables = Object.values(artifact.deployedBytecode?.immutableReferences || {})
+                .map(references => references.map(({ start, length }) => ({ start, length }))
+                    .sort((a, b) => a.start - b.start || a.length - b.length))
+                .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+            return [name, { abi: artifact.abi, compiler: metadata.compiler || artifact.compiler,
+                settings: metadata.settings || artifact.settings,
+                bytecode: { object: artifact.bytecode?.object ?? artifact.bytecode,
+                    linkReferences: artifact.bytecode?.linkReferences || {} },
+                deployedBytecode: { object: artifact.deployedBytecode?.object ?? artifact.deployedBytecode,
+                    linkReferences: artifact.deployedBytecode?.linkReferences || {}, immutableReferences: immutables } }];
+        }),
         sources: [...sourceHashes].sort(([a], [b]) => a.localeCompare(b)),
     })).digest('hex');
 }
@@ -103,6 +117,7 @@ async function ensureBuildInfo(getConfigArtifacts, helperPlans, root = ROOT, rea
         }
     };
     if (!await unresolved()) return;
+    console.log('Rebuilding Sphinx compiler metadata with the native Forge compiler; no proposal is submitted.');
     // An earlier ordinary build can leave current bytecode without build-info. Force one native
     // rebuild, with a disposable cache so Foundry cannot erase previous qualification/diagnostic files.
     const temporaryCache = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-sphinx-build-'));
@@ -111,6 +126,7 @@ async function ensureBuildInfo(getConfigArtifacts, helperPlans, root = ROOT, rea
             '--cache-path', temporaryCache, '--silent']);
         assert.equal(output.code, 0, 'Failed to rebuild Sphinx compiler metadata; no proposal was submitted');
         assert(!await unresolved(), 'Rebuilt setup bytecode still lacks Sphinx compiler metadata');
+        console.log('Sphinx compiler metadata recovery passed.');
     } finally { fs.rmSync(temporaryCache, { recursive: true, force: true }); }
 }
 
@@ -229,7 +245,26 @@ async function resolveCompilerArtifacts(getConfigArtifacts, initCodes, expectedI
     // Forge inspection/context collection can replace full compiler metadata; recover it after those operations.
     await ensureBuildInfo(getConfigArtifacts, {}, root, () => initCodes);
     assert.equal(readIdentity(), expectedIdentity, 'Compiler/source identity changed during metadata recovery');
-    return getConfigArtifacts(initCodes);
+    const compiled = await getConfigArtifacts(initCodes);
+    assertBuildInfoSources(compiled, root);
+    return compiled;
+}
+
+function assertBuildInfoSources({ configArtifacts, buildInfos }, root = ROOT) {
+    for (const record of Object.values(configArtifacts)) {
+        const info = buildInfos[record.buildInfoId];
+        assert(info?.input?.sources, 'Selected compiler build-info is missing');
+        const metadata = record.artifact.metadata || JSON.parse(record.artifact.rawMetadata || '{}');
+        assert(metadata.sources && Object.keys(metadata.sources).length, 'Selected artifact source provenance is missing');
+        for (const [source, expected] of Object.entries(metadata.sources)) {
+            const content = info.input.sources[source]?.content;
+            assert.equal(typeof content, 'string', `Build-info source is missing: ${source}`);
+            const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(content));
+            assert.equal(hash, expected.keccak256, `Build-info source differs from compiled artifact: ${source}`);
+            assert.equal(hash, ethers.utils.keccak256(fs.readFileSync(path.resolve(root, source))),
+                `Build-info source changed on disk: ${source}`);
+        }
+    }
 }
 
 function safeError(error) {
@@ -421,13 +456,22 @@ async function assertPreparedFresh(artifact, directory, part) {
     }
 }
 
-async function assertReadyToSubmit(artifact, directory, progress, part, assertFresh = assertPreparedFresh) {
+async function assertReadyToSubmit(artifact, directory, progress, part, assertFresh = assertPreparedFresh,
+    replay = (...args) => require('./qualify-sphinx-airdrop').replayPreparedPart(...args)) {
     // Re-read durable evidence too: a review prompt can remain open while files or chain state change.
     assert.deepEqual(readPreparedArtifact(directory), artifact, 'Prepared artifact changed during review');
     await assertProjectIdentity(artifact);
     const ready = await nextReadyPart(artifact, progress);
     assert(ready.status === 'ready' && ready.part === part, ready.message || 'A different proposal part is ready; resume again');
     await assertFresh(artifact, directory, part);
+    assertBuildInfoSources(artifact);
+    await replay(artifact, directory, part);
+    assert.deepEqual(readPreparedArtifact(directory), artifact, 'Prepared artifact changed during fresh replay');
+    const afterReplay = await nextReadyPart(artifact, progress);
+    assert(afterReplay.status === 'ready' && afterReplay.part === part,
+        afterReplay.message || 'Proposal readiness changed during fresh replay');
+    await assertFresh(artifact, directory, part);
+    assertBuildInfoSources(artifact);
 }
 
 function makeAirdropPropose(context, { officialPropose = propose, prepare = collectAndQualify,
@@ -555,4 +599,4 @@ if (require.main === module) {
 module.exports = { NOOP, selectChunks, actionFor, deploymentsFor, pinReads, sourceIdentity, ensureBuildInfo,
     collectNetworkContext, collectAndQualify, makeAirdropPropose, safeError, writePreparedArtifact, readPreparedArtifact,
     nextReadyPart, assertPreparedFresh, assertReadyToSubmit, resumePrepared, assertCanonicalActions, assertActionsMatchEnvelopes,
-    assertProjectIdentity, providerFor, progressFile, resumeCommand, resolveCompilerArtifacts };
+    assertProjectIdentity, providerFor, progressFile, resumeCommand, resolveCompilerArtifacts, assertBuildInfoSources };

@@ -10,7 +10,7 @@ const { makeSphinxMerkleTree, SphinxLeafType } = require('@sphinx-labs/contracts
 const { buildContractsByChain, loadRawItems } = require('./generate-v6-airdrop');
 const { actionDigest, outerBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom, packSegments,
     safeFrames, measureSafeFrame, moduleEvents, assertActionEvents, captureFailure, validatePrepared,
-    validateSeedCalibration, readCalibrationSeed } = require('./qualify-sphinx-airdrop');
+    validateSeedCalibration, readCalibrationSeed, replayPreparedPart } = require('./qualify-sphinx-airdrop');
 
 const SAFE = '0x0000000000000000000000000000000000000001';
 const MODULE = '0x0000000000000000000000000000000000000002';
@@ -234,4 +234,143 @@ test('explicit stage boundaries preserve exact actions even when stages fit toge
     assert.deepEqual(parts.map(part => part.networkConfigs[0].nonce), ['8', '9']);
     assert.deepEqual(parts.flatMap(part => part.networkConfigs[0].actionInputs.map(actionDigest)), network.actionInputs.map(actionDigest));
     assert.throws(() => packSegments([config(8453, 1, '16000000')], 3, () => true), /split and requalify/);
+});
+
+function replayFixture() {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-replay-test-'));
+    const first = config(1);
+    const second = { ...config(1, 2, '1000000'), nonce: '9' };
+    const segments = [first, second].map(network => ({ networkConfigs: [network],
+        merkleTree: JSON.parse(JSON.stringify(makeSphinxMerkleTree(makeDeploymentData([network])),
+            (_, value) => typeof value === 'bigint' ? value.toString() : value)) }));
+    const artifact = { segments, preparedChains: [{ chainId: 1, safe: SAFE, blockHash: ROOT,
+        authority: { owners: [SAFE], threshold: '1' },
+        network: { rpc: 'REPLAY_TEST_RPC' }, envelopes: [first.actionInputs[0], ...second.actionInputs].map((tx, index) =>
+            ({ stage: 'migration', chainId: '1', safe: SAFE, expectedTokenIds: [index + 1],
+                transaction: { to: tx.to, data: tx.txData, value: tx.value, operation: tx.operation } })) }] };
+    const runtimes = { safe: ROOT, moduleProxy: ROOT, relay: ROOT };
+    fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ status: 'passed', sourceSha256: {},
+        chains: [{ chainId: '1', runtimeKeccak256: runtimes }] }));
+    const calls = [];
+    let moduleNonce = '9';
+    let safeNonce = '4';
+    const context = { safeNonce: '4', initialSnapshot: 'snapshot',
+        module: { merkleRootNonce: async () => moduleNonce }, safe: { nonce: async () => safeNonce, getOwners: async () => [SAFE] },
+        provider: { send: async (method, args) => { calls.push([method, args]); moduleNonce = '9'; return true; },
+            removeAllListeners: () => calls.push(['cleanup']) }, child: { kill: () => calls.push(['kill']) } };
+    const workflow = {
+        validatePrepared: () => new Map(),
+        verifyFinal: async fork => { calls.push(['verify', fork.prepared.envelopes.flatMap(item => item.expectedTokenIds)]); },
+        replayDependencies: {
+            readHeader: async () => { calls.push(['header']); return { rpcUrl: 'https://read-only.invalid',
+                block: { number: 456, hash: ROOT, gasLimit: ethers.BigNumber.from('50000000') } }; },
+            openContext: async (entry, prepared, report, validate) => {
+                assert.equal(entry.networkConfig.blockNumber, '456');
+                assert.equal(entry.networkConfig.blockGasLimit, '50000000');
+                assert.deepEqual(entry.networkConfig.actionInputs, second.actionInputs);
+                assert.equal(entry.networkConfig.nonce, '9');
+                calls.push(['open']);
+                Object.assign(context, { config: entry.networkConfig, prepared, report, plans: validate(entry.networkConfig, prepared) });
+                report.runtimeKeccak256 = runtimes; report.threshold = 1;
+                return context;
+            },
+            executeRoot: async (fork, network, tree, mode, records, save) => {
+                calls.push([mode]);
+                assert.equal(tree.root, artifact.segments[1].merkleTree.root);
+                assert.deepEqual(network.actionInputs.map(tx => tx.gas), ['1000000', '1000000']);
+                records.push({ mode, root: tree.root, events: [{ name: 'SphinxMerkleRootCompleted' }],
+                    actions: network.actionInputs.map(tx => ({ signedGas: tx.gas, grossSafeGas: '800000',
+                        headroom: assertHeadroom(tx.gas, '800000') })) });
+                moduleNonce = '10'; save();
+            },
+        },
+    };
+    return { directory, artifact, workflow, context, calls, setSafeNonce: value => { safeNonce = value; } };
+}
+
+test('fresh replay preserves frozen root/actions/gas and verifies only this part in cold and restored full modes', async () => {
+    const fixture = replayFixture();
+    try {
+        const original = structuredClone(fixture.artifact);
+        const { report, reportFile } = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
+        assert.equal(report.status, 'passed');
+        assert.deepEqual(fixture.artifact, original);
+        assert.deepEqual(fixture.calls, [['header'], ['open'], ['cold'], ['verify', [2, 3]],
+            ['evm_revert', ['snapshot']], ['full-part'], ['verify', [2, 3]], ['cleanup'], ['kill']]);
+        assert.equal(report.chains[0].finalModuleNonce, '10');
+        assert.deepEqual(JSON.parse(fs.readFileSync(reportFile)).chains[0].records.map(record => record.mode), ['cold', 'full-part']);
+        const again = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
+        assert.notEqual(again.reportFile, reportFile, 'Retain every replay attempt.');
+    } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+});
+
+test('fresh replay keeps inner failure evidence and closes forks without running or verifying later modes', async () => {
+    const fixture = replayFixture();
+    try {
+        fixture.workflow.replayDependencies.executeRoot = async (_, __, tree, mode, records, save) => {
+            records.push({ mode, root: tree.root, firstFailureIndex: '2', events: [{ name: 'SphinxActionFailed', index: '2' }] });
+            save(); assert.fail('Injected executor balance blocks frozen root.');
+        };
+        await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow), /executor balance/);
+        const folder = fs.readdirSync(fixture.directory).find(name => name.startsWith('replay-part-'));
+        const report = JSON.parse(fs.readFileSync(path.join(fixture.directory, folder, 'replay.json')));
+        assert.equal(report.status, 'failed');
+        assert.equal(report.chains[0].records[0].firstFailureIndex, '2');
+        assert.deepEqual(fixture.calls, [['header'], ['open'], ['cleanup'], ['kill']]);
+    } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+});
+
+test('distribution replay rebuilds frozen plan names and validates a selected slice without requiring previous allocations', async () => {
+    const fixture = replayFixture();
+    try {
+        const { partitionPlan } = require('./export-safe-airdrop');
+        const plan = buildContractsByChain(loadRawItems())[1][0];
+        const slices = partitionPlan(plan);
+        const chain = fixture.artifact.preparedChains[0];
+        chain.network.sourceChainId = 1; chain.planNames = [plan.contractName];
+        for (const [index, slice] of slices.entries()) Object.assign(chain.envelopes[index], {
+            contractName: plan.contractName, sourceChainId: 1, slice: slice.slice,
+            expectedTokenIds: slice.assignments.expectedTokenIds });
+        Object.assign(chain.envelopes[2], { stage: 'setup', expectedTokenIds: [] });
+        delete fixture.workflow.validatePrepared;
+        fixture.workflow.verifyFinal = async context => {
+            assert.equal(context.plans.size, 1);
+            assert.deepEqual(context.prepared.envelopes.flatMap(item => item.expectedTokenIds), slices[1].assignments.expectedTokenIds);
+        };
+        const result = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
+        assert.equal(result.report.status, 'passed');
+        chain.envelopes[1].expectedTokenIds = slices[0].assignments.expectedTokenIds;
+        await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow), /canonical exported slice/);
+    } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+});
+
+test('fresh replay rejects changed runtimes, failed restore, nonce drift and lower fresh block budgets', async () => {
+    for (const failure of ['runtime', 'restore', 'nonce', 'budget', 'authority']) {
+        const fixture = replayFixture();
+        try {
+            if (failure === 'runtime') {
+                const open = fixture.workflow.replayDependencies.openContext;
+                fixture.workflow.replayDependencies.openContext = async (...args) => {
+                    const context = await open(...args); context.report.runtimeKeccak256 = {}; return context;
+                };
+            } else if (failure === 'restore') fixture.context.provider.send = async () => false;
+            else if (failure === 'nonce') fixture.setSafeNonce('5');
+            else if (failure === 'authority') fixture.context.safe.getOwners = async () => [TARGET];
+            else fixture.workflow.replayDependencies.readHeader = async () => ({ rpcUrl: 'https://read-only.invalid',
+                block: { number: 456, hash: ROOT, gasLimit: ethers.BigNumber.from('1000000') } });
+            await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow),
+                failure === 'runtime' ? /runtime changed/ : failure === 'restore' ? /restore/ : failure === 'nonce' ? /Safe nonce/
+                    : failure === 'authority' ? /authority changed/ : /below/);
+            if (failure !== 'budget') assert.deepEqual(fixture.calls.slice(-2), [['cleanup'], ['kill']]);
+        } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+    }
+});
+
+test('fresh replay rejects tree tampering before opening any fork', async () => {
+    const fixture = replayFixture();
+    try {
+        fixture.artifact.segments[1].networkConfigs[0].actionInputs[0].gas = '1100000';
+        await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow), /tree changed/);
+        assert.deepEqual(fixture.calls, []);
+    } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
 });

@@ -26,7 +26,7 @@ function fixture() {
     const resolver = upgrade.deployment(artifacts.get('Banny721TokenUriResolver'),
         ['body', 'necklace', 'mouth', 'eyes', 'alien', SAFE, SAFE, storage.address], 'bytecode-svg');
     const guard = upgrade.deployment(artifacts.get('BannyResolverUpgradeGuard'), [], 'before-mint-guard');
-    const evidence = { chainId: 1, safe: SAFE, previous: PREVIOUS, previousCodeHash: HASH, replacementCodeHash: HASH,
+    const evidence = { chainId: 1, guardStage: 'deploy', safe: SAFE, previous: PREVIOUS, previousCodeHash: HASH, replacementCodeHash: HASH,
         svgStorage: storage.address, replacement: resolver.address, guard: guard.address,
         settings, products, maxTierId: 5, configurationHash: upgrade.configurationHash(settings, products, 5) };
     const iface = new ethers.utils.Interface(['function setMetadata(string,string,string)', 'function setSvgHashesOf(uint256[],bytes32[])',
@@ -42,7 +42,7 @@ function fixture() {
             .encodeFunctionData('setMetadata', ['', '', '', '', resolver.address, 0, HASH])),
     ]];
     const envelopes = calls.map((transactions, index) => exporter.wrapBatch(transactions,
-        { chainId: '1', safe: SAFE, stage: index ? 'resolver-switch' : 'resolver-deploy' }, '').safeTransaction);
+        { chainId: '1', safe: SAFE, guardStage: 'deploy', stage: index ? 'resolver-switch' : 'resolver-deploy' }, '').safeTransaction);
     return { chain: { chainId: 1, safe: SAFE, hook: HOOK, evidence, canonicalBatches: calls, envelopes }, build: { artifacts } };
 }
 
@@ -117,7 +117,8 @@ function mockProvider(chain, changes = {}) {
     const iface = new ethers.utils.Interface(['function getOwners() view returns(address[])',
         'function getThreshold() view returns(uint256)', 'function CONFIGURATOR() view returns(address)',
         'function writer() view returns(address)', 'function SVG_STORAGE() view returns(address)',
-        'function STORE() view returns(address)', 'function balanceOf(address) view returns(uint256)',
+        'function svgOf(address,uint256,bool,bool) view returns(string)', 'function projectId() view returns(uint256)',
+        'function PERMISSIONS() view returns(address)', 'function STORE() view returns(address)', 'function balanceOf(address) view returns(uint256)',
         'function tokenUriResolverOf(address) view returns(address)', 'function totalSupplyOf(address) view returns(uint256)',
         'function maxTierIdOf(address) view returns(uint256)', 'function numberOfBurnedFor(address,uint256) view returns(uint256)',
         'function svgHashOf(uint256) view returns(bytes32)', 'function namesOf(address,uint256) view returns(string,string,string)',
@@ -125,13 +126,18 @@ function mockProvider(chain, changes = {}) {
             `function ${name}() view returns(${ethers.utils.isAddress(value) ? 'address' : 'string'})`)]);
     const values = { getOwners: [SAFE], getThreshold: 2, CONFIGURATOR: SAFE,
         writer: chain.evidence.replacement, SVG_STORAGE: chain.evidence.svgStorage,
-        STORE: PREVIOUS, balanceOf: 0, tokenUriResolverOf: chain.evidence.replacement,
+        STORE: PREVIOUS, projectId: 1, PERMISSIONS: PREVIOUS, balanceOf: 0, tokenUriResolverOf: chain.evidence.replacement,
         totalSupplyOf: 0, maxTierIdOf: 5, numberOfBurnedFor: 0, ...chain.evidence.settings, ...changes };
     const provider = new ethers.providers.StaticJsonRpcProvider('http://127.0.0.1:1', { chainId: 1, name: 'local' });
     provider.perform = async (method, args) => {
-        if (method === 'getCode') return changes.code || '0x6000';
+        if (method === 'getCode') return changes.guardCode !== undefined && args.address.toLowerCase() === chain.evidence.guard.toLowerCase()
+            ? changes.guardCode : changes.code || '0x6000';
         assert.equal(method, 'call');
         const call = iface.parseTransaction({ data: args.transaction.data });
+        if (call.name === 'trustedForwarder' && args.transaction.to.toLowerCase() === HOOK.toLowerCase())
+            return iface.encodeFunctionResult(call.name, [changes.hookTrustedForwarder || values.trustedForwarder]);
+        if (call.name === 'svgOf') return iface.encodeFunctionResult(call.name,
+            [changes.svg && call.args[1].div(1_000_000_000).eq(5) ? changes.svg : changes.allSvg || '<image href="fallback"/>']);
         if (call.name === 'svgHashOf') return iface.encodeFunctionResult(call.name,
             [changes.svgHashOf || chain.evidence.products[call.args[0].toNumber() - 1].hash]);
         if (call.name === 'namesOf') return iface.encodeFunctionResult(call.name,
@@ -175,4 +181,138 @@ test('a completed resume cannot return success without final workflow verificati
     shared.readPreparedArtifact = () => ({ workflow: 'airdrop', segments: [] });
     try { await assert.rejects(adapter.resumePrepared({}, '/tmp/unused'), /Wrong prepared workflow/); }
     finally { shared.resumePrepared = originalResume; shared.readPreparedArtifact = originalRead; }
+});
+
+
+test('permissionless old artwork publication between roots preserves activation authority', async () => {
+    const { chain } = fixture();
+    const contents = '<path d="M1 1"/>';
+    const rendered = '<svg width="400" height="400" viewBox="0 0 400 400" fill="white" xmlns="http://www.w3.org/2000/svg"><style>.o{fill:#050505;}.w{fill:#f9f9f9;}</style>' + contents + '</svg>';
+    chain.evidence.products[4].hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(contents));
+    const baseline = await upgrade.collect(mockProvider(chain, { tokenUriResolverOf: PREVIOUS }), HOOK, SAFE, 123);
+    Object.assign(chain.evidence, baseline);
+    const fresh = await adapter.assertCollectionFresh(mockProvider(chain, { tokenUriResolverOf: PREVIOUS, svg: rendered }), chain, 124);
+    assert.deepEqual(fresh.inlineUpcs, [5]);
+    assert.equal(fresh.publicationRequired[0].svgContents, contents);
+    assert.notEqual(fresh.oldArtworkHash, baseline.oldArtworkHash);
+    for (const changes of [{ svgDescription: 'changed' }, { productName: 'changed' }, { svgHashOf: ethers.utils.id('changed') },
+        { totalSupplyOf: 1 }, { balanceOf: 1 }, { numberOfBurnedFor: 1 }, { maxTierIdOf: 6 }, { code: '0x6001' }, { hookTrustedForwarder: PREVIOUS }]) {
+        await assert.rejects(adapter.assertCollectionFresh(mockProvider(chain, { tokenUriResolverOf: PREVIOUS, ...changes }), chain, 124));
+    }
+    await assert.rejects(adapter.assertCollectionFresh(mockProvider(chain,
+        { tokenUriResolverOf: PREVIOUS, allSvg: '<image href="different"/>' }), chain, 124), /products changed/);
+});
+
+test('fresh resolver part replay uses canonical envelopes and verifies the reached stage', async () => {
+    const original = qualifier.replayPreparedPart;
+    const { chain } = fixture();
+    chain.authority = { owners: [SAFE], threshold: '2' };
+    const hash = ethers.utils.keccak256('0x6000');
+    Object.assign(chain.evidence, { storageCodeHash: hash, replacementCodeHash: hash, guardCodeHash: hash });
+    const artifact = { segments: [{}, {}], preparedChains: [chain] };
+    let calls = 0;
+    qualifier.replayPreparedPart = async (a, directory, part, workflow) => {
+        assert.equal(a, artifact); assert.equal(directory, '/tmp/replay'); calls++;
+        const config = { chainId: '1', safeAddress: SAFE, arbitraryChain: false,
+            actionInputs: [{ ...chain.envelopes[part].transaction, txData: chain.envelopes[part].transaction.data, requireSuccess: true }] };
+        const prepared = { ...chain, envelopes: [chain.envelopes[part]] };
+        assert.equal(workflow.validatePrepared(config, prepared).size, 0);
+        config.actionInputs[0].txData = '0x';
+        assert.throws(() => workflow.validatePrepared(config, prepared), /canonical atomic Safe envelope/);
+        const fork = { provider: mockProvider(chain), prepared, report: {} };
+        await workflow.verifyFinal(fork);
+        assert.equal(fork.report[part ? 'resolverUpgradeVerified' : 'resolverDeploymentVerified'], true);
+        await assert.rejects(workflow.verifyFinal({ ...fork, provider: mockProvider(chain, { writer: PREVIOUS }) }));
+        return { status: 'passed' };
+    };
+    try {
+        assert.deepEqual(await adapter.replayPreparedPart(artifact, '/tmp/replay', 0), { status: 'passed' });
+        assert.deepEqual(await adapter.replayPreparedPart(artifact, '/tmp/replay', 1), { status: 'passed' });
+        assert.equal(calls, 2);
+    } finally { qualifier.replayPreparedPart = original; }
+});
+
+
+test('Sphinx requires the guard after the deployment root as well as after activation', async () => {
+    const { chain } = fixture(); chain.authority = { owners: [SAFE], threshold: '2' };
+    const hash = ethers.utils.keccak256('0x6000');
+    Object.assign(chain.evidence, { storageCodeHash: hash, replacementCodeHash: hash, guardCodeHash: hash });
+    const absent = mockProvider(chain, { guardCode: '0x' });
+    await assert.rejects(adapter.assertDeployment(absent, chain), /runtime changed/);
+    await assert.rejects(adapter.assertSwitched(absent, chain), /runtime changed/);
+    for (const changes of [{ guardCode: '0x6001' }, { code: '0x' }, { writer: PREVIOUS }, { CONFIGURATOR: PREVIOUS }]) {
+        await assert.rejects(adapter.assertDeployment(mockProvider(chain, changes), chain));
+    }
+});
+
+test('Sphinx collects guard creation in the deployment root and rejects altered guard grouping', () => {
+    const utils = require('@sphinx-labs/plugins/dist/foundry/utils');
+    const original = utils.findFullyQualifiedNameForInitCode;
+    const { chain, build } = fixture();
+    utils.findFullyQualifiedNameForInitCode = initCode => {
+        const [name] = [...build.artifacts].find(([, artifact]) => initCode.startsWith(artifact.bytecode.object));
+        return `${name === 'BannyResolverUpgradeGuard' ? 'script/helpers' : 'src'}/${name}.sol:${name}`;
+    };
+    try {
+        const deploy = { batch: { transactions: chain.canonicalBatches[0] }, safeTransaction: chain.envelopes[0] };
+        const switchBatch = { batch: { transactions: chain.canonicalBatches[1] }, safeTransaction: chain.envelopes[1] };
+        assert.equal(adapter.actionFor(deploy, 0, {}).contracts.length, 3);
+        assert.equal(adapter.actionFor(deploy, 0, {}).contracts[2].fullyQualifiedName,
+            'script/helpers/BannyResolverUpgradeGuard.sol:BannyResolverUpgradeGuard');
+        const existing = fixture();
+        existing.chain.canonicalBatches[0].splice(2, 1);
+        existing.chain.envelopes[0] = exporter.wrapBatch(existing.chain.canonicalBatches[0], existing.chain.envelopes[0], '').safeTransaction;
+        adapter.assertFrozenCalls(existing.chain, existing.build);
+        assert.equal(adapter.actionFor({ batch: { transactions: existing.chain.canonicalBatches[0] },
+            safeTransaction: existing.chain.envelopes[0] }, 0, {}).contracts.length, 2);
+
+        switchBatch.batch.transactions.unshift(chain.canonicalBatches[0][2]);
+        assert.throws(() => adapter.actionFor(switchBatch, 1, {}), /guarded stage/);
+        chain.evidence.guardStage = 'switch';
+        assert.throws(() => adapter.assertFrozenCalls(chain, build), /Sphinx guard must deploy/);
+        deploy.safeTransaction = { ...deploy.safeTransaction, stage: 'resolver-switch' };
+        assert.throws(() => adapter.actionFor(deploy, 0, {}), /guarded stage/);
+    } finally { utils.findFullyQualifiedNameForInitCode = original; }
+});
+
+test('a guard appearing after preparation refuses the stale deployment root before upload', async () => {
+    const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), Module = require('node:module');
+    const shared = require('./propose-sphinx-airdrop');
+    const { chain, build } = fixture();
+    chain.authority = { owners: [SAFE], threshold: '2' };
+    const provider = mockProvider(chain, { tokenUriResolverOf: PREVIOUS });
+    Object.assign(chain.evidence, await upgrade.collect(provider, HOOK, SAFE, 123));
+    chain.canonicalBatches[1][3].data = new ethers.utils.Interface(build.artifacts.get('BannyResolverUpgradeGuard').abi).encodeFunctionData('check',
+        [HOOK, PREVIOUS, chain.evidence.replacement, chain.evidence.previousCodeHash, chain.evidence.replacementCodeHash, chain.evidence.configurationHash, 5]);
+    chain.envelopes[1] = exporter.wrapBatch(chain.canonicalBatches[1], chain.envelopes[1], '').safeTransaction;
+    provider.getBlockNumber = async () => 124;
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-appeared-freshness-'));
+    const filename = require.resolve('./propose-sphinx-resolver-upgrade');
+    const loaded = new Module(filename, module); loaded.filename = filename; loaded.paths = module.paths;
+    // Isolate the live freshness boundary. Canonical cryptographic/source validation has its separate regressions.
+    loaded.require = name => name === './export-safe-airdrop' ? { ...exporter,
+        readCompiledArtifact: contract => build.artifacts.get(contract) }
+        : name === './propose-sphinx-airdrop' ? { ...shared, sourceIdentity: () => 'frozen',
+            assertCanonicalActions: () => {}, providerFor: () => provider }
+        : name === './prepare-resolver-upgrade' ? { ...upgrade, prepare: async options => {
+            assert.equal(options.guardStage, 'deploy');
+            // A fresh preparation omits the now-deployed, verified guard, changing the frozen root's calls.
+            const calls = chain.canonicalBatches.map(batch => batch.slice()); calls[0].splice(2, 1);
+            const files = calls.map((transactions, index) => {
+                const file = path.join(options.output, `1-${index ? '02-configure-and-switch' : '01-deploy'}.json`);
+                fs.writeFileSync(file, JSON.stringify({ transactions, meta: { name: 'fresh' } })); return file;
+            });
+            return { ...chain.evidence, files };
+        } } : require(name);
+    loaded._compile(fs.readFileSync(filename, 'utf8'), filename);
+    try {
+        fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ sourceSha256: {} }));
+        await assert.rejects(loaded.exports.assertPreparedFresh({ workflow: adapter.WORKFLOW, inputIdentity: 'frozen',
+            preparedChains: [chain], segments: [{}, {}] }, directory, 0), /Pending deployment\/configuration calls changed/);
+        const observations = fs.readdirSync(directory).filter(file => file.startsWith('artwork-observation-'));
+        assert.equal(observations.length, 1);
+        await assert.rejects(loaded.exports.assertPreparedFresh({ workflow: adapter.WORKFLOW, inputIdentity: 'frozen',
+            preparedChains: [chain], segments: [{}, {}] }, directory, 0), /Pending deployment\/configuration calls changed/);
+        assert.equal(fs.readdirSync(directory).filter(file => file.startsWith('artwork-observation-')).length, 2);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
