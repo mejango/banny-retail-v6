@@ -141,8 +141,11 @@ async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface
     const network = exporter.NETWORKS[profile].find(n => n.chainId === chainId);
     // RPC replicas can return a latest header before its state is available to Forge.
     // Finalized collection is still followed by the existing live freshness checks before upload.
-    const block = await provider.getBlock('finalized');
-    assert(block && block.hash && block.number > 0, `Missing chain ${chainId} block`);
+    // ethers v5 getBlock polls indefinitely when a named block tag returns null.
+    const header = await provider.send('eth_getBlockByNumber', ['finalized', false]);
+    assert(header, `Missing chain ${chainId} finalized block`);
+    const block = provider.formatter.block(header);
+    assert(block && block.hash && block.number > 0, `Missing chain ${chainId} finalized block`);
     pinReads(provider, block.number);
     const collectionPath = path.join(reportDir, `${chainId}-context.json`);
     const args = ['script', scriptPath, '--rpc-url', rpcUrl, '--fork-block-number', String(block.number),
@@ -151,19 +154,13 @@ async function collectNetworkContext({ scriptPath, safe, rpcUrl, pluginInterface
     if (targetContract) args.push('--target-contract', targetContract);
     const output = await spawn('forge', args, { FOUNDRY_BUILD_INFO: 'false' });
     if (output.code !== 0) {
-        // Redact before truncating, including the exact endpoint if Forge prints it without a scheme.
-        const endpoint = new URL(rpcUrl);
-        let detail = String(output.stderr || output.stdout || 'Forge returned no diagnostic');
-        for (const value of [rpcUrl, rpcUrl.replace(/^https?:\/\//i, ''), endpoint.username, endpoint.password,
-            ...endpoint.pathname.split('/').filter(Boolean), ...endpoint.searchParams.values()]) {
-            if (value) detail = detail.split(value).join('[redacted]');
-            // Providers may decode URL credentials in their own diagnostic text.
-            try {
-                const decoded = decodeURIComponent(value);
-                if (decoded) detail = detail.split(decoded).join('[redacted]');
-            } catch { /* Malformed escapes still have their literal value redacted above. */ }
-        }
-        detail = safeError(new Error(detail)).message.slice(-2000);
+        // Forge can print credentials in URL, Debug or decoded forms. Report only
+        // recognized categories and our own pinned block, never arbitrary output.
+        const diagnostic = `${output.stderr || ''}\n${output.stdout || ''}`;
+        const detail = diagnostic.includes('block not found') ? `RPC could not serve pinned block ${block.number}.`
+            : diagnostic.includes('missing trie node') ? `RPC could not serve historical state at block ${block.number}; use an archive endpoint.`
+                : diagnostic.includes('not allowed to be accessed for write operations') ? 'Foundry denied writing the context file; check fs_permissions.'
+                    : 'Check RPC availability and Foundry configuration; raw Forge output is withheld because it may contain credentials.';
         throw new Error(`Sphinx context collection failed on ${network.folder} (Forge exit ${output.code}); no proposal was submitted\n${detail}`);
     }
     const info = decodeDeploymentInfo(fs.readFileSync(collectionPath, 'utf8'), pluginInterface, block.number);

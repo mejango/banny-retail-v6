@@ -93,7 +93,10 @@ test('context collection pins finalized state and reports Forge failures without
     const rpcUrl = 'https://operator:private%2Dpassword@rpc.example/api/private%2Dpath-key?token=private%2Dquery-key';
     const tags = [];
     const provider = { getNetwork: async () => ({ chainId: 11155111 }),
-        getBlock: async tag => { tags.push(tag); return { number: 100, hash: '0x1234' }; },
+        send: async (method, params) => {
+            assert.equal(method, 'eth_getBlockByNumber'); assert.deepEqual(params, ['finalized', false]);
+            tags.push(params[0]); return { number: 100, hash: '0x1234' };
+        }, formatter: { block: header => header },
         perform: async () => {} };
     for (const stream of ['stderr', 'stdout']) {
         await assert.rejects(collectNetworkContext({ scriptPath: 'script/AirdropV4Bannys.s.sol', safe: SAFE,
@@ -110,7 +113,7 @@ test('context collection pins finalized state and reports Forge failures without
                     + rpcUrl.replace('https://', '') };
             } }), error => {
             assert.match(error.message, /sepolia \(Forge exit 1\); no proposal was submitted/);
-            assert.match(error.message, /block not found: 100/);
+            assert.match(error.message, /RPC could not serve pinned block 100/);
             for (const secret of ['operator', 'private-password', 'private-path-key', 'private-query-key', 'rpc.example']) {
                 assert(!error.message.includes(secret), `Leaked ${secret}`);
             }
@@ -118,10 +121,37 @@ test('context collection pins finalized state and reports Forge failures without
         });
     }
     assert.deepEqual(tags, ['finalized', 'finalized']);
+    const realProvider = new ethers.providers.JsonRpcProvider();
+    realProvider.getNetwork = async () => ({ chainId: 11155111 });
+    realProvider.send = async () => null;
     await assert.rejects(collectNetworkContext({ rpcUrl, reportDir: '/tmp/context-fixture' }, {
-        createProvider: () => ({ ...provider, getBlock: async () => null }),
+        createProvider: () => realProvider,
         spawn: async () => assert.fail('Missing finalized state must stop before Forge'),
-    }), /Missing chain 11155111 block/);
+    }), /Missing chain 11155111 finalized block/);
+    assert.equal(realProvider.polling, false, 'Missing named headers must not start ethers polling');
+});
+
+test('Forge diagnostic categories never forward alternate URL forms or partial secrets', async () => {
+    const rpcUrl = 'https://private-host.rpc.example/api/secret-api-tail?token=abc%2Bdef&key=abc+def';
+    const provider = { getNetwork: async () => ({ chainId: 11155111 }),
+        send: async () => ({ number: 100, hash: '0x1234' }), formatter: { block: header => header }, perform: async () => {} };
+    const cases = [
+        ['', 'Url { host: private-host.rpc.example, query: Some("token=abc%2Bdef&key=abc+def") } secret-api-tail', /raw Forge output is withheld/],
+        ['warning', 'block not found: 100 https://private-host.rpc.example/?token=abc%2Bdef', /pinned block 100/],
+        ['missing trie node abc def', '', /historical state at block 100/],
+        ['vm.writeFile: secret-api-tail not allowed to be accessed for write operations', '', /check fs_permissions/],
+    ];
+    for (const [stderr, stdout, category] of cases) {
+        await assert.rejects(collectNetworkContext({ rpcUrl, reportDir: '/tmp/context-fixture' }, {
+            createProvider: () => provider, spawn: async () => ({ code: 1, stderr, stdout }),
+        }), error => {
+            assert.match(error.message, category);
+            for (const secret of ['private-host', 'secret-api-tail', 'abc%2Bdef', 'abc+def', 'abc def']) {
+                assert(!error.message.includes(secret), `Leaked ${secret}`);
+            }
+            return true;
+        });
+    }
 });
 
 test('source identity binds recipients, sources, ABI, executable bytes and linking/immutable layouts', () => {

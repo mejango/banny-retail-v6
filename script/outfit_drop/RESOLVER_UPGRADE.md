@@ -4,7 +4,7 @@
 
 Use the reviewed resolver-upgrade adapter before starting fresh airdrop proposals. It keeps the original `AirdropV4Bannys.s.sol` project configuration and collects only its configuration getter; it substitutes the same canonical Safe batches described below. It qualifies every chain and the complete exact root on loopback before uploading anything. Deployment, storage writer binding and configuration are checked against reviewed compiler artifacts and pinned collection state.
 
-Initial context collection pins a finalized block so an RPC replica cannot supply a new header before its fork state is available. An unavailable finalized block stops preparation; collection errors report bounded, credential-redacted Forge diagnostics. Live freshness checks before and after the before-upload replay still apply.
+Initial context collection pins a finalized block so an RPC replica cannot supply a new header before its fork state is available. A single header RPC request fails on unavailable finalized state instead of polling indefinitely. Collection errors report recognized RPC and Foundry failure categories without forwarding raw Forge output, which can contain credentials. Live freshness checks before and after the before-upload replay still apply.
 
 The Rust Sphinx client's `--gas-estimator live-rpc` option is separate from this npm adapter. Do not invoke that client directly with `AirdropV4Bannys.s.sol`: its `run()` prepares the distribution, while this adapter substitutes resolver-only actions. Loopback qualification does not establish agreement with a chain's newer live state-gas rules; live qualification would need an explicit bridge preserving these canonical resolver actions and executor handoff.
 
