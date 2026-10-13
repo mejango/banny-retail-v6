@@ -4,6 +4,8 @@
 
 Use the reviewed resolver-upgrade adapter before starting fresh airdrop proposals. It keeps the original `AirdropV4Bannys.s.sol` project configuration and collects only its configuration getter; it substitutes the same canonical Safe batches described below. It qualifies every chain and both exact roots on loopback before uploading anything. Deployment, storage writer binding and configuration are checked against reviewed compiler artifacts and pinned collection state.
 
+Sphinx deploys the stateless guard in root 1 with the storage and resolver. Root 2 contains configuration, guard verification and the switch, with no deployments. Its intermediate JSON files are marked **Sphinx root only**; use the native preparer below to create files for Safe Builder rather than importing these Sphinx intermediates. The native switch batch deploys its guard if absent so out-of-order execution fails safely.
+
 Before each upload, the adapter also replays that exact frozen root at a fresh pinned block on loopback, both as separate cold actions and as one complete part. It keeps the signed gas, action bytes and module nonce unchanged, checks runtime identity and current gas headroom, and verifies that part's resulting state. Each attempt retains a separate `replay-part-N-*/replay.json`, including failures. A failed replay prevents upload; it does not repair or cancel an existing proposal. A dry run previews the initially qualified parts without uploading them.
 
 ```sh

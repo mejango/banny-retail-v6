@@ -108,7 +108,11 @@ test('preparation preserves publication evidence, separates native/Sphinx guard 
     provider.getBlock = async () => ({ hash: ethers.utils.id('block') });
     provider.send = async name => { assert.equal(name, 'eth_chainId'); return '0x1'; };
     provider.perform = async (method, args) => {
-        if (method === 'getCode') return [previous.toLowerCase(), '0x4e59b44847b379578588920ca78fbf26c0b4956c'].includes(args.address.toLowerCase()) ? '0x6000' : '0x';
+        if (method === 'getCode') {
+            if (values.guardDeployed && args.address.toLowerCase() === loaded.exports.deployment(guard, [], 'before-mint-guard').address.toLowerCase())
+                return guard.deployedBytecode.object;
+            return [previous.toLowerCase(), '0x4e59b44847b379578588920ca78fbf26c0b4956c'].includes(args.address.toLowerCase()) ? '0x6000' : '0x';
+        }
         assert.equal(method, 'call');
         const call = iface.parseTransaction({ data: args.transaction.data });
         if (call.name === 'trustedForwarder' && args.transaction.to.toLowerCase() === hook.toLowerCase() && values.hookTrustedForwarder)
@@ -133,10 +137,24 @@ test('preparation preserves publication evidence, separates native/Sphinx guard 
         const sphinxOutput = path.join(output, 'sphinx');
         const sphinx = await loaded.exports.prepare({ provider, hook, safe: settings.owner, output: sphinxOutput, block: 123, guardStage: 'deploy' });
         assert.equal(sphinx.guardStage, 'deploy');
+        for (const file of sphinx.files) {
+            const meta = JSON.parse(fs.readFileSync(file)).meta;
+            assert.match(meta.name, /Sphinx root only, not for native Safe Builder/);
+            assert.match(meta.description, /Sphinx root only, not for native Safe Builder/);
+        }
+        assert(!JSON.parse(fs.readFileSync(evidence.files[0])).meta.name.includes('Sphinx root only'));
+
         const sphinxDeploy = JSON.parse(fs.readFileSync(sphinx.files[0])).transactions;
         const sphinxSwitch = JSON.parse(fs.readFileSync(sphinx.files[1])).transactions;
         assert(sphinxDeploy.some(call => call.data === guardDeployment.data));
         assert(!sphinxSwitch.some(call => call.data === guardDeployment.data));
+        values.guardDeployed = true;
+        const existingGuard = await loaded.exports.prepare({ provider, hook, safe: settings.owner,
+            output: path.join(output, 'existing-guard'), block: 124, guardStage: 'deploy' });
+        const existingGuardBatches = existingGuard.files.map(file => JSON.parse(fs.readFileSync(file)).transactions);
+        assert(existingGuardBatches.every(batch => !batch.some(call => call.data === guardDeployment.data)));
+        assert.notDeepEqual(existingGuardBatches, [sphinxDeploy, sphinxSwitch], 'newly deployed guard changes the pending calls');
+
         for (const guardStage of ['unknown', '', null]) {
             await assert.rejects(loaded.exports.prepare({ provider, hook, safe: settings.owner, output: '/tmp/unused', guardStage }), /Guard stage/);
         }

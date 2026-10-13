@@ -239,7 +239,6 @@ test('Sphinx requires the guard after the deployment root as well as after activ
     Object.assign(chain.evidence, { storageCodeHash: hash, replacementCodeHash: hash, guardCodeHash: hash });
     const absent = mockProvider(chain, { guardCode: '0x' });
     await assert.rejects(adapter.assertDeployment(absent, chain), /runtime changed/);
-    await assert.rejects(adapter.assertDeployment(absent, chain), /runtime changed/);
     await assert.rejects(adapter.assertSwitched(absent, chain), /runtime changed/);
     for (const changes of [{ guardCode: '0x6001' }, { code: '0x' }, { writer: PREVIOUS }, { CONFIGURATOR: PREVIOUS }]) {
         await assert.rejects(adapter.assertDeployment(mockProvider(chain, changes), chain));
@@ -260,6 +259,13 @@ test('Sphinx collects guard creation in the deployment root and rejects altered 
         assert.equal(adapter.actionFor(deploy, 0, {}).contracts.length, 3);
         assert.equal(adapter.actionFor(deploy, 0, {}).contracts[2].fullyQualifiedName,
             'script/helpers/BannyResolverUpgradeGuard.sol:BannyResolverUpgradeGuard');
+        const existing = fixture();
+        existing.chain.canonicalBatches[0].splice(2, 1);
+        existing.chain.envelopes[0] = exporter.wrapBatch(existing.chain.canonicalBatches[0], existing.chain.envelopes[0], '').safeTransaction;
+        adapter.assertFrozenCalls(existing.chain, existing.build);
+        assert.equal(adapter.actionFor({ batch: { transactions: existing.chain.canonicalBatches[0] },
+            safeTransaction: existing.chain.envelopes[0] }, 0, {}).contracts.length, 2);
+
         switchBatch.batch.transactions.unshift(chain.canonicalBatches[0][2]);
         assert.throws(() => adapter.actionFor(switchBatch, 1, {}), /guarded stage/);
         chain.evidence.guardStage = 'switch';
@@ -267,4 +273,46 @@ test('Sphinx collects guard creation in the deployment root and rejects altered 
         deploy.safeTransaction = { ...deploy.safeTransaction, stage: 'resolver-switch' };
         assert.throws(() => adapter.actionFor(deploy, 0, {}), /guarded stage/);
     } finally { utils.findFullyQualifiedNameForInitCode = original; }
+});
+
+test('a guard appearing after preparation refuses the stale deployment root before upload', async () => {
+    const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), Module = require('node:module');
+    const shared = require('./propose-sphinx-airdrop');
+    const { chain, build } = fixture();
+    chain.authority = { owners: [SAFE], threshold: '2' };
+    const provider = mockProvider(chain, { tokenUriResolverOf: PREVIOUS });
+    Object.assign(chain.evidence, await upgrade.collect(provider, HOOK, SAFE, 123));
+    chain.canonicalBatches[1][3].data = new ethers.utils.Interface(build.artifacts.get('BannyResolverUpgradeGuard').abi).encodeFunctionData('check',
+        [HOOK, PREVIOUS, chain.evidence.replacement, chain.evidence.previousCodeHash, chain.evidence.replacementCodeHash, chain.evidence.configurationHash, 5]);
+    chain.envelopes[1] = exporter.wrapBatch(chain.canonicalBatches[1], chain.envelopes[1], '').safeTransaction;
+    provider.getBlockNumber = async () => 124;
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-appeared-freshness-'));
+    const filename = require.resolve('./propose-sphinx-resolver-upgrade');
+    const loaded = new Module(filename, module); loaded.filename = filename; loaded.paths = module.paths;
+    // Isolate the live freshness boundary. Canonical cryptographic/source validation has its separate regressions.
+    loaded.require = name => name === './export-safe-airdrop' ? { ...exporter,
+        readCompiledArtifact: contract => build.artifacts.get(contract) }
+        : name === './propose-sphinx-airdrop' ? { ...shared, sourceIdentity: () => 'frozen',
+            assertCanonicalActions: () => {}, providerFor: () => provider }
+        : name === './prepare-resolver-upgrade' ? { ...upgrade, prepare: async options => {
+            assert.equal(options.guardStage, 'deploy');
+            // A fresh preparation omits the now-deployed, verified guard, changing the frozen root's calls.
+            const calls = chain.canonicalBatches.map(batch => batch.slice()); calls[0].splice(2, 1);
+            const files = calls.map((transactions, index) => {
+                const file = path.join(options.output, `1-${index ? '02-configure-and-switch' : '01-deploy'}.json`);
+                fs.writeFileSync(file, JSON.stringify({ transactions, meta: { name: 'fresh' } })); return file;
+            });
+            return { ...chain.evidence, files };
+        } } : require(name);
+    loaded._compile(fs.readFileSync(filename, 'utf8'), filename);
+    try {
+        fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ sourceSha256: {} }));
+        await assert.rejects(loaded.exports.assertPreparedFresh({ workflow: adapter.WORKFLOW, inputIdentity: 'frozen',
+            preparedChains: [chain], segments: [{}, {}] }, directory, 0), /Pending deployment\/configuration calls changed/);
+        const observations = fs.readdirSync(directory).filter(file => file.startsWith('artwork-observation-'));
+        assert.equal(observations.length, 1);
+        await assert.rejects(loaded.exports.assertPreparedFresh({ workflow: adapter.WORKFLOW, inputIdentity: 'frozen',
+            preparedChains: [chain], segments: [{}, {}] }, directory, 0), /Pending deployment\/configuration calls changed/);
+        assert.equal(fs.readdirSync(directory).filter(file => file.startsWith('artwork-observation-')).length, 2);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });

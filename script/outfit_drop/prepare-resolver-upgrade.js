@@ -253,7 +253,7 @@ async function prepare({ provider, hook, safe, output, block, guardStage = 'swit
         if (!transactions.length) continue;
         const filename = path.join(output, `${chainId}-${stage}.json`);
         writeExclusive(filename, { version: '1.0', chainId: String(chainId), createdAt: Date.now(),
-            meta: { name: `Banny resolver upgrade, ${stage}`, description: 'Execute stages in order. Keep the switch calls in one atomic batch.',
+            meta: { name: `Banny resolver upgrade, ${stage}${guardStage === 'deploy' ? ', Sphinx root only, not for native Safe Builder' : ''}`, description: (guardStage === 'deploy' ? 'Sphinx root only, not for native Safe Builder. ' : '') + 'Execute stages in order. Keep the switch calls in one atomic batch.',
                 txBuilderVersion: '1.18.0', createdFromSafeAddress: safe, createdFromOwnerAddress: '' }, transactions });
         files.push(filename);
     }
