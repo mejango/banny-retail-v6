@@ -74,22 +74,25 @@ test('preparation preserves publication evidence, separates native/Sphinx guard 
         bytecode: { object: '0x6002' }, deployedBytecode: { object: '0x6002' } };
     const filename = require.resolve('./prepare-resolver-upgrade');
     const loaded = new Module(filename, module); loaded.filename = filename; loaded.paths = module.paths;
-    let inspections = 0;
-    let ids = { forwarder: '1', storage: '2', configurator: '3' };
-    let renumberDuringInspection = false;
+    const context = {};
+    const declaration = (name, id, scope, type) => ({ nodeType: 'VariableDeclaration', name, id: Number(id), scope,
+        mutability: 'immutable', stateVariable: true, typeDescriptions: { typeString: type } });
     const regroup = (forwarder, svgStorage, configurator) => {
-        ids = { forwarder, storage: svgStorage, configurator };
         compiled.deployedBytecode.immutableReferences = { [forwarder]: [{ start: 0, length: 32 }], [svgStorage]: [{ start: 32, length: 32 }] };
         storage.deployedBytecode.immutableReferences = { [configurator]: [{ start: 0, length: 32 }] };
+        compiled.ast = { nodes: [{ nodeType: 'ContractDefinition', name: 'Banny721TokenUriResolver', id: 100,
+            linearizedBaseContracts: [100, 300], nodes: [{ ...declaration('SVG_STORAGE', svgStorage, 100, 'contract BannySvgStorage'),
+                typeName: { referencedDeclaration: 200 } }] }] };
+        storage.ast = { nodes: [{ nodeType: 'ContractDefinition', name: 'BannySvgStorage', id: 200,
+            nodes: [declaration('CONFIGURATOR', configurator, 200, 'address')] }] };
+        context.ast = { nodes: [{ nodeType: 'ContractDefinition', name: 'ERC2771Context', id: 300,
+            nodes: [declaration('_trustedForwarder', forwarder, 300, 'address')] }] };
     };
-    loaded.require = name => name === 'node:child_process' ? { execFileSync: (_, args) => {
-        inspections++;
-        if (renumberDuringInspection) { regroup('20', '21', '22'); renumberDuringInspection = false; }
-        return args[1] === 'BannySvgStorage'
-            ? `function getter_fun_CONFIGURATOR_1() { loadimmutable("${ids.configurator}")\n}`
-            : `function fun_trustedForwarder_1() { loadimmutable("${ids.forwarder}")\n}\nfunction getter_fun_SVG_STORAGE_1() { loadimmutable("${ids.storage}")\n}`;
-    } }        : name === 'node:fs' ? { ...fs, readFileSync: (file, ...args) => String(file).endsWith('Banny721TokenUriResolver.json') ? JSON.stringify(compiled)
+    regroup('1', '2', '3');
+    loaded.require = name => name === 'node:child_process' ? { execFileSync: () => { throw new Error('Compiler invocation forbidden'); } }
+        : name === 'node:fs' ? { ...fs, readFileSync: (file, ...args) => String(file).endsWith('Banny721TokenUriResolver.json') ? JSON.stringify(compiled)
             : String(file).endsWith('BannySvgStorage.json') ? JSON.stringify(storage)
+            : String(file).endsWith('ERC2771Context.json') ? JSON.stringify(context)
             : String(file).endsWith('BannyResolverUpgradeGuard.json') ? JSON.stringify(guard) : fs.readFileSync(file, ...args) } : require(name);
     loaded._compile(fs.readFileSync(filename, 'utf8'), filename);
     const hook = '0x3333333333333333333333333333333333333333', previous = '0x4444444444444444444444444444444444444444';
@@ -159,15 +162,27 @@ test('preparation preserves publication evidence, separates native/Sphinx guard 
             await assert.rejects(loaded.exports.prepare({ provider, hook, safe: settings.owner, output: '/tmp/unused', guardStage }), /Guard stage/);
         }
         const root = path.resolve(__dirname, '../..');
-        const before = inspections;
         assert.deepEqual(loaded.exports.immutableIds(root), { forwarder: '1', storage: '2', configurator: '3' });
-        assert.equal(inspections, before, 'unchanged current layout reuses inspection');
-        regroup('10', '11', '12');
-        renumberDuringInspection = true;
+        regroup('20', '21', '22');
         assert.deepEqual(loaded.exports.immutableIds(root), { forwarder: '20', storage: '21', configurator: '22' });
-        assert.equal(inspections, before + 2, 'regrouped AST IDs invalidate the cache');
-        assert.deepEqual(loaded.exports.immutableIds(root), { forwarder: '20', storage: '21', configurator: '22' });
-        assert.equal(inspections, before + 2, 'post-inspect grouping is cached');
+        for (const mutate of [
+            () => { delete compiled.ast; },
+            () => { compiled.ast.nodes.push(structuredClone(compiled.ast.nodes[0])); },
+            () => { compiled.ast.nodes[0].nodes = []; },
+            () => { compiled.ast.nodes[0].nodes.push(structuredClone(compiled.ast.nodes[0].nodes[0])); },
+            () => { context.ast.nodes[0].nodes[0].mutability = 'mutable'; },
+            () => { context.ast.nodes[0].nodes[0].stateVariable = false; },
+            () => { context.ast.nodes[0].nodes[0].typeDescriptions.typeString = 'uint256'; },
+            () => { context.ast.nodes[0].nodes[0].scope = 999; },
+            () => { compiled.ast.nodes[0].linearizedBaseContracts = [100]; },
+            () => { compiled.ast.nodes[0].nodes[0].typeName.referencedDeclaration = 999; },
+            () => { compiled.deployedBytecode.immutableReferences[99] = []; },
+            () => { storage.ast.nodes[0].nodes[0].id = 23; },
+        ]) {
+            regroup('20', '21', '22'); mutate();
+            assert.throws(() => loaded.exports.immutableIds(root), /immutable|Immutable/);
+        }
+        regroup('20', '21', '22');
         values.hookTrustedForwarder = settings.owner;
         await assert.rejects(loaded.exports.prepare({ provider, hook, safe: settings.owner, output: '/tmp/unused', block: 123 }), /trusted forwarder differs from hook/);
 
