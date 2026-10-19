@@ -1,6 +1,6 @@
 'use strict';
 
-// Wire bridge only: the pinned Rust library owns live gas estimation and proof.
+// Wire bridge only: separately pinned Rust clients own current sizing and exact-root proof.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -9,7 +9,9 @@ const { createHash } = require('node:crypto');
 const { ethers } = require('ethers');
 const { NETWORKS } = require('./export-safe-airdrop');
 const ROOT = path.resolve(__dirname, '../..');
-const CLIENT_REVISION = '9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c';
+const CLIENT_REVISION = 'e688649d716779aa2424f4a3f970a6dcae80aba2';
+const VERIFIER_REVISION = '9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c';
+const AUTHORIZATION_SCOPE = `current sizing ${CLIENT_REVISION} with existing local replay floor; exact-root verifier ${VERIFIER_REVISION}; synthetic approval only, no owner signatures or approval gas qualification`;
 const BRIDGE = 'script/outfit_drop/live-rpc-bridge';
 const SOURCE_FILES = ['script/outfit_drop/qualify-resolver-live-rpc.js',
     `${BRIDGE}/Cargo.toml`, `${BRIDGE}/Cargo.lock`, `${BRIDGE}/src/main.rs`, `${BRIDGE}/tests/sdk-wire.json`];
@@ -83,6 +85,7 @@ function validateResult(result, config, chain, mode, tree) {
     assert.deepEqual(returned, rustConfig(proposed, chain), 'Live bridge changed fields other than signed gas');
     if (mode === 'final') assert.deepEqual(rustConfig(proposed, chain), wire, 'Final live proof changed frozen signed gas');
     const report = result.report;
+    assert.equal(report.authorization_scope, AUTHORIZATION_SCOPE, 'Live report sizing or verifier provenance changed');
     assert.equal(report.chain_id, String(config.chainId), 'Live report chain changed');
     assert.equal(report.block_number, Number(config.blockNumber), 'Live report pin changed');
     assert.equal(report.block_hash.toLowerCase(), chain.blockHash.toLowerCase(), 'Live report header hash changed');
@@ -154,7 +157,7 @@ function assertCompiledVersion(version, sourceSha256) {
         [file, sourceSha256[`${BRIDGE}/${file}`]]));
     assert(Object.values(compiledSourceSha256).every(hash => /^[a-f\d]{64}$/.test(hash)),
         'Live bridge source hashes missing');
-    assert.deepEqual(version, { schemaVersion: 1, clientRevision: CLIENT_REVISION, bridgeVersion: '0.1.0',
+    assert.deepEqual(version, { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, bridgeVersion: '0.1.0',
         compiledSourceSha256 }, 'Live bridge version or compiled source changed; run npm run build:sphinx:live');
 }
 
@@ -168,8 +171,9 @@ async function provenance({ run = callBinary, readBinarySha256 = binary => {
     const sourceSha256 = Object.fromEntries(SOURCE_FILES.map(file => [file, digest(fs.readFileSync(path.join(ROOT, file)))]));
     assertCompiledVersion(version, sourceSha256);
     assert(fs.readFileSync(path.join(ROOT, BRIDGE, 'Cargo.lock'), 'utf8').includes(`#${CLIENT_REVISION}`), 'Live client dependency pin changed');
+    assert(fs.readFileSync(path.join(ROOT, BRIDGE, 'Cargo.lock'), 'utf8').includes(`#${VERIFIER_REVISION}`), 'Live verifier dependency pin changed');
     assert.equal(readBinarySha256(binary), binarySha256, 'Live bridge binary changed while checking version provenance');
-    return { binary, binarySha256, schemaVersion: 1, clientRevision: CLIENT_REVISION, sourceSha256 };
+    return { binary, binarySha256, schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, sourceSha256 };
 }
 
 function evidenceFile(directory, label, data) {
@@ -187,8 +191,8 @@ async function qualify(mode, configs, chains, directory, { reports, tree, run = 
         const chain = chains.find(c => String(c.chainId) === String(config.chainId));
         assert(chain, 'Missing live preparation chain');
         assert.deepEqual(chain.network, Object.values(NETWORKS).flat().find(n => String(n.chainId) === String(config.chainId)), 'Live RPC mapping changed');
-        const request = { schemaVersion: 1, clientRevision: CLIENT_REVISION, mode,
-            networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, config: rustConfig(config, chain),
+        const request = { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, mode,
+            networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, expectedBlockTimestamp: chain.blockTimestamp, config: rustConfig(config, chain),
                 ...(reports ? { report: reports[index] } : {}) }], ...(tree ? { tree: rustTree(tree) } : {}) };
         const requestFile = evidenceFile(directory, `live-rpc-${mode}-request-${config.chainId}`, request);
         try {
@@ -197,6 +201,7 @@ async function qualify(mode, configs, chains, directory, { reports, tree, run = 
             assert.equal(readBinarySha256(identity.binary), identity.binarySha256, 'Live qualifier binary changed during execution');
             assert.equal(response.schemaVersion, 1, 'Live response schema changed');
             assert.equal(response.clientRevision, CLIENT_REVISION, 'Live client revision changed');
+            assert.equal(response.verifierRevision, VERIFIER_REVISION, 'Live verifier revision changed');
             assert.equal(response.results.length, 1, 'Live response chain count changed');
             const updated = validateResult(response.results[0], config, chain, mode, tree);
             const evidence = evidenceFile(directory, `live-rpc-${mode}-${config.chainId}`,
@@ -238,8 +243,8 @@ async function assertEvidence(artifact, directory, { readProvenance = provenance
         const config = segment.networkConfigs[index];
         const chain = artifact.preparedChains.find(c => String(c.chainId) === String(config.chainId));
         const request = readEvidence(directory, evidence.request);
-        assert.deepEqual(request, { schemaVersion: 1, clientRevision: CLIENT_REVISION, mode: 'final',
-            networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash,
+        assert.deepEqual(request, { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, mode: 'final',
+            networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, expectedBlockTimestamp: chain.blockTimestamp,
                 config: rustConfig(config, chain), report: request.networks[0].report }], tree: rustTree(segment.merkleTree) },
         'Live proof request differs from its canonical preparation');
         validateResult(evidence.response.results[0], config, chain, 'final', segment.merkleTree);
@@ -308,5 +313,5 @@ async function assertHandoff(artifact, directory, dependencies) {
     return { filename, sha256: digest(fs.readFileSync(filename)) };
 }
 
-module.exports = { CLIENT_REVISION, SOURCE_FILES, LiveQualificationError, rustConfig, rustTree, validateResult, assertCompiledVersion, provenance,
+module.exports = { CLIENT_REVISION, VERIFIER_REVISION, AUTHORIZATION_SCOPE, SOURCE_FILES, LiveQualificationError, rustConfig, rustTree, validateResult, assertCompiledVersion, provenance,
     qualify, readEvidence, assertEvidence, replay, handoffTemplate, assertHandoff };

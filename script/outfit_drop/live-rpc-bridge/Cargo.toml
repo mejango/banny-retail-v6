@@ -5,6 +5,8 @@ edition = "2021"
 publish = false
 
 [dependencies]
+alloy = { version = "2.1", default-features = false }
+sphinx-current = { package = "sphinx-client", git = "https://github.com/xBA5ED/sphinx-client", rev = "e688649d716779aa2424f4a3f970a6dcae80aba2" }
 sphinx-client = { git = "https://github.com/xBA5ED/sphinx-client", rev = "9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

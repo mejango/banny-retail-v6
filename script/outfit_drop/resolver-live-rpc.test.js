@@ -31,7 +31,7 @@ function fixture() {
     const relay = new ethers.utils.Interface(['function exec(address,bytes)']);
     const report = { chain_id: config.chainId, block_number: 100, block_hash: chain.blockHash, base_timestamp: chain.blockTimestamp,
         simulated_block_interval_seconds: 1, safe, module: config.moduleAddress, executor: config.executorAddress,
-        authorization_scope: 'synthetic sender, no approval gas proof',
+        authorization_scope: live.AUTHORIZATION_SCOPE,
         execution_shape: 'one execution leaf per transaction; exact outer budgets required', final_merkle_root: tree.root,
         actions: config.actionInputs.map((action, index) => {
             const leaf = tree.leavesWithProofs.find(entry => Number(entry.leaf.index) === index + 1);
@@ -41,7 +41,7 @@ function fixture() {
         }) };
     const result = { config: live.rustConfig(config, chain), report };
     const identity = { binary: '/fixture/bridge', binarySha256: hash('binary'), schemaVersion: 1,
-        clientRevision: live.CLIENT_REVISION, sourceSha256: {} };
+        clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, sourceSha256: {} };
     return { config, chain, tree, result, identity };
 }
 
@@ -51,9 +51,10 @@ test('bridge provenance binds compiled source rather than only a constant client
     const sourceSha256 = Object.fromEntries(files.map(file => [
         `${bridge}/${file}`, hash(fs.readFileSync(path.join(__dirname, 'live-rpc-bridge', file))),
     ]));
-    const version = { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, bridgeVersion: '0.1.0',
+    const version = { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, bridgeVersion: '0.1.0',
         compiledSourceSha256: Object.fromEntries(files.map(file => [file, sourceSha256[`${bridge}/${file}`]])) };
     assert.doesNotThrow(() => live.assertCompiledVersion(version, sourceSha256));
+    assert.throws(() => live.assertCompiledVersion({ ...version, verifierRevision: live.CLIENT_REVISION }, sourceSha256), /compiled source changed/);
     const stale = { ...version }; delete stale.compiledSourceSha256;
     assert.throws(() => live.assertCompiledVersion(stale, sourceSha256), /compiled source changed.*build:sphinx:live/);
     for (const file of files) {
@@ -68,7 +69,7 @@ test('bridge provenance binds compiled source rather than only a constant client
 
 test('version metadata remains bound to the binary hashed before its asynchronous execution', async () => {
     const bridge = 'script/outfit_drop/live-rpc-bridge';
-    const version = { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, bridgeVersion: '0.1.0',
+    const version = { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, bridgeVersion: '0.1.0',
         compiledSourceSha256: Object.fromEntries(['Cargo.toml', 'Cargo.lock', 'src/main.rs'].map(file =>
             [file, hash(fs.readFileSync(path.join(__dirname, 'live-rpc-bridge', file)))])) };
     let reads = 0, current = hash('original binary');
@@ -150,7 +151,7 @@ test('immutable live evidence and exact-root executor acknowledgement gate submi
                 assert(!input.includes('https://'));
                 assert.equal(request.networks[0].rpcEnv, chain.network.rpc);
                 assert.deepEqual(request.tree, live.rustTree(tree));
-                return { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, results: [result] };
+                return { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, results: [result] };
             } });
         const qualification = { status: 'passed', gasEstimator: 'live-rpc',
             liveRpc: { identity, final: { files: proved.files } } };
@@ -212,7 +213,7 @@ test('binary replacement before or during a live call cannot produce accepted pr
             await assert.rejects(live.qualify('estimate', [config], [chain], directory, {
                 identity,
                 readBinarySha256: () => ++reads === 1 && when === 'during' ? identity.binarySha256 : hash('replacement'),
-                run: async () => { calls++; return { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, results: [result] }; },
+                run: async () => { calls++; return { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, results: [result] }; },
             }), /binary changed/);
             assert.equal(calls, when === 'before' ? 0 : 1);
             const entries = fs.readdirSync(directory).filter(name => !name.includes('-request-'));
