@@ -23,13 +23,19 @@ const FORWARDER = '0x0000000000000000000000000000000000000006';
 // Build a tiny genuine immutable-bearing artifact rather than bypassing the shared preflight gate.
 const identityRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-resolver-identity-'));
 fs.mkdirSync(path.join(identityRoot, 'src'));
-fs.writeFileSync(path.join(identityRoot, 'foundry.toml'), '[profile.default]\nscript = "unused-script"\ntest = "unused-test"\nsolc = "0.8.28"\nbytecode_hash = "none"\n');
+fs.writeFileSync(path.join(identityRoot, 'foundry.toml'), '[profile.default]\nscript = "unused-script"\ntest = "unused-test"\nsolc = "0.8.28"\nbytecode_hash = "none"\nast = true\n');
 fs.writeFileSync(path.join(identityRoot, 'src/Banny721TokenUriResolver.sol'), `pragma solidity ^0.8.28;
-contract Banny721TokenUriResolver {
-    address private immutable forwarder;
-    address public immutable SVG_STORAGE;
-    constructor(address f, address s) { forwarder = f; SVG_STORAGE = s; }
-    function trustedForwarder() public view returns (address) { return forwarder; }
+import {ERC2771Context} from "./ERC2771Context.sol";
+import {BannySvgStorage} from "./BannySvgStorage.sol";
+contract Banny721TokenUriResolver is ERC2771Context {
+    BannySvgStorage public immutable SVG_STORAGE;
+    constructor(address f, address s) ERC2771Context(f) { SVG_STORAGE = BannySvgStorage(s); }
+}`);
+fs.writeFileSync(path.join(identityRoot, 'src/ERC2771Context.sol'), `pragma solidity ^0.8.28;
+contract ERC2771Context {
+    address private immutable _trustedForwarder;
+    constructor(address f) { _trustedForwarder = f; }
+    function trustedForwarder() public view returns (address) { return _trustedForwarder; }
 }`);
 fs.writeFileSync(path.join(identityRoot, 'src/BannySvgStorage.sol'), `pragma solidity ^0.8.28;
 contract BannySvgStorage {
@@ -503,7 +509,8 @@ test('shared distribution preflight requires fresh resolver and storage build in
     try {
         const storageSource = path.join(fixture.root, 'src/BannySvgStorage.sol');
         fs.appendFileSync(storageSource, '\n// source drift\n');
-        await assert.rejects(prepareChain(fixture.input), /Stale BannySvgStorage artifact/);
+        // The typed storage import makes its source part of the resolver compilation too.
+        await assert.rejects(prepareChain(fixture.input), /Stale Banny721TokenUriResolver artifact: src\/BannySvgStorage\.sol changed/);
         fs.rmSync(path.join(fixture.root, 'out/Banny721TokenUriResolver.sol/Banny721TokenUriResolver.json'));
         await assert.rejects(prepareChain(fixture.input), /Missing .*Banny721TokenUriResolver.*run forge build/);
     } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }

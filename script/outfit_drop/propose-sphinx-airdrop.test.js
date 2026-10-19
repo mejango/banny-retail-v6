@@ -9,7 +9,7 @@ const core = require('@sphinx-labs/core');
 const { makeSphinxMerkleTree, SphinxLeafType, getPermissionlessRelayAddress } = require('@sphinx-labs/contracts');
 const { NOOP, actionFor, selectChunks, pinReads, sourceIdentity, ensureBuildInfo, makeAirdropPropose, safeError,
     readPreparedArtifact, nextReadyPart, resumePrepared, writePreparedArtifact, assertProjectIdentity,
-    resolveCompilerArtifacts, assertBuildInfoSources } = require('./propose-sphinx-airdrop');
+    resolveCompilerArtifacts, assertBuildInfoSources, collectNetworkContext, snapshotRuntimeSources } = require('./propose-sphinx-airdrop');
 const { FACTORY, MULTISEND, networksFor } = require('./export-safe-airdrop');
 const { actionDigest } = require('./qualify-sphinx-airdrop');
 
@@ -87,6 +87,71 @@ test('preflight contract reads stay at the selected block', async () => {
     await provider.perform('getBlockNumber', {});
     assert(calls.slice(0, 4).every(call => call.params.blockTag === '0x64'));
     assert.deepEqual(calls[4].params, {});
+});
+
+test('context collection pins finalized state and reports Forge failures without RPC credentials', async () => {
+    const rpcUrl = 'https://operator:private%2Dpassword@rpc.example/api/private%2Dpath-key?token=private%2Dquery-key';
+    const tags = [];
+    const provider = { getNetwork: async () => ({ chainId: 11155111 }),
+        send: async (method, params) => {
+            assert.equal(method, 'eth_getBlockByNumber'); assert.deepEqual(params, ['finalized', false]);
+            tags.push(params[0]); return { number: 100, hash: '0x1234' };
+        }, formatter: { block: header => header },
+        perform: async () => {} };
+    for (const stream of ['stderr', 'stdout']) {
+        await assert.rejects(collectNetworkContext({ scriptPath: 'script/AirdropV4Bannys.s.sol', safe: SAFE,
+            rpcUrl, reportDir: '/tmp/context-fixture' }, { createProvider: () => provider,
+            spawn: async (command, args, env) => {
+                assert.equal(command, 'forge');
+                assert.equal(args[args.indexOf('--fork-block-number') + 1], '100');
+                assert.equal(args[args.indexOf('--sig') + 1], 'sphinxCollectProposal(bytes,string,uint64)');
+                assert.equal(args[args.indexOf('--sig') + 2], NOOP);
+                assert(!args.includes('--broadcast'));
+                assert.deepEqual(env, { FOUNDRY_BUILD_INFO: 'false' });
+                return { code: 1, [stream]: `Error: block not found: 100, endpoint ${rpcUrl}\n`
+                    + 'operator private-password private-path-key private-query-key\n'
+                    + rpcUrl.replace('https://', '') };
+            } }), error => {
+            assert.match(error.message, /sepolia \(Forge exit 1\); no proposal was submitted/);
+            assert.match(error.message, /RPC could not serve pinned block 100/);
+            for (const secret of ['operator', 'private-password', 'private-path-key', 'private-query-key', 'rpc.example']) {
+                assert(!error.message.includes(secret), `Leaked ${secret}`);
+            }
+            return true;
+        });
+    }
+    assert.deepEqual(tags, ['finalized', 'finalized']);
+    const realProvider = new ethers.providers.JsonRpcProvider();
+    realProvider.getNetwork = async () => ({ chainId: 11155111 });
+    realProvider.send = async () => null;
+    await assert.rejects(collectNetworkContext({ rpcUrl, reportDir: '/tmp/context-fixture' }, {
+        createProvider: () => realProvider,
+        spawn: async () => assert.fail('Missing finalized state must stop before Forge'),
+    }), /Missing chain 11155111 finalized block/);
+    assert.equal(realProvider.polling, false, 'Missing named headers must not start ethers polling');
+});
+
+test('Forge diagnostic categories never forward alternate URL forms or partial secrets', async () => {
+    const rpcUrl = 'https://private-host.rpc.example/api/secret-api-tail?token=abc%2Bdef&key=abc+def';
+    const provider = { getNetwork: async () => ({ chainId: 11155111 }),
+        send: async () => ({ number: 100, hash: '0x1234' }), formatter: { block: header => header }, perform: async () => {} };
+    const cases = [
+        ['', 'Url { host: private-host.rpc.example, query: Some("token=abc%2Bdef&key=abc+def") } secret-api-tail', /raw Forge output is withheld/],
+        ['warning', 'block not found: 100 https://private-host.rpc.example/?token=abc%2Bdef', /pinned block 100/],
+        ['missing trie node abc def', '', /historical state at block 100/],
+        ['vm.writeFile: secret-api-tail not allowed to be accessed for write operations', '', /check fs_permissions/],
+    ];
+    for (const [stderr, stdout, category] of cases) {
+        await assert.rejects(collectNetworkContext({ rpcUrl, reportDir: '/tmp/context-fixture' }, {
+            createProvider: () => provider, spawn: async () => ({ code: 1, stderr, stdout }),
+        }), error => {
+            assert.match(error.message, category);
+            for (const secret of ['private-host', 'secret-api-tail', 'abc%2Bdef', 'abc+def', 'abc def']) {
+                assert(!error.message.includes(secret), `Leaked ${secret}`);
+            }
+            return true;
+        });
+    }
 });
 
 test('source identity binds recipients, sources, ABI, executable bytes and linking/immutable layouts', () => {
@@ -346,6 +411,75 @@ test('serial readiness requires completed roots, rejects failed/canceled prefixe
         ({ status: cfg.chainId === '1' ? 0 : 2, nonce: cfg.nonce, activeRoot: ethers.constants.HashZero }))).status, 'pending');
 });
 
+test('concurrent resumes retain one directory lock through relay and release it after completion', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-resume-lock-'));
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let entered;
+    const relaying = new Promise(resolve => { entered = resolve; });
+    let first;
+    try {
+        await makeAirdropPropose({}, { officialPropose: sdkPayloadPass,
+            prepare: async () => qualification(directory) })({ silent: true, isDryRun: true });
+        let stores = 0, relays = 0;
+        const context = { storeDeploymentConfig: async () => { stores++; return 'locked-config'; },
+            relayProposal: async () => { relays++; entered(); await held; } };
+        const options = { officialPropose: sdkPayloadPass, assertProject: async () => {},
+            assertFresh: async () => {}, assertReady: async () => {},
+            readState: async (_artifact, cfg) => ({ status: 0, nonce: cfg.nonce, activeRoot: ethers.constants.HashZero }) };
+        first = resumePrepared(context, directory, { silent: true, isDryRun: false }, options);
+        await relaying;
+        const before = fs.readFileSync(path.join(directory, 'proposal-progress.json'), 'utf8');
+        await assert.rejects(resumePrepared(context, path.join(directory, '.'), { silent: true }, options), /Another resume owns/);
+        assert.equal(fs.readFileSync(path.join(directory, 'proposal-progress.json'), 'utf8'), before);
+        assert.equal(stores, 1);
+        assert.equal(relays, 1);
+        release();
+        await first;
+        assert(!fs.existsSync(path.join(directory, 'proposal-resume.lock')));
+        const next = await resumePrepared(context, directory, { silent: true }, options);
+        assert.equal(next.status, 'pending');
+        assert.equal(relays, 1);
+    } finally {
+        release();
+        if (first) await first.catch(() => {});
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('resume releases its directory lock after early read failures and failed submissions', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-resume-error-'));
+    const lockFile = path.join(directory, 'proposal-resume.lock');
+    try {
+        await assert.rejects(resumePrepared({}, directory, { silent: true }));
+        assert(!fs.existsSync(lockFile), 'An artifact read failure must release the lock');
+        await makeAirdropPropose({}, { officialPropose: sdkPayloadPass,
+            prepare: async () => qualification(directory) })({ silent: true, isDryRun: true });
+        const options = { officialPropose: sdkPayloadPass, assertProject: async () => {},
+            assertFresh: async () => {}, assertReady: async () => {},
+            readState: async (_artifact, cfg) => ({ status: 0, nonce: cfg.nonce, activeRoot: ethers.constants.HashZero }) };
+        await assert.rejects(resumePrepared({ storeDeploymentConfig: async () => 'saved',
+            relayProposal: async () => { throw new Error('relay interrupted'); } }, directory,
+        { silent: true, isDryRun: false }, options), /relay interrupted/);
+        assert(!fs.existsSync(lockFile), 'A relay failure must release the lock');
+        assert.equal(JSON.parse(fs.readFileSync(path.join(directory, 'proposal-progress.json'))).parts[0].status,
+            'submission-unknown', 'Unlocking must preserve the uncertain submission');
+        assert.equal((await resumePrepared({}, directory, { silent: true }, options)).status, 'pending');
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('resume never steals an old directory lock or modifies its progress', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-resume-stale-'));
+    const lockFile = path.join(directory, 'proposal-resume.lock');
+    try {
+        fs.writeFileSync(lockFile, 'interrupted owner');
+        fs.utimesSync(lockFile, new Date(0), new Date(0));
+        await assert.rejects(resumePrepared({}, directory, { silent: true }), /Reconcile any interrupted submission/);
+        assert.equal(fs.readFileSync(lockFile, 'utf8'), 'interrupted owner');
+        assert(!fs.existsSync(path.join(directory, 'proposal-progress.json')));
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('resume refuses duplicate pending/unknown roots and submits only the next exact completed-prefix part', async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-sphinx-resume-'));
     try {
@@ -455,4 +589,121 @@ test('workflow tags prevent cross-workflow resume while shared canonical checks 
         assert.deepEqual(readPreparedArtifact(directory), frozen);
         await assert.rejects(resumePrepared({}, directory), /workflow differs/);
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('relay requires this invocation readiness-checked config ID, even when an earlier ledger stored one', async () => {
+    for (const mode of ['no-store', 'old-ledger', 'wrong-id']) {
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-relay-readiness-'));
+        try {
+            const artifact = writePreparedArtifact(qualification(directory), { scriptPath: 'script/AirdropV4Bannys.s.sol' });
+            let relays = 0, readiness = 0;
+            const context = { storeDeploymentConfig: async () => 'current-id', relayProposal: async () => { relays++; } };
+            const officialPropose = async ({ sphinxContext }) => {
+                const tree = artifact.segments[0].merkleTree;
+                if (mode === 'wrong-id') {
+                    const segment = artifact.segments[0];
+                    await sphinxContext.storeDeploymentConfig('key', 'org', JSON.stringify({ merkleTree: tree,
+                        networkConfigs: segment.networkConfigs }));
+                }
+                await sphinxContext.relayProposal({ tree, deploymentConfigId: 'earlier-id' });
+                return { merkleTree: tree };
+            };
+            const run = makeAirdropPropose(context, { officialPropose, assertReady: async () => { readiness++; },
+                loaded: { artifact, directory, part: 0, progress: { parts: artifact.segments.map(() => ({
+                    status: mode === 'old-ledger' ? 'config-stored' : 'not-submitted', deploymentConfigId: 'earlier-id',
+                })) } } });
+            await assert.rejects(run({ silent: true }), /readiness-checked/);
+            assert.equal(relays, 0);
+            assert.equal(readiness, mode === 'wrong-id' ? 1 : 0);
+            const ledger = JSON.parse(fs.readFileSync(path.join(directory, 'proposal-progress.json')));
+            assert(!ledger.parts.some(part => part.status === 'submission-unknown' || part.status === 'submitted'));
+        } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+    }
+});
+
+test('source changes during SDK compilation stop before preparation and before upload', async () => {
+    for (const phase of ['collection', 'upload']) {
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-runtime-source-'));
+        try {
+            const source = path.join(directory, 'loaded.js');
+            fs.writeFileSync(source, 'original');
+            const runtimeSources = { [source]: createHash('sha256').update('original').digest('hex') };
+            let prepared = 0, stored = 0;
+            const artifact = writePreparedArtifact(qualification(directory), {});
+            const context = { storeDeploymentConfig: async () => { stored++; return 'id'; } };
+            const run = makeAirdropPropose(context, { runtimeSources,
+                prepare: async () => { prepared++; return qualification(directory); },
+                ...(phase === 'upload' ? { loaded: { artifact, directory, part: 0,
+                    progress: { parts: artifact.segments.map(() => ({ status: 'not-submitted' })) } } } : {}),
+                officialPropose: async ({ sphinxContext }) => {
+                    fs.writeFileSync(source, 'edited while SDK was compiling');
+                    if (phase === 'collection') await sphinxContext.buildNetworkConfigArray('script', '0x', SAFE);
+                    else await sphinxContext.storeDeploymentConfig('key', 'org', JSON.stringify({
+                        merkleTree: artifact.segments[0].merkleTree, networkConfigs: artifact.segments[0].networkConfigs }));
+                    assert.fail('Source mutation must stop the SDK callback');
+                } });
+            await assert.rejects(run({ silent: true }), /Loaded proposal implementation changed/);
+            assert.equal(prepared, 0); assert.equal(stored, 0);
+        } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+    }
+});
+
+test('resume startup source snapshot survives project checks and long readiness replay', async () => {
+    for (const phase of ['project', 'readiness']) {
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-resume-startup-source-'));
+        try {
+            const source = path.join(directory, 'loaded.js'); fs.writeFileSync(source, 'original');
+            const runtimeSources = { [source]: createHash('sha256').update('original').digest('hex') };
+            const artifact = writePreparedArtifact(qualification(directory), {});
+            fs.writeFileSync(path.join(directory, 'proposal-progress.json'), JSON.stringify({
+                parts: artifact.segments.map(segment => ({ root: segment.merkleTree.root, status: 'not-submitted' })) }));
+            let stored = 0;
+            await assert.rejects(resumePrepared({ storeDeploymentConfig: async () => { stored++; return 'id'; } },
+                directory, { silent: true }, { runtimeSources, officialPropose: sdkPayloadPass,
+                    assertProject: async () => { if (phase === 'project') fs.writeFileSync(source, 'replacement'); },
+                    readState: async (_artifact, cfg) => ({ status: 0, nonce: cfg.nonce, activeRoot: ethers.constants.HashZero }),
+                    assertFresh: async () => {},
+                    assertReady: async () => { if (phase === 'readiness') fs.writeFileSync(source, 'replacement'); },
+                }), /Loaded proposal implementation changed/);
+            assert.equal(stored, 0);
+            assert(!fs.existsSync(path.join(directory, 'proposal-resume.lock')));
+        } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+    }
+});
+
+test('an old resume owner cannot remove a replacement lock', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-resume-replaced-lock-'));
+    try {
+        const artifact = writePreparedArtifact(qualification(directory), {});
+        fs.writeFileSync(path.join(directory, 'proposal-progress.json'), JSON.stringify({
+            parts: artifact.segments.map(segment => ({ root: segment.merkleTree.root, status: 'not-submitted' })) }));
+        const lock = path.join(directory, 'proposal-resume.lock');
+        await assert.rejects(resumePrepared({}, directory, { silent: true }, {
+            assertProject: async () => {
+                fs.unlinkSync(lock); fs.writeFileSync(lock, 'new-owner', { flag: 'wx' });
+                throw new Error('original owner stopped');
+            },
+        }), /original owner stopped/);
+        assert.equal(fs.readFileSync(lock, 'utf8'), 'new-owner');
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+// Node resolves symlinked dependencies to real paths, which can leave the repository.
+test('startup snapshot binds every loaded dependency including outside repository paths', () => {
+    const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'banny-loaded-dependency-')));
+    const files = [path.join(directory, 'dependency.js'), path.join(directory, 'config.json'), path.join(directory, 'dependency.cjs')];
+    try {
+        fs.writeFileSync(files[0], 'module.exports = 1;');
+        fs.writeFileSync(files[1], '{"value":1}');
+        fs.writeFileSync(files[2], 'module.exports = 2;');
+        files.forEach(file => require(file));
+        const sources = snapshotRuntimeSources();
+        Object.keys(require.cache).filter(file => !file.endsWith('.test.js')).forEach(file => assert(file in sources, `Missing loaded dependency ${file}`));
+        files.forEach(file => assert.equal(sources[file], createHash('sha256').update(fs.readFileSync(file)).digest('hex')));
+        fs.writeFileSync(files[1], '{"value":2}');
+        assert.notEqual(sources[files[1]], createHash('sha256').update(fs.readFileSync(files[1])).digest('hex'));
+    } finally {
+        files.forEach(file => delete require.cache[file]);
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
 });
