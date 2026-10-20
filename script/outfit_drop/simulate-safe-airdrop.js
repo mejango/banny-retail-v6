@@ -5,10 +5,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 const { ethers } = require('ethers');
 const { buildContractsByChain, itemTokenId, loadRawItems } = require('./generate-v6-airdrop');
 const { NETWORKS, partitionPlan, prepareApprovedExecution, combineMigrationBatches, SAFE_TRANSACTION_FIELDS } = require('./export-safe-airdrop');
+const { spawnAnvil } = require('./anvil');
 
 const SAFE_ABI = [
     'function VERSION() view returns (string)',
@@ -133,11 +133,11 @@ async function unusedPort() {
 
 async function startFork(rpcUrl, chainId, blockNumber, { budgeted = false } = {}) {
     const port = await unusedPort();
-    const child = spawn('anvil', [
+    const child = spawnAnvil([
         '--quiet', '--host', '127.0.0.1', '--port', String(port), '--accounts', '0',
         '--fork-url', rpcUrl, '--fork-block-number', String(blockNumber), '--chain-id', String(chainId),
         ...(budgeted ? ['--hardfork', 'osaka', ...(!isArbitrum(chainId) ? ['--enable-tx-gas-limit'] : [])] : []),
-    ], { stdio: 'ignore' });
+    ]);
     const provider = new ethers.providers.StaticJsonRpcProvider(`http://127.0.0.1:${port}`, chainId);
     provider.pollingInterval = 100;
     let startError;
