@@ -6,9 +6,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
-const { spawn } = require('node:child_process');
 const { ethers } = require('ethers');
 const { gasBudget } = require('./simulate-safe-airdrop');
+const { spawnAnvil } = require('./anvil');
 
 const ROOT = path.resolve(__dirname, '../..');
 const { executionGasCap: CAP, budget: BUDGET } = gasBudget(1);
@@ -25,9 +25,8 @@ async function qualify(settingsFile, outputFile, imageFile) {
     await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
     const port = server.address().port;
     await new Promise(resolve => server.close(resolve));
-    const child = spawn('anvil', ['--silent', '--host', '127.0.0.1', '--port', String(port),
-        '--chain-id', '31337', '--hardfork', 'osaka', '--enable-tx-gas-limit', '--gas-limit', String(CAP)],
-    { stdio: 'ignore' });
+    const child = spawnAnvil(['--silent', '--host', '127.0.0.1', '--port', String(port),
+        '--chain-id', '31337', '--hardfork', 'osaka', '--enable-tx-gas-limit', '--gas-limit', String(CAP)]);
     let spawnError;
     child.on('error', error => { spawnError = error; });
     const provider = new ethers.providers.JsonRpcProvider(`http://127.0.0.1:${port}`);
