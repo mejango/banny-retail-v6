@@ -1,0 +1,224 @@
+{
+	"format": "sphinx-sol-ct-artifact-1",
+	"address": "0xfE7F9A6fD25EA99d7772112f601099b41272b999",
+	"sourceName": "src/BannySvgStorage.sol",
+	"contractName": "BannySvgStorage",
+	"chainId": "0x1",
+	"abi": [
+		{
+			"type": "constructor",
+			"inputs": [
+				{
+					"name": "configurator",
+					"type": "address",
+					"internalType": "address"
+				}
+			],
+			"stateMutability": "nonpayable"
+		},
+		{
+			"type": "function",
+			"name": "CONFIGURATOR",
+			"inputs": [],
+			"outputs": [
+				{
+					"name": "",
+					"type": "address",
+					"internalType": "address"
+				}
+			],
+			"stateMutability": "view"
+		},
+		{
+			"type": "function",
+			"name": "isStored",
+			"inputs": [
+				{
+					"name": "upc",
+					"type": "uint256",
+					"internalType": "uint256"
+				}
+			],
+			"outputs": [
+				{
+					"name": "stored",
+					"type": "bool",
+					"internalType": "bool"
+				}
+			],
+			"stateMutability": "view"
+		},
+		{
+			"type": "function",
+			"name": "read",
+			"inputs": [
+				{
+					"name": "upc",
+					"type": "uint256",
+					"internalType": "uint256"
+				}
+			],
+			"outputs": [
+				{
+					"name": "contents",
+					"type": "bytes",
+					"internalType": "bytes"
+				}
+			],
+			"stateMutability": "view"
+		},
+		{
+			"type": "function",
+			"name": "setWriter",
+			"inputs": [
+				{
+					"name": "newWriter",
+					"type": "address",
+					"internalType": "address"
+				}
+			],
+			"outputs": [],
+			"stateMutability": "nonpayable"
+		},
+		{
+			"type": "function",
+			"name": "write",
+			"inputs": [
+				{
+					"name": "upc",
+					"type": "uint256",
+					"internalType": "uint256"
+				},
+				{
+					"name": "contents",
+					"type": "bytes",
+					"internalType": "bytes"
+				}
+			],
+			"outputs": [],
+			"stateMutability": "nonpayable"
+		},
+		{
+			"type": "function",
+			"name": "writer",
+			"inputs": [],
+			"outputs": [
+				{
+					"name": "",
+					"type": "address",
+					"internalType": "address"
+				}
+			],
+			"stateMutability": "view"
+		},
+		{
+			"type": "error",
+			"name": "BannySvgStorage_InvalidWriter",
+			"inputs": []
+		},
+		{
+			"type": "error",
+			"name": "BannySvgStorage_Unauthorized",
+			"inputs": [
+				{
+					"name": "caller",
+					"type": "address",
+					"internalType": "address"
+				}
+			]
+		},
+		{
+			"type": "error",
+			"name": "BannySvgStorage_WriterAlreadySet",
+			"inputs": [
+				{
+					"name": "writer",
+					"type": "address",
+					"internalType": "address"
+				}
+			]
+		}
+	],
+	"args": [
+		"0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450"
+	],
+	"solcInputHash": "2f1f56a25be6bda1",
+	"receipt": {
+		"blockHash": "0xa1d3bf3c0c1b24a6952e3edac10f9bb931b8fc086c3b2caecafff208be94e16e",
+		"blockNumber": 26278456,
+		"contractAddress": null,
+		"cumulativeGasUsed": "11644284",
+		"from": "0x755ff2f75A0A586ecfa2B9A3c959CB662458a105",
+		"gasUsed": "11408963",
+		"logs": [
+			{
+				"address": "0xA2eA7657440875bF916CBFC0cfA88F13e38aD463",
+				"blockHash": "0xa1d3bf3c0c1b24a6952e3edac10f9bb931b8fc086c3b2caecafff208be94e16e",
+				"blockNumber": 26278456,
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000000",
+				"topics": [
+					"0x572f161235911da04685a68c06adf558fc7e4a36909dca394650e0adc19cc93d",
+					"0x000000000000000000000000755ff2f75a0a586ecfa2b9a3c959cb662458a105",
+					"0x000000000000000000000000656ff6398c45adca3fe6e5f8fd53aebd4f318017",
+					"0x094275318e61f8e6941aaef565f3dd826962d877e1ee43547a80b798ba6b1b70"
+				],
+				"transactionHash": "0xdba627a4513c3e63e4ae161e735479801421bae4cc79f6f797f8737c1854a63a",
+				"transactionIndex": 1,
+				"logIndex": 7
+			},
+			{
+				"address": "0xaDb600920dcf30B83eF636100fc9FDfc1e5b2949",
+				"blockHash": "0xa1d3bf3c0c1b24a6952e3edac10f9bb931b8fc086c3b2caecafff208be94e16e",
+				"blockNumber": 26278456,
+				"data": "0x",
+				"topics": [
+					"0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+					"0x0000000000000000000000000000000000000000000000000000000000000000",
+					"0x0000000000000000000000009e2a10ab3bd22831f19d02c648bc2cb49b127450"
+				],
+				"transactionHash": "0xdba627a4513c3e63e4ae161e735479801421bae4cc79f6f797f8737c1854a63a",
+				"transactionIndex": 1,
+				"logIndex": 8
+			},
+			{
+				"address": "0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450",
+				"blockHash": "0xa1d3bf3c0c1b24a6952e3edac10f9bb931b8fc086c3b2caecafff208be94e16e",
+				"blockNumber": 26278456,
+				"data": "0x",
+				"topics": [
+					"0x6895c13664aa4f67288b25d7a21d7aaa34916e355fb9b6fae0a139a9085becb8",
+					"0x000000000000000000000000656ff6398c45adca3fe6e5f8fd53aebd4f318017"
+				],
+				"transactionHash": "0xdba627a4513c3e63e4ae161e735479801421bae4cc79f6f797f8737c1854a63a",
+				"transactionIndex": 1,
+				"logIndex": 9
+			},
+			{
+				"address": "0x656fF6398C45ADCA3FE6e5F8FD53AEbd4f318017",
+				"blockHash": "0xa1d3bf3c0c1b24a6952e3edac10f9bb931b8fc086c3b2caecafff208be94e16e",
+				"blockNumber": 26278456,
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+				"topics": [
+					"0xa65fb05c5808f5f389d72edeaf719ce38f4cc55c1f69ca3cbfb31c21501caa07",
+					"0x745a2f82bdc7bf57f0e8e28e579d04f681217864c9a450e3263cdb7892183420"
+				],
+				"transactionHash": "0xdba627a4513c3e63e4ae161e735479801421bae4cc79f6f797f8737c1854a63a",
+				"transactionIndex": 1,
+				"logIndex": 10
+			}
+		],
+		"logsBloom": "0x00000000000013000000000000080000000000000000000000800000000000000000000020810000000000000048000000000000000001000000000000004000000000000000200000000000000000000201000000000000000010000000000000000000020000000000000000800800000080000000000000008000001000400800008001000000000104000000000000000000010000100000000000000000004000040000000000000000020000002200000000000000000000000004000000000002000000000000000000000000000000000000000000000000040020000000000000000000000001000000000200000000000080000000000000000000",
+		"status": 1,
+		"to": "0xA2eA7657440875bF916CBFC0cfA88F13e38aD463",
+		"transactionHash": "0xdba627a4513c3e63e4ae161e735479801421bae4cc79f6f797f8737c1854a63a",
+		"transactionIndex": 1,
+		"effectiveGasPrice": "1196298327"
+	},
+	"bytecode": "0x60a034606c57601f61050d38819003918201601f19168301916001600160401b03831184841017607057808492602094604052833981010312606c57516001600160a01b0381168103606c5760805260405161048890816100858239608051818181607001526103ba0152f35b5f80fd5b634e487b7160e01b5f52604160045260245ffdfe60806040526004361015610011575f80fd5b5f3560e01c806339e2052314610392578063453a2abc1461036b5780637341a70e146101bb5780638d5603131461018f578063ed2e5a97146100a35763fb7bf61a1461005b575f80fd5b3461009f575f36600319011261009f576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b5f80fd5b3461009f57602036600319011261009f5760606004355f52600160205260405f205f908054905b818310610102576020604085815192839181835280519182918282860152018484015e5f828201840152601f01601f19168101030190f35b9091926001906101866101158685610452565b848060a01b0391549060031b1c166060602060405180935f19813b0164ffffffffff16905f6021830191601f8501903c8082520192816040850196876040528051918291018587015e8401908382015f8152815193849201905e01015f815203605f1981018352603f190182610430565b930191906100ca565b3461009f57602036600319011261009f576004355f526001602052602060405f20541515604051908152f35b3461009f57604036600319011261009f5760043560243567ffffffffffffffff811161009f573660238201121561009f57806004013567ffffffffffffffff811161009f57366024828401011161009f575f546001600160a01b03163303610358575f5b81811061022857005b615fff8101908181116103445782821161033c575b845f52600160205260405f2082821161009f5783831161009f5781850191830367ffffffffffffffff811161031b5760405192610284601f8301601f191660200185610430565b818452366024838301011161009f57815f92602460209301838701378401015281518060401b6bfe61000180600a3d393df3000161fffe8211840152600b8101601584015ff092831561032f575280546801000000000000000081101561031b576102f491600182018155610452565b81546001600160a01b0393841660039290921b91821b9390911b191691909117905561021f565b634e487b7160e01b5f52604160045260245ffd5b63301164255f526004601cfd5b82915061023d565b634e487b7160e01b5f52601160045260245ffd5b63964136bb60e01b5f523360045260245ffd5b3461009f575f36600319011261009f575f546040516001600160a01b039091168152602090f35b3461009f57602036600319011261009f576004356001600160a01b0381169081900361009f577f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03163303610358575f546001600160a01b0381168061041e5750811561040f576001600160a01b031916175f55005b6310ebad8d60e21b5f5260045ffd5b631af71be960e11b5f5260045260245ffd5b90601f8019910116810190811067ffffffffffffffff82111761031b57604052565b8054821015610467575f5260205f2001905f90565b634e487b7160e01b5f52603260045260245ffdfea164736f6c634300081c000a",
+	"deployedBytecode": "0x60806040526004361015610011575f80fd5b5f3560e01c806339e2052314610392578063453a2abc1461036b5780637341a70e146101bb5780638d5603131461018f578063ed2e5a97146100a35763fb7bf61a1461005b575f80fd5b3461009f575f36600319011261009f576040517f0000000000000000000000009e2a10ab3bd22831f19d02c648bc2cb49b1274506001600160a01b03168152602090f35b5f80fd5b3461009f57602036600319011261009f5760606004355f52600160205260405f205f908054905b818310610102576020604085815192839181835280519182918282860152018484015e5f828201840152601f01601f19168101030190f35b9091926001906101866101158685610452565b848060a01b0391549060031b1c166060602060405180935f19813b0164ffffffffff16905f6021830191601f8501903c8082520192816040850196876040528051918291018587015e8401908382015f8152815193849201905e01015f815203605f1981018352603f190182610430565b930191906100ca565b3461009f57602036600319011261009f576004355f526001602052602060405f20541515604051908152f35b3461009f57604036600319011261009f5760043560243567ffffffffffffffff811161009f573660238201121561009f57806004013567ffffffffffffffff811161009f57366024828401011161009f575f546001600160a01b03163303610358575f5b81811061022857005b615fff8101908181116103445782821161033c575b845f52600160205260405f2082821161009f5783831161009f5781850191830367ffffffffffffffff811161031b5760405192610284601f8301601f191660200185610430565b818452366024838301011161009f57815f92602460209301838701378401015281518060401b6bfe61000180600a3d393df3000161fffe8211840152600b8101601584015ff092831561032f575280546801000000000000000081101561031b576102f491600182018155610452565b81546001600160a01b0393841660039290921b91821b9390911b191691909117905561021f565b634e487b7160e01b5f52604160045260245ffd5b63301164255f526004601cfd5b82915061023d565b634e487b7160e01b5f52601160045260245ffd5b63964136bb60e01b5f523360045260245ffd5b3461009f575f36600319011261009f575f546040516001600160a01b039091168152602090f35b3461009f57602036600319011261009f576004356001600160a01b0381169081900361009f577f0000000000000000000000009e2a10ab3bd22831f19d02c648bc2cb49b1274506001600160a01b03163303610358575f546001600160a01b0381168061041e5750811561040f576001600160a01b031916175f55005b6310ebad8d60e21b5f5260045ffd5b631af71be960e11b5f5260045260245ffd5b90601f8019910116810190811067ffffffffffffffff82111761031b57604052565b8054821015610467575f5260205f2001905f90565b634e487b7160e01b5f52603260045260245ffdfea164736f6c634300081c000a",
+	"metadata": "{\"compiler\":{\"version\":\"0.8.28+commit.7893614a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"configurator\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"type\":\"error\",\"name\":\"BannySvgStorage_InvalidWriter\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"caller\",\"type\":\"address\"}],\"type\":\"error\",\"name\":\"BannySvgStorage_Unauthorized\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"writer\",\"type\":\"address\"}],\"type\":\"error\",\"name\":\"BannySvgStorage_WriterAlreadySet\"},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"CONFIGURATOR\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}]},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"upc\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"isStored\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"stored\",\"type\":\"bool\"}]},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"upc\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"read\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"contents\",\"type\":\"bytes\"}]},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newWriter\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"setWriter\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"upc\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"contents\",\"type\":\"bytes\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"write\"},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"writer\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}]}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"configurator\":\"The account coordinating deployment and one-time resolver binding.\"}},\"isStored(uint256)\":{\"params\":{\"upc\":\"The universal product code whose publication status to check.\"},\"returns\":{\"stored\":\"Whether at least one immutable artwork chunk exists.\"}},\"read(uint256)\":{\"params\":{\"upc\":\"The universal product code whose artwork to read.\"},\"returns\":{\"contents\":\"The exact fragment reconstructed in publication order.\"}},\"setWriter(address)\":{\"details\":\"Only the configurator can bind a nonzero writer, and binding cannot be changed or cleared.\",\"params\":{\"newWriter\":\"The resolver allowed to publish artwork.\"}},\"write(uint256,bytes)\":{\"details\":\"Only the bound resolver can write. Empty content creates no chunks and remains unpublished.\",\"params\":{\"contents\":\"The complete fragment validated by the resolver against its committed hash.\",\"upc\":\"The universal product code whose artwork to publish.\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"CONFIGURATOR()\":{\"notice\":\"The account authorized to bind this storage to its resolver once.\"},\"constructor\":{\"notice\":\"Sets the account authorized to bind the publication writer.\"},\"isStored(uint256)\":{\"notice\":\"Whether nonempty artwork has been published for a product.\"},\"read(uint256)\":{\"notice\":\"Read a product's complete SVG fragment, or empty bytes before publication.\"},\"setWriter(address)\":{\"notice\":\"Permanently binds this storage to the resolver allowed to publish artwork.\"},\"write(uint256,bytes)\":{\"notice\":\"Publish a product's SVG fragment in immutable bytecode chunks.\"},\"writer()\":{\"notice\":\"The resolver allowed to publish artwork, or zero before binding.\"}},\"version\":1}},\"settings\":{\"remappings\":[\"@arbitrum/=node_modules/@arbitrum/\",\"@bananapus/=node_modules/@bananapus/\",\"@chainlink/=node_modules/@chainlink/\",\"@croptop/=node_modules/@croptop/\",\"@eth-optimism/=node_modules/@eth-optimism/\",\"@offchainlabs/=node_modules/@offchainlabs/\",\"@openzeppelin/=node_modules/@openzeppelin/\",\"@prb/=node_modules/@prb/\",\"@rev-net/=node_modules/@rev-net/\",\"@scroll-tech/=node_modules/@chainlink/contracts/node_modules/@scroll-tech/\",\"@sphinx-labs/=node_modules/@sphinx-labs/\",\"@uniswap/=node_modules/@uniswap/\",\"@zksync/=node_modules/@zksync/\",\"base64-sol/=node_modules/base64-sol/\",\"base64/=lib/base64/\",\"ds-test/=node_modules/@uniswap/v4-core/lib/solmate/lib/ds-test/\",\"erc4626-tests/=node_modules/@uniswap/v4-core/lib/openzeppelin-contracts/lib/erc4626-tests/\",\"forge-gas-snapshot/=node_modules/@uniswap/v4-periphery/lib/permit2/lib/forge-gas-snapshot/\",\"forge-std/=lib/forge-std/src/\",\"hardhat/=node_modules/hardhat/\",\"openzeppelin-contracts/=node_modules/@uniswap/v4-core/lib/openzeppelin-contracts/\",\"permit2/=node_modules/@uniswap/v4-periphery/lib/permit2/\",\"solady/=node_modules/solady/\",\"solmate/=node_modules/solmate/\",\"v4-core/=node_modules/@uniswap/v4-periphery/lib/v4-core/\"],\"optimizer\":{\"enabled\":true,\"runs\":200},\"metadata\":{\"bytecodeHash\":\"none\"},\"compilationTarget\":{\"src/BannySvgStorage.sol\":\"BannySvgStorage\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"viaIR\":true},\"sources\":{\"node_modules/solady/src/utils/SSTORE2.sol\":{\"keccak256\":\"0xaf89154cff97761154e29eccbcb666d1e6ce28f1d666f4afbfa4230c98048a46\",\"urls\":[\"bzz-raw://c99c5f9c4bc0e2450cb64b9a716835c4e3d16fea9e337044da525d127a9f32d6\",\"dweb:/ipfs/Qma6AAARWfyCsZKqHeTyY3rd6wz8mKeheB2GwieuonSpVL\"],\"license\":\"MIT\"},\"src/BannySvgStorage.sol\":{\"keccak256\":\"0x71fdf51898900ad4d557679b92524e3d344c4dffc03df6a407adbdafc6fdf364\",\"urls\":[\"bzz-raw://231d7e92eeecd38e39c58e50ccb69a8dd353626a6a70a3908124ffc78e6075a4\",\"dweb:/ipfs/QmdRGihumfZxgAdh1gRmievdhLGrReEwo2iKc9RKHWonPB\"],\"license\":\"MIT\"}},\"version\":1}",
+	"gitCommit": "29886b368b9fb4465c9b1e1adde3788353a8a76f",
+	"gitDirty": false,
+	"merkleRoot": "0x745a2f82bdc7bf57f0e8e28e579d04f681217864c9a450e3263cdb7892183420",
+	"history": []
+}
