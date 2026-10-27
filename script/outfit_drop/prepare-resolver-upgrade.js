@@ -3,7 +3,6 @@
 // Read-only preparation. The two Safe Builder files execute in order; configuration and switch form one atomic batch.
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
 const { ethers } = require('ethers');
 const ROOT = path.resolve(__dirname, '../..');
 const FACTORY = '0x4e59b44847b379578588920cA78FbF26c0B4956C';
@@ -26,7 +25,6 @@ const STORE_ABI = ['function tokenUriResolverOf(address) view returns(address)',
     'function totalSupplyOf(address) view returns(uint256)', 'function maxTierIdOf(address) view returns(uint256)',
     'function numberOfBurnedFor(address,uint256) view returns(uint256)'];
 let reviewedBuild;
-const immutableIdCache = new Map();
 const tx = (to, data) => ({ to, value: '0', data, contractMethod: null, contractInputsValues: null });
 
 function artifact(name, root = ROOT) {
@@ -69,35 +67,47 @@ function artworkRecovery(products) {
         instruction: 'Inline artwork is appearance evidence, not switch authority. Republish each exact original preimage on the replacement using setSvgContentsOf after its commitments are configured. Verify keccak256(UTF-8 bytes) equals hash first; renderedSvg includes a wrapper and is not publication calldata. If svgContents is null, recover the exact preimage from the old resolver SetSvgContent event or the original asset source. Verify replacement rendering separately; activation alone does not establish artwork parity.' };
 }
 
-function immutableLayoutKey(root) {
-    return JSON.stringify([path.resolve(root), ...['Banny721TokenUriResolver', 'BannySvgStorage'].map(name => {
-        const compiled = artifact(name, root);
-        return [compiled.deployedBytecode.object, compiled.deployedBytecode.immutableReferences];
-    })]);
-}
-
 function immutableIds(root = ROOT) {
-    const key = immutableLayoutKey(root);
-    if (immutableIdCache.has(key)) return { ...immutableIdCache.get(key) };
-    // Official compiler IR identifies the immutable declarations; numeric AST IDs change between compilations.
-    const ir = execFileSync('forge', ['inspect', 'Banny721TokenUriResolver', 'ir'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-    const forwarderBody = ir.match(/function fun_trustedForwarder_\d+\([^]*?\n\s*}/)?.[0];
-    const storageBody = ir.match(/function getter_fun_SVG_STORAGE_\d+\([^]*?\n\s*}/)?.[0];
-    const forwarder = forwarderBody?.match(/loadimmutable\("(\d+)"\)/)?.[1];
-    const storage = storageBody?.match(/loadimmutable\("(\d+)"\)/)?.[1];
-    if (!forwarder || !storage || forwarder === storage) throw new Error('Cannot identify resolver immutables');
-    const storageIr = execFileSync('forge', ['inspect', 'BannySvgStorage', 'ir'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-    const configurator = storageIr.match(/function getter_fun_CONFIGURATOR_\d+\([^]*?\n\s*}/)?.[0]?.match(/loadimmutable\("(\d+)"\)/)?.[1];
-    if (!configurator) throw new Error('Cannot identify storage configurator immutable');
-    const ids = { forwarder, storage, configurator };
-    const resolverKeys = Object.keys(artifact('Banny721TokenUriResolver', root).deployedBytecode.immutableReferences).sort();
-    const storageKeys = Object.keys(artifact('BannySvgStorage', root).deployedBytecode.immutableReferences).sort();
-    if (resolverKeys.join(',') !== [forwarder, storage].sort().join(',') || storageKeys.join(',') !== configurator) {
-        throw new Error('Inspection changed immutable declaration IDs; rebuild before preparing');
+    // Read declaration IDs from the same artifact family as the runtime offsets.
+    // A separate forge inspect compilation can renumber those IDs.
+    const resolver = artifact('Banny721TokenUriResolver', root);
+    const svgStorage = artifact('BannySvgStorage', root);
+    const context = artifact('ERC2771Context', root);
+    const contract = (compiled, name) => {
+        const matches = (compiled.ast?.nodes || []).filter(node => node.nodeType === 'ContractDefinition' && node.name === name);
+        if (matches.length !== 1 || !Number.isSafeInteger(matches[0].id) || matches[0].id <= 0) {
+            throw new Error(`Cannot identify unique immutable owner ${name}`);
+        }
+        return matches[0];
+    };
+    const resolverOwner = contract(resolver, 'Banny721TokenUriResolver');
+    const storageOwner = contract(svgStorage, 'BannySvgStorage');
+    const contextOwner = contract(context, 'ERC2771Context');
+    const declaration = (owner, name, type) => {
+        const matches = (owner.nodes || []).filter(node => node.name === name);
+        const node = matches[0];
+        if (matches.length !== 1 || node.nodeType !== 'VariableDeclaration' || node.mutability !== 'immutable'
+            || node.stateVariable !== true || node.scope !== owner.id || node.typeDescriptions?.typeString !== type
+            || !Number.isSafeInteger(node.id) || node.id <= 0) {
+            throw new Error(`Cannot identify unique immutable declaration ${owner.name}.${name}`);
+        }
+        return node;
+    };
+    const forwarder = declaration(contextOwner, '_trustedForwarder', 'address');
+    const storage = declaration(resolverOwner, 'SVG_STORAGE', 'contract BannySvgStorage');
+    const configurator = declaration(storageOwner, 'CONFIGURATOR', 'address');
+    if (!resolverOwner.linearizedBaseContracts?.includes(contextOwner.id)
+        || storage.typeName?.referencedDeclaration !== storageOwner.id) {
+        throw new Error('Immutable declaration owners differ from resolver inheritance or storage type');
     }
-    // Inspection can rebuild and renumber AST IDs. Cache only against the artifacts left by those inspections.
-    immutableIdCache.set(immutableLayoutKey(root), ids);
-    return { ...ids };
+    const ids = { forwarder: String(forwarder.id), storage: String(storage.id), configurator: String(configurator.id) };
+    const resolverKeys = Object.keys(resolver.deployedBytecode.immutableReferences || {}).sort();
+    const storageKeys = Object.keys(svgStorage.deployedBytecode.immutableReferences || {}).sort();
+    if (ids.forwarder === ids.storage || resolverKeys.join(',') !== [ids.forwarder, ids.storage].sort().join(',')
+        || storageKeys.join(',') !== ids.configurator) {
+        throw new Error('Artifact immutable declaration IDs differ from runtime references; rebuild before preparing');
+    }
+    return ids;
 }
 
 function runtimeHash(compiled, values) {

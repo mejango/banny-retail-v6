@@ -7,6 +7,7 @@ const adapter = require('./propose-sphinx-resolver-upgrade');
 const upgrade = require('./prepare-resolver-upgrade');
 const exporter = require('./export-safe-airdrop');
 const qualifier = require('./qualify-sphinx-airdrop');
+const live = require('./qualify-resolver-live-rpc');
 const SAFE = '0x0000000000000000000000000000000000000001';
 const HOOK = '0x37e35937ecF949d7a44a9Fe878107DE264618B8f';
 const PREVIOUS = '0x0000000000000000000000000000000000000003';
@@ -205,6 +206,9 @@ test('permissionless old artwork publication preserves activation authority', as
 
 test('fresh single-root replay verifies both canonical actions and the final resolver swap', async () => {
     const original = qualifier.replayPreparedPart;
+    const originalLive = live.replay;
+    let liveCalls = 0;
+    live.replay = async () => { liveCalls++; };
     const { chain } = fixture();
     chain.authority = { owners: [SAFE], threshold: '2' };
     const hash = ethers.utils.keccak256('0x6000');
@@ -224,8 +228,10 @@ test('fresh single-root replay verifies both canonical actions and the final res
         await assert.rejects(workflow.verifyFinal({ ...fork, provider: mockProvider(chain, { writer: PREVIOUS }) }));
         return { status: 'passed' };
     };
-    try { assert.deepEqual(await adapter.replayPreparedPart(artifact, '/tmp/replay', 0), { status: 'passed' }); }
-    finally { qualifier.replayPreparedPart = original; }
+    try {
+        assert.deepEqual(await adapter.replayPreparedPart(artifact, '/tmp/replay', 0), { status: 'passed' });
+        assert.equal(liveCalls, 1);
+    } finally { qualifier.replayPreparedPart = original; live.replay = originalLive; }
 });
 
 

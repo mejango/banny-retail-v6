@@ -8,9 +8,9 @@ const { ethers } = require('ethers');
 const { estimateGasViaManagedService, makeDeploymentData, getMaxGasLimit } = require('@sphinx-labs/core');
 const { makeSphinxMerkleTree, SphinxLeafType } = require('@sphinx-labs/contracts');
 const { buildContractsByChain, loadRawItems } = require('./generate-v6-airdrop');
-const { actionDigest, outerBudget, capExecutionConfig, sdkExecutionBatches, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom, packSegments,
+const { actionDigest, outerBudget, capExecutionConfig, capLiveExecutionConfig, sdkExecutionBatches, localRelayBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom, packSegments,
     safeFrames, measureSafeFrame, moduleEvents, assertActionEvents, captureFailure, validatePrepared,
-    validateSeedCalibration, readCalibrationSeed, replayPreparedPart } = require('./qualify-sphinx-airdrop');
+    validateSeedCalibration, readCalibrationSeed, replayPreparedPart, latestReplayHeader } = require('./qualify-sphinx-airdrop');
 
 const SAFE = '0x0000000000000000000000000000000000000001';
 const MODULE = '0x0000000000000000000000000000000000000002';
@@ -32,6 +32,34 @@ function config(chainId, count = 1, gas = '6000000') {
         blockGasLimit: headers.get(chainId), blockNumber: '123', arbitraryChain: false,
         actionInputs: Array.from({ length: count }, (_, index) => action(index + 1, gas)) };
 }
+
+test('live fork replay uses one raw finalized read and immediately rejects missing state; legacy stays latest', async () => {
+    const rpcEnv = 'BANNY_HEADER_FIXTURE_RPC';
+    const prior = process.env[rpcEnv];
+    process.env[rpcEnv] = 'https://read-only.invalid';
+    const calls = [];
+    const block = { number: 123, hash: ROOT, gasLimit: ethers.BigNumber.from('200000000') };
+    const provider = { getNetwork: async () => ({ chainId: 1 }),
+        send: async (method, args) => { calls.push([method, args]); return { raw: true }; },
+        formatter: { block: header => { assert.deepEqual(header, { raw: true }); return block; } },
+        getBlock: async tag => { calls.push(['getBlock', tag]); return block; } };
+    const chain = { chainId: 1, network: { rpc: rpcEnv } };
+    const deps = { createProvider: () => provider };
+    try {
+        assert.equal((await latestReplayHeader(chain, { liveRpc: true }, deps)).block, block);
+        assert.deepEqual(calls, [['eth_getBlockByNumber', ['finalized', false]]]);
+        calls.length = 0;
+        assert.equal((await latestReplayHeader(chain, {}, deps)).block, block);
+        assert.deepEqual(calls, [['getBlock', 'latest']]);
+        calls.length = 0;
+        provider.send = async (method, args) => { calls.push([method, args]); return null; };
+        provider.getBlock = async () => assert.fail('Live finalized reads must not invoke ethers null-header polling');
+        await assert.rejects(latestReplayHeader(chain, { liveRpc: true }, deps), /Missing chain 1 finalized block/);
+        assert.deepEqual(calls, [['eth_getBlockByNumber', ['finalized', false]]]);
+    } finally {
+        if (prior === undefined) delete process.env[rpcEnv]; else process.env[rpcEnv] = prior;
+    }
+});
 
 test('cold allowance uses positive gross frame gas and existing Sphinx margin, not receipt gas', () => {
     assert.equal(coldAllowance('2500000'), '3120000');
@@ -177,6 +205,38 @@ test('one proposal preserves action bytes, gas and nonce while the installed SDK
     }
 });
 
+test('live SDK model fits buffered singleton estimates without changing signed or observed limits', async () => {
+    for (const chainId of headers.keys()) {
+        const raw = config(chainId, 2, '14000000');
+        raw.actionInputs[0].txData = `0x${'ff'.repeat(5000)}`;
+        const before = structuredClone(raw);
+        const live = capLiveExecutionConfig(raw, 7);
+        assert.equal(live.observedBlockGasLimit, raw.blockGasLimit);
+        assert(BigInt(live.blockGasLimit) <= BigInt(raw.blockGasLimit));
+        assert.deepEqual(live.actionInputs, raw.actionInputs);
+        const tree = makeSphinxMerkleTree(makeDeploymentData([live]));
+        assert.equal(tree.root, makeSphinxMerkleTree(makeDeploymentData([raw])).root);
+        const leaves = tree.leavesWithProofs.filter(entry => entry.leaf.leafType === SphinxLeafType.EXECUTE);
+        for (const tx of raw.actionInputs) assert(estimateGasViaManagedService(MODULE,
+            [worstProofLeaf(live, tx, 7)], BigInt(chainId)) < Number(getMaxGasLimit(BigInt(live.blockGasLimit))));
+        assert.equal(packSegments([live], 7, undefined, { multipleExecutionTransactions: true, liveRpc: true }).length, 1);
+        assert.deepEqual((await sdkExecutionBatches(live, leaves, { liveRpc: true })).map(batch => batch.length), [1, 1]);
+        assert.equal(localRelayBudget(live, { liveRpc: true }), [42161, 421614].includes(chainId) ? 32_000_000 : 16_777_216);
+        assert.equal(localRelayBudget(live), outerBudget(live));
+        assert.deepEqual(raw, before);
+    }
+    assert.equal(capExecutionConfig(config(1, 2, '0')).actionInputs[0].gas, '0', 'Initial legacy calibration context accepts unmeasured actions.');
+    assert.throws(() => capLiveExecutionConfig(config(1, 2, '0'), 3), /signed gas exceeds/);
+    assert.throws(() => capLiveExecutionConfig(config(1, 1, '16000000'), 3), /signed gas exceeds/);
+    assert.throws(() => capLiveExecutionConfig({ ...config(1, 1, '15000000'), blockGasLimit: '16000000' }, 7),
+        /cannot fit the observed header/);
+    const raw = config(1, 2, '1000000');
+    const oversized = { ...capLiveExecutionConfig(raw, 3), blockGasLimit: raw.blockGasLimit };
+    const tree = makeSphinxMerkleTree(makeDeploymentData([oversized]));
+    await assert.rejects(sdkExecutionBatches(oversized,
+        tree.leavesWithProofs.filter(entry => entry.leaf.leafType === SphinxLeafType.EXECUTE), { liveRpc: true }), /singleton execution required/);
+});
+
 test('SDK batches compatible small actions together and refuses unproven or oversized execution settings', async () => {
     const raw = config(84532, 2, '1000000');
     const capped = capExecutionConfig(raw);
@@ -280,11 +340,11 @@ test('explicit stage boundaries preserve exact actions even when stages fit toge
     assert.throws(() => packSegments([config(8453, 1, '16000000')], 3, () => true), /split and requalify/);
 });
 
-function replayFixture({ multipleExecutionTransactions = false, gas = '1000000' } = {}) {
+function replayFixture({ multipleExecutionTransactions = false, liveRpc = false, gas = '1000000' } = {}) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-replay-test-'));
-    const first = multipleExecutionTransactions ? capExecutionConfig(config(1)) : config(1);
+    const first = multipleExecutionTransactions ? (liveRpc ? capLiveExecutionConfig(config(1), 3) : capExecutionConfig(config(1))) : config(1);
     const rawSecond = { ...config(1, 2, gas), nonce: '9' };
-    const second = multipleExecutionTransactions ? capExecutionConfig(rawSecond) : rawSecond;
+    const second = multipleExecutionTransactions ? (liveRpc ? capLiveExecutionConfig(rawSecond, 3) : capExecutionConfig(rawSecond)) : rawSecond;
     const segments = [first, second].map(network => ({ networkConfigs: [network],
         merkleTree: JSON.parse(JSON.stringify(makeSphinxMerkleTree(makeDeploymentData([network])),
             (_, value) => typeof value === 'bigint' ? value.toString() : value)) }));
@@ -295,7 +355,7 @@ function replayFixture({ multipleExecutionTransactions = false, gas = '1000000' 
                 transaction: { to: tx.to, data: tx.txData, value: tx.value, operation: tx.operation } })) }] };
     const runtimes = { safe: ROOT, moduleProxy: ROOT, relay: ROOT };
     fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ status: 'passed', sourceSha256: {},
-        executionPolicy: multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : undefined,
+        executionPolicy: liveRpc ? 'live-sdk-singleton-model-v1' : multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : undefined,
         chains: [{ chainId: '1', runtimeKeccak256: runtimes }] }));
     const calls = [];
     let moduleNonce = '9';
@@ -305,20 +365,21 @@ function replayFixture({ multipleExecutionTransactions = false, gas = '1000000' 
         provider: { send: async (method, args) => { calls.push([method, args]); moduleNonce = '9'; return true; },
             removeAllListeners: () => calls.push(['cleanup']) }, child: { kill: () => calls.push(['kill']) } };
     const workflow = {
-        multipleExecutionTransactions,
+        multipleExecutionTransactions, liveRpc,
         validatePrepared: () => new Map(),
         verifyFinal: async fork => { calls.push(['verify', fork.prepared.envelopes.flatMap(item => item.expectedTokenIds)]); },
         replayDependencies: {
             readHeader: async () => { calls.push(['header']); return { rpcUrl: 'https://read-only.invalid',
                 block: { number: 456, hash: ROOT, gasLimit: ethers.BigNumber.from('50000000') } }; },
-            openContext: async (entry, prepared, report, validate) => {
+            openContext: async (entry, prepared, report, validate, options) => {
+                assert.equal(Boolean(options.liveRpc), liveRpc);
                 assert.equal(entry.networkConfig.blockNumber, '456');
                 assert.equal(entry.networkConfig.blockGasLimit, multipleExecutionTransactions ? second.blockGasLimit : '50000000');
                 if (multipleExecutionTransactions) assert.equal(entry.networkConfig.observedBlockGasLimit, '50000000');
                 assert.deepEqual(entry.networkConfig.actionInputs, second.actionInputs);
                 assert.equal(entry.networkConfig.nonce, '9');
                 calls.push(['open']);
-                Object.assign(context, { config: entry.networkConfig, prepared, report, plans: validate(entry.networkConfig, prepared) });
+                Object.assign(context, { liveRpc: options.liveRpc, config: entry.networkConfig, prepared, report, plans: validate(entry.networkConfig, prepared) });
                 report.runtimeKeccak256 = runtimes; report.threshold = 1;
                 return context;
             },
@@ -370,6 +431,23 @@ test('one-root replay retains the uploaded SDK ceiling and qualifies SDK batches
             block: { number: 457, hash: ROOT, gasLimit: ethers.BigNumber.from('19000000') } });
         await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow),
             /SDK execution ceiling exceeds the observed/);
+    } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+});
+
+test('live replay preserves model ceiling while keeping exact root and local allocation separate', async () => {
+    const fixture = replayFixture({ multipleExecutionTransactions: true, liveRpc: true, gas: '14000000' });
+    try {
+        const before = structuredClone(fixture.artifact);
+        const result = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
+        assert.equal(result.report.executionPolicy, 'live-sdk-singleton-model-v1');
+        assert.equal(result.report.status, 'passed');
+        assert.deepEqual(fixture.artifact, before);
+        assert.equal(localRelayBudget(fixture.context.config, fixture.context), 16_777_216);
+        const pathToReport = path.join(fixture.directory, 'qualification.json');
+        const original = JSON.parse(fs.readFileSync(pathToReport));
+        original.executionPolicy = 'sdk-bounded-transactions-v1';
+        fs.writeFileSync(pathToReport, JSON.stringify(original));
+        await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow), /execution policy changed/);
     } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
 });
 
@@ -442,4 +520,13 @@ test('fresh replay rejects tree tampering before opening any fork', async () => 
         await assert.rejects(replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow), /tree changed/);
         assert.deepEqual(fixture.calls, []);
     } finally { fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+});
+
+test('sanitized live failures remain actionable while arbitrary provider errors remain withheld', async () => {
+    const { LiveQualificationError } = require('./qualify-resolver-live-rpc');
+    const record = { transactionHash: ROOT };
+    await captureFailure({ send: async () => { throw new Error('secret RPC response'); } }, record,
+        new LiveQualificationError('Live qualification failed: requested64000000, effective50000000; evidence retained'), () => {});
+    assert.match(record.failure, /requested64000000, effective50000000/);
+    assert(!JSON.stringify(record).includes('secret RPC response'));
 });
