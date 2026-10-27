@@ -270,3 +270,20 @@ test('higher total gas needs the pinned Sepolia activation, independently of the
     assert.throws(() => live.validateResult(lowReport, config, beforeChain, 'final', tree), /total gas ceiling/);
     assert.deepEqual(config, before, 'Rust physical ceiling must not mutate uploaded SDK model metadata');
 });
+
+test('shared live wire preserves mixed multi-action airdrop calls and exact SDK root bytes', () => {
+    const { config, chain } = fixture();
+    config.actionInputs = Array.from({ length: 19 }, (_, index) => ({ ...config.actionInputs[index % 2],
+        index: String(index + 1), operation: index % 2, txData: `0x${(index + 1).toString(16).padStart(2, '0')}` }));
+    const wire = live.rustConfig(config, chain);
+    assert.equal(wire.action_inputs.length, 19);
+    assert.deepEqual(wire.action_inputs.map(a => a.operation), config.actionInputs.map(a => a.operation ? 'DelegateCall' : 'Call'));
+    const tree = contracts.makeSphinxMerkleTree(core.makeDeploymentData([config]));
+    assert.deepEqual(live.rustTree(tree).leaves_with_proofs.map(x => x.leaf.data), tree.leavesWithProofs.map(x => x.leaf.data));
+    for (const mutate of [c => { c.actionInputs = []; }, c => { c.actionInputs[0].operation = 2; },
+        c => { c.actionInputs[1].index = '3'; }, c => { c.actionInputs[0].value = '1'; },
+        c => { c.actionInputs[0].requireSuccess = false; }]) {
+        const changed = structuredClone(config); mutate(changed);
+        assert.throws(() => live.rustConfig(changed, chain));
+    }
+});

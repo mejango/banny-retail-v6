@@ -27,8 +27,8 @@ const LEAF_TYPES = ['Approve', 'Execute', 'Cancel'];
 class LiveQualificationError extends Error {}
 
 function rustConfig(config, chain) {
-    assert.equal(config.arbitraryChain, false, 'Live resolver leaves must bind their chain');
-    assert.equal(config.actionInputs.length, 2, 'Live resolver requires exactly deploy and switch');
+    assert.equal(config.arbitraryChain, false, 'Live leaves must bind their chain');
+    assert(config.actionInputs.length > 0, 'Live qualification requires canonical actions');
     assert(Number.isSafeInteger(chain?.blockTimestamp) && chain.blockTimestamp > 0, 'Live budget needs the pinned timestamp');
     const limits = require('./simulate-safe-airdrop').gasBudget(config.chainId,
         config.observedBlockGasLimit || config.blockGasLimit, { liveRpc: true, blockTimestamp: chain.blockTimestamp });
@@ -47,12 +47,12 @@ function rustConfig(config, chain) {
         is_system_deployed: config.isSystemDeployed, arbitrary_chain: false, libraries: config.libraries,
         git_commit: config.gitCommit ?? null,
         action_inputs: config.actionInputs.map((action, index) => {
-            assert.equal(String(action.index), String(index + 1), 'Live resolver action order changed');
-            assert.equal(action.operation, 1, 'Live resolver action must delegatecall its canonical Safe batch');
-            assert.equal(BigInt(action.value), 0n, 'Live resolver must not send ETH');
-            assert.equal(action.requireSuccess, true, 'Live resolver must require success');
+            assert.equal(String(action.index), String(index + 1), 'Live action order changed');
+            assert([0, 1].includes(action.operation), 'Live action must preserve its canonical Call or DelegateCall');
+            assert.equal(BigInt(action.value), 0n, 'Live action must not send ETH');
+            assert.equal(action.requireSuccess, true, 'Live action must require success');
             return { index: index + 1, to: address(action.to), value: quantity(action.value), gas: quantity(action.gas),
-                tx_data: action.txData, operation: 'DelegateCall', require_success: true,
+                tx_data: action.txData, operation: action.operation === 0 ? 'Call' : 'DelegateCall', require_success: true,
                 action_type: 'Call', deployed_address: null, init_code: null };
         }),
     };
@@ -60,7 +60,7 @@ function rustConfig(config, chain) {
 
 function rustTree(tree) {
     return { root: tree.root, leaves_with_proofs: tree.leavesWithProofs.map(({ leaf, proof }) => {
-        assert([0, 1].includes(Number(leaf.leafType)), 'Live resolver tree contains an unsupported leaf');
+        assert([0, 1].includes(Number(leaf.leafType)), 'Live tree contains an unsupported leaf');
         return { leaf: { chain_id: quantity(leaf.chainId), index: quantity(leaf.index),
             leaf_type: LEAF_TYPES[Number(leaf.leafType)], data: leaf.data }, proof };
     }) };
@@ -228,9 +228,9 @@ async function assertEvidence(artifact, directory, { readProvenance = provenance
     const bytes = fs.readFileSync(path.join(directory, 'qualification.json'));
     assert.equal(digest(bytes), artifact.qualificationSha256, 'Live qualification checksum changed');
     const qualification = JSON.parse(bytes);
-    assert.equal(qualification.status, 'passed', 'Unfinished resolver qualification');
-    assert.equal(qualification.gasEstimator, 'live-rpc', 'Resolver requires live RPC gas qualification');
-    assert.equal(artifact.segments.length, 1, 'Live resolver requires one proposal');
+    assert.equal(qualification.status, 'passed', 'Unfinished live qualification');
+    assert.equal(qualification.gasEstimator, 'live-rpc', 'Workflow requires live RPC gas qualification');
+    assert.equal(artifact.segments.length, 1, 'Live workflow requires one proposal');
     const { liveRpc } = qualification;
     assert(liveRpc?.final?.files?.length, 'Missing exact-root live proof');
     assert.deepEqual(await readProvenance(), liveRpc.identity, 'Live qualifier source or binary changed; requalify');

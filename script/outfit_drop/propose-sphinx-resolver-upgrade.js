@@ -307,16 +307,7 @@ async function collectAndQualify(scriptPath, calldata, safe, rpcUrls, pluginInte
 }
 
 function resolverArgs(argv) {
-    const args = [...argv];
-    for (let index = 0; index < args.length; index++) {
-        if (args[index] === '--gas-estimator' || args[index].startsWith('--gas-estimator=')) {
-            const equals = args[index].includes('=');
-            const estimator = equals ? args[index].slice('--gas-estimator='.length) : args[index + 1];
-            assert.equal(estimator, 'live-rpc', 'Resolver upgrades require --gas-estimator live-rpc; no Anvil fallback');
-            args.splice(index, equals ? 1 : 2); index--;
-        }
-    }
-    return args;
+    return shared.liveArgs(argv, 'Resolver upgrades');
 }
 
 function makePropose(context, options = {}) {

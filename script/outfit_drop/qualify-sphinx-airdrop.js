@@ -619,7 +619,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     assert(Array.isArray(entries) && entries.length > 0 && entries.length <= 4, 'Qualify one network profile at a time.');
     assert.equal(new Set(entries.map(entry => String(entry.networkConfig.chainId))).size, entries.length, 'Repeated chain.');
     if (workflow.liveRpc) {
-        assert(workflow.multipleExecutionTransactions, 'Live resolver needs bounded execution transactions.');
+        assert(workflow.multipleExecutionTransactions, 'Live workflow needs bounded execution transactions.');
         assert(!calibrationSeed, 'Live gas qualification cannot reuse a calibration seed.');
     }
     if (workflow.multipleExecutionTransactions) entries = entries.map(entry => ({ ...entry,
@@ -647,7 +647,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
         report.localForkOnly = false;
         report.publicRpcReadOnly = true;
         report.localForkExecution = true;
-        report.limitations = 'Live eth_simulateV1 gas proof plus local resolver postconditions. Arbitrum proof excludes L1 posting fees and Nitro-specific execution behavior; actual executor fee and transport qualification is required. Executor must apply exact qualified outer limits and singleton execution. Owner signatures, approval gas, relay funding and hosted execution are not qualified.';
+        report.limitations = 'Live eth_simulateV1 gas proof plus local workflow postconditions. Arbitrum proof excludes L1 posting fees and Nitro-specific execution behavior; actual executor fee and transport qualification is required. Executor must apply exact qualified outer limits and singleton execution. Owner signatures, approval gas, relay funding and hosted execution are not qualified.';
     }
     const save = () => fs.writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`);
     const contexts = [];
@@ -713,7 +713,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
                 actions: config.actionInputs.map(action => ({ digest: actionDigest(action), signedGas: action.gas })) })) }));
         save();
         if (workflow.liveRpc) {
-            assert.equal(segments.length, 1, 'Live resolver must preserve one proposal.');
+            assert.equal(segments.length, 1, 'Live workflow must preserve one proposal.');
             const final = await require('./qualify-resolver-live-rpc').qualify('final', segments[0].networkConfigs,
                 preparedChains, reportDirectory, { reports: report.liveRpc.preliminaryReports,
                     tree: segments[0].merkleTree, identity: report.liveRpc.identity });
