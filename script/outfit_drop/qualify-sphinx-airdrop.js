@@ -728,7 +728,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
             assert.equal(segments.length, 1, 'Live workflow must preserve one proposal.');
             const final = await require('./qualify-resolver-live-rpc').qualify('final', segments[0].networkConfigs,
                 preparedChains, reportDirectory, { reports: report.liveRpc.preliminaryReports,
-                    tree: segments[0].merkleTree, identity: report.liveRpc.identity });
+                    tree: segments[0].merkleTree, identity: report.liveRpc.identity, allowOuterSeedRetry: true });
             report.liveRpc.final = { files: final.files };
             delete report.liveRpc.preliminaryReports;
             save();
