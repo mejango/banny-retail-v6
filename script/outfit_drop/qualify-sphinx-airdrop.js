@@ -61,8 +61,8 @@ function capExecutionConfig(config) {
     return capped;
 }
 
-// SDK estimates include their own buffers. This model ceiling only selects
-// singleton transactions; live proof independently owns exact outer budgets.
+// SDK estimates include their own buffers. This ceiling admits each single leaf;
+// explicit dispatch owns transaction shape and live proof owns exact outer budgets.
 function capLiveExecutionConfig(config, proofDepth) {
     assert(config.actionInputs.length, 'Live SDK model needs actions.');
     const observed = BigInt(config.observedBlockGasLimit || config.blockGasLimit);
@@ -77,8 +77,10 @@ function capLiveExecutionConfig(config, proofDepth) {
     return capped;
 }
 
-const executionPolicy = workflow => workflow.liveRpc ? 'live-sdk-singleton-model-v1'
+const executionPolicy = workflow => workflow.liveRpc ? 'live-explicit-singletons-v2'
     : workflow.multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : 'bounded-part-v1';
+const replayMode = workflow => workflow.liveRpc ? 'sdk-singletons'
+    : workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part';
 
 function sdkModelBudget(config, { liveRpc = false } = {}) {
     return liveRpc ? Number(getMaxGasLimit(BigInt(config.blockGasLimit))) : outerBudget(config);
@@ -101,8 +103,9 @@ function assertExecutionConfig(config, { liveRpc = false } = {}) {
         'SDK execution batching exceeds the reviewed transaction budget.');
 }
 
-// Reuse the installed SDK's batch selection, including its network policy and strict
-// gas comparison. A read-only module model records the batches without sending calls.
+// Reuse the installed SDK and strict gas comparison. Live execution explicitly
+// scopes each invocation to one leaf; the default remote SDK may batch smaller leaves.
+// This read-only model does not establish the remote executor's dispatch policy.
 async function sdkExecutionBatches(config, leaves, options = {}) {
     assertExecutionConfig(config, options);
     assert(leaves.length, 'Cannot plan an empty execution.');
@@ -111,15 +114,22 @@ async function sdkExecutionBatches(config, leaves, options = {}) {
     const module = { activeMerkleRoot: async () => ethers.constants.HashZero,
         merkleRootStates: async () => ({ status: next === end ? 2 : 1, leavesExecuted: next }),
         getAddress: async () => config.moduleAddress };
-    const result = await executeBatchActions(leaves, module, BigInt(config.blockGasLimit), {}, 0,
-        async batch => { next += BigInt(batch.length); return { status: 1 }; }, estimateGasViaManagedService,
-        { deployment: { chainId: config.chainId } });
-    assert.deepEqual(result.batches.flat(), leaves, 'SDK batching changed leaf order or omitted actions.');
-    if (options.liveRpc) assert(result.batches.every(batch => batch.length === 1),
-        'Live proof does not qualify SDK batching; singleton execution required.');
-    for (const batch of result.batches) assert(estimateBatch(config, batch) <= sdkModelBudget(config, options),
+    const batches = [];
+    for (const selected of options.liveRpc ? leaves.map(leaf => [leaf]) : [leaves]) {
+        if (options.liveRpc) assert.equal(BigInt(selected[0].leaf.index), next, 'Live singleton indices are not contiguous.');
+        const result = await executeBatchActions(selected, module, BigInt(config.blockGasLimit), {}, 0,
+            async batch => { next += BigInt(batch.length); return { status: 1 }; }, estimateGasViaManagedService,
+            { deployment: { chainId: config.chainId } });
+        batches.push(...result.batches);
+    }
+    assert.deepEqual(batches.flat(), leaves, 'SDK batching changed leaf order or omitted actions.');
+    if (options.liveRpc) {
+        assert.equal(next, end, 'Live singleton model did not complete.');
+        assert(batches.every(batch => batch.length === 1), 'Live execution requires explicit singleton dispatch.');
+    }
+    for (const batch of batches) assert(estimateBatch(config, batch) <= sdkModelBudget(config, options),
         'SDK execution batch exceeds the reviewed transaction budget.');
-    return result.batches;
+    return batches;
 }
 
 function worstProofLeaf(config, action, proofDepth) {
@@ -374,15 +384,17 @@ async function executeRoot(context, config, tree, mode, records, save, requireHe
     await approveRoot(context, config, tree);
     const { provider, module } = context;
     const leaves = executeLeaves(tree, config.chainId);
+    const sdkMode = ['sdk-batches', 'sdk-singletons'].includes(mode);
+    if (mode === 'sdk-singletons') assert(context.liveRpc, 'Live singleton replay needs live qualification.');
     const batches = mode === 'cold' ? leaves.map(leaf => [leaf])
-        : mode === 'sdk-batches' ? await sdkExecutionBatches(config, leaves, context) : [leaves];
+        : sdkMode ? await sdkExecutionBatches(config, leaves, context) : [leaves];
     const measured = [];
     for (const batch of batches) {
         const indices = batch.map(entry => Number(entry.leaf.index));
         const receipt = await relaySend(context, module.interface.encodeFunctionData('execute', [batch]));
         const record = { root: tree.root, mode, indices, transactionHash: receipt.transactionHash,
             outerReceiptStatus: receipt.status, receiptGasUsed: receipt.gasUsed.toString() };
-        if (mode === 'sdk-batches') record.sdkEstimatedGas = estimateBatch(config, batch);
+        if (sdkMode) record.sdkEstimatedGas = estimateBatch(config, batch);
         records.push(record);
         record.events = moduleEvents(receipt, module);
         record.firstFailureIndex = record.events.find(event => event.name === 'SphinxActionFailed')?.index;
@@ -595,7 +607,7 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
             await deps.executeRoot(context, config, tree, 'cold', context.report.records, save);
             await (workflow.verifyFinal || verifyFinal)(context); save();
             assert(await context.provider.send('evm_revert', [context.initialSnapshot]), 'Cannot restore pre-replay state.');
-            await deps.executeRoot(context, config, tree, workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part',
+            await deps.executeRoot(context, config, tree, replayMode(workflow),
                 context.report.records, save);
             await (workflow.verifyFinal || verifyFinal)(context);
             context.report.finalModuleNonce = (await context.module.merkleRootNonce()).toString();
@@ -733,7 +745,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
                 if (config.actionInputs.length > 1) {
                     assert(await context.provider.send('evm_revert', [snapshot]), 'Cannot restore pre-segment state.');
                     await executeRoot(context, config, segment.merkleTree,
-                        workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part', records, save);
+                        replayMode(workflow), records, save);
                 }
             });
         }
