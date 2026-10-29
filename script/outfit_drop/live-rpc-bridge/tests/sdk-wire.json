@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "clientRevision": "e688649d716779aa2424f4a3f970a6dcae80aba2",
+  "clientRevision": "afcdc4e3eb1eeccea5d9c47977ec4ca381b4bbce",
   "mode": "final",
   "networks": [
     {
@@ -73,7 +73,7 @@
         "safe": "0x0000000000000000000000000000000000000001",
         "module": "0x0000000000000000000000000000000000000002",
         "executor": "0xA2eA7657440875bF916CBFC0cfA88F13e38aD463",
-        "authorization_scope": "current sizing e688649d716779aa2424f4a3f970a6dcae80aba2 with existing local replay floor; exact-root verifier 9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c; synthetic approval only, no owner signatures or approval gas qualification",
+        "authorization_scope": "current sizing afcdc4e3eb1eeccea5d9c47977ec4ca381b4bbce with existing local replay floor; exact-root verifier 9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c; synthetic approval only, no owner signatures or approval gas qualification",
         "execution_shape": "one execution leaf per transaction; exact outer budgets required",
         "final_merkle_root": "0xac55cd4d1824c05407b280002da8fd4a1410c5f8b92a0f1e61713db0335f71eb",
         "actions": [

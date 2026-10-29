@@ -9,7 +9,7 @@ const { createHash } = require('node:crypto');
 const { ethers } = require('ethers');
 const { NETWORKS } = require('./export-safe-airdrop');
 const ROOT = path.resolve(__dirname, '../..');
-const CLIENT_REVISION = 'e688649d716779aa2424f4a3f970a6dcae80aba2';
+const CLIENT_REVISION = 'afcdc4e3eb1eeccea5d9c47977ec4ca381b4bbce';
 const VERIFIER_REVISION = '9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c';
 const AUTHORIZATION_SCOPE = `current sizing ${CLIENT_REVISION} with existing local replay floor; exact-root verifier ${VERIFIER_REVISION}; synthetic approval only, no owner signatures or approval gas qualification`;
 const BRIDGE = 'script/outfit_drop/live-rpc-bridge';
@@ -21,14 +21,49 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const quantity = value => `0x${BigInt(value).toString(16)}`;
 const address = value => ethers.utils.getAddress(value).toLowerCase();
 const LEAF_TYPES = ['Approve', 'Execute', 'Cancel'];
+const OUTER_SEED_GRID = 1_000_000;
 
 // Only sanitized bridge/boundary failures may cross the generic fork diagnostic
 // guard. Provider and child-process errors never become this type directly.
 class LiveQualificationError extends Error {}
 
+class LiveGasClampError extends Error {
+    constructor(hint) {
+        for (const field of ['actionIndex', 'requestedOuterGas', 'effectiveOuterGas']) {
+            assert(Number.isSafeInteger(hint[field]) && hint[field] > 0, 'Invalid numeric gas-clamp hint');
+        }
+        assert(Number.isSafeInteger(hint.precedingActions) && hint.precedingActions >= 0, 'Invalid preceding action count');
+        super(`Live RPC bridge rejected changed outer gas at action ${hint.actionIndex} with ${hint.precedingActions} preceding actions: requested ${hint.requestedOuterGas}, effective ${hint.effectiveOuterGas}; no clamped response accepted`);
+        this.hint = Object.freeze(Object.fromEntries(['actionIndex', 'precedingActions', 'requestedOuterGas', 'effectiveOuterGas']
+            .map(field => [field, hint[field]])));
+    }
+}
+
+function binaryFailure(code, stderr) {
+    // Only fixed categories and numeric hints may cross the child-process boundary.
+    const action = stderr.match(/action (\d+) with (\d+) preceding actions/);
+    const rpc = stderr.match(/RPC code (?:Some\()?(-?\d+)\)?, category (state|header|revert|gas|other)/);
+    const exhausted = stderr.includes('no successful gas pair within');
+    const clamped = stderr.match(/changed outer gas: requested (\d+), effective (\d+)/);
+    const clampContext = stderr.match(/action (\d+) with (\d+) preceding actions changed outer gas: requested (\d+), effective (\d+)/);
+    if (clampContext) {
+        try {
+            return new LiveGasClampError({ actionIndex: Number(clampContext[1]), precedingActions: Number(clampContext[2]),
+                requestedOuterGas: Number(clampContext[3]), effectiveOuterGas: Number(clampContext[4]) });
+        } catch { /* Invalid or unsafe quantities remain an ordinary non-retryable failure. */ }
+    }
+    return new Error(`Live RPC bridge failed (exit ${code ?? 'terminated'})`
+        + (action ? `; action ${action[1]} with ${action[2]} preceding actions` : '')
+        + (rpc ? `; RPC code ${rpc[1]}, category ${rpc[2]}` : '')
+        + (exhausted ? '; bounded live gas search found no successful pair' : '')
+        + (clamped ? `; RPC changed requested outer gas ${clamped[1]} to ${clamped[2]}; increase the provider transaction and aggregate simulation allowance` : '')
+        + '; no Anvil fallback or proposal submission');
+}
+
+
 function rustConfig(config, chain) {
-    assert.equal(config.arbitraryChain, false, 'Live resolver leaves must bind their chain');
-    assert.equal(config.actionInputs.length, 2, 'Live resolver requires exactly deploy and switch');
+    assert.equal(config.arbitraryChain, false, 'Live leaves must bind their chain');
+    assert(config.actionInputs.length > 0, 'Live qualification requires canonical actions');
     assert(Number.isSafeInteger(chain?.blockTimestamp) && chain.blockTimestamp > 0, 'Live budget needs the pinned timestamp');
     const limits = require('./simulate-safe-airdrop').gasBudget(config.chainId,
         config.observedBlockGasLimit || config.blockGasLimit, { liveRpc: true, blockTimestamp: chain.blockTimestamp });
@@ -47,12 +82,12 @@ function rustConfig(config, chain) {
         is_system_deployed: config.isSystemDeployed, arbitrary_chain: false, libraries: config.libraries,
         git_commit: config.gitCommit ?? null,
         action_inputs: config.actionInputs.map((action, index) => {
-            assert.equal(String(action.index), String(index + 1), 'Live resolver action order changed');
-            assert.equal(action.operation, 1, 'Live resolver action must delegatecall its canonical Safe batch');
-            assert.equal(BigInt(action.value), 0n, 'Live resolver must not send ETH');
-            assert.equal(action.requireSuccess, true, 'Live resolver must require success');
+            assert.equal(String(action.index), String(index + 1), 'Live action order changed');
+            assert([0, 1].includes(action.operation), 'Live action must preserve its canonical Call or DelegateCall');
+            assert.equal(BigInt(action.value), 0n, 'Live action must not send ETH');
+            assert.equal(action.requireSuccess, true, 'Live action must require success');
             return { index: index + 1, to: address(action.to), value: quantity(action.value), gas: quantity(action.gas),
-                tx_data: action.txData, operation: 'DelegateCall', require_success: true,
+                tx_data: action.txData, operation: action.operation === 0 ? 'Call' : 'DelegateCall', require_success: true,
                 action_type: 'Call', deployed_address: null, init_code: null };
         }),
     };
@@ -60,7 +95,7 @@ function rustConfig(config, chain) {
 
 function rustTree(tree) {
     return { root: tree.root, leaves_with_proofs: tree.leavesWithProofs.map(({ leaf, proof }) => {
-        assert([0, 1].includes(Number(leaf.leafType)), 'Live resolver tree contains an unsupported leaf');
+        assert([0, 1].includes(Number(leaf.leafType)), 'Live tree contains an unsupported leaf');
         return { leaf: { chain_id: quantity(leaf.chainId), index: quantity(leaf.index),
             leaf_type: LEAF_TYPES[Number(leaf.leafType)], data: leaf.data }, proof };
     }) };
@@ -132,17 +167,7 @@ async function callBinary(binary, args, input) {
         child.on('close', code => {
             clearTimeout(timer);
             if (code !== 0) {
-                // Never forward arbitrary child output, including transport credentials.
-                const action = stderr.match(/action (\d+) with (\d+) preceding actions/);
-                const rpc = stderr.match(/RPC code (?:Some\()?(-?\d+)\)?, category (state|header|revert|gas|other)/);
-                const exhausted = stderr.includes('no successful gas pair within');
-                const clamped = stderr.match(/changed outer gas: requested (\d+), effective (\d+)/);
-                reject(new Error(`Live RPC bridge failed (exit ${code ?? 'terminated'})`
-                    + (action ? `; action ${action[1]} with ${action[2]} preceding actions` : '')
-                    + (rpc ? `; RPC code ${rpc[1]}, category ${rpc[2]}` : '')
-                    + (exhausted ? '; bounded live gas search found no successful pair' : '')
-                    + (clamped ? `; RPC changed requested outer gas ${clamped[1]} to ${clamped[2]}; increase the provider transaction and aggregate simulation allowance` : '')
-                    + '; no Anvil fallback or proposal submission'));
+                reject(binaryFailure(code, stderr));
             } else {
                 try { resolve(JSON.parse(stdout)); } catch { reject(new Error('Live bridge returned invalid JSON')); }
             }
@@ -183,8 +208,34 @@ function evidenceFile(directory, label, data) {
     return { filename, sha256 };
 }
 
+function nextOuterSeed(error, request, config, chain, seenHints) {
+    if (!(error instanceof LiveGasClampError)) return null;
+    const hint = new LiveGasClampError(error.hint).hint;
+    const index = hint.actionIndex - 1;
+    const action = request.networks[0].report?.actions?.[index];
+    const currentSeed = action?.outer_gas;
+    const physicalCap = BigInt(rustConfig(config, chain).block_gas_limit);
+    const key = JSON.stringify(hint);
+    if (index >= config.actionInputs.length || hint.precedingActions !== index || action?.index !== hint.actionIndex
+        || request.networks[0].report.actions.length !== config.actionInputs.length
+        || String(action.signed_inner_gas) !== config.actionInputs[index].gas
+        || !Number.isSafeInteger(currentSeed) || currentSeed <= 0
+        || !(currentSeed < hint.effectiveOuterGas && hint.effectiveOuterGas < hint.requestedOuterGas)
+        || BigInt(hint.effectiveOuterGas) <= BigInt(config.actionInputs[index].gas)
+        || BigInt(hint.effectiveOuterGas) > physicalCap || BigInt(hint.requestedOuterGas) > physicalCap
+        || seenHints.has(key)) return null;
+    seenHints.add(key);
+    // Leave aggregate allowance headroom when a coarser seed still progresses.
+    // If that seed fails, a later clamp can still select the exact available gas.
+    const rounded = Math.floor(hint.effectiveOuterGas / OUTER_SEED_GRID) * OUTER_SEED_GRID;
+    const outerGas = rounded > currentSeed && BigInt(rounded) > BigInt(config.actionInputs[index].gas)
+        ? rounded : hint.effectiveOuterGas;
+    return { index, outerGas };
+}
+
 async function qualify(mode, configs, chains, directory, { reports, tree, run = callBinary, identity,
-    readBinarySha256 = filename => digest(fs.readFileSync(filename)) } = {}) {
+    allowOuterSeedRetry = false, readBinarySha256 = filename => digest(fs.readFileSync(filename)) } = {}) {
+    assert.equal(typeof allowOuterSeedRetry, 'boolean', 'Outer seed retry must be explicitly enabled');
     identity ||= await provenance();
     const results = [], files = [];
     for (const [index, config] of configs.entries()) {
@@ -193,25 +244,38 @@ async function qualify(mode, configs, chains, directory, { reports, tree, run = 
         assert.deepEqual(chain.network, Object.values(NETWORKS).flat().find(n => String(n.chainId) === String(config.chainId)), 'Live RPC mapping changed');
         const request = { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, mode,
             networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, expectedBlockTimestamp: chain.blockTimestamp, config: rustConfig(config, chain),
-                ...(reports ? { report: reports[index] } : {}) }], ...(tree ? { tree: rustTree(tree) } : {}) };
-        const requestFile = evidenceFile(directory, `live-rpc-${mode}-request-${config.chainId}`, request);
-        try {
-            assert.equal(readBinarySha256(identity.binary), identity.binarySha256, 'Live qualifier binary changed before execution');
-            const response = await run(identity.binary, [], JSON.stringify(request));
-            assert.equal(readBinarySha256(identity.binary), identity.binarySha256, 'Live qualifier binary changed during execution');
-            assert.equal(response.schemaVersion, 1, 'Live response schema changed');
-            assert.equal(response.clientRevision, CLIENT_REVISION, 'Live client revision changed');
-            assert.equal(response.verifierRevision, VERIFIER_REVISION, 'Live verifier revision changed');
-            assert.equal(response.results.length, 1, 'Live response chain count changed');
-            const updated = validateResult(response.results[0], config, chain, mode, tree);
-            const evidence = evidenceFile(directory, `live-rpc-${mode}-${config.chainId}`,
-                { status: mode === 'final' ? 'passed' : 'estimated', request: requestFile, identity, response });
-            files.push(evidence); results.push({ config: updated, report: response.results[0].report });
-        } catch (error) {
-            const message = require('./propose-sphinx-airdrop').safeError(error).message;
-            const failure = evidenceFile(directory, `live-rpc-${mode}-failed-${config.chainId}`,
-                { status: 'failed', request: requestFile, identity, error: message });
-            throw new LiveQualificationError(`Live qualification failed on chain ${config.chainId}: ${message}. Evidence: ${path.join(directory, failure.filename)}`);
+                ...(reports ? { report: structuredClone(reports[index]) } : {}) }], ...(tree ? { tree: rustTree(tree) } : {}) };
+        const rejectedAttempts = [], seenHints = new Set();
+        while (true) {
+            const requestFile = evidenceFile(directory, `live-rpc-${mode}-request-${config.chainId}`, request);
+            try {
+                assert.equal(readBinarySha256(identity.binary), identity.binarySha256, 'Live qualifier binary changed before execution');
+                const response = await run(identity.binary, [], JSON.stringify(request));
+                assert.equal(readBinarySha256(identity.binary), identity.binarySha256, 'Live qualifier binary changed during execution');
+                assert.equal(response.schemaVersion, 1, 'Live response schema changed');
+                assert.equal(response.clientRevision, CLIENT_REVISION, 'Live client revision changed');
+                assert.equal(response.verifierRevision, VERIFIER_REVISION, 'Live verifier revision changed');
+                assert.equal(response.results.length, 1, 'Live response chain count changed');
+                const updated = validateResult(response.results[0], config, chain, mode, tree);
+                const evidence = evidenceFile(directory, `live-rpc-${mode}-${config.chainId}`,
+                    { status: mode === 'final' ? 'passed' : 'estimated', request: requestFile, identity, response,
+                        ...(rejectedAttempts.length ? { rejectedAttempts } : {}) });
+                files.push(evidence); results.push({ config: updated, report: response.results[0].report });
+                break;
+            } catch (error) {
+                const message = require('./propose-sphinx-airdrop').safeError(error).message;
+                const failure = evidenceFile(directory, `live-rpc-${mode}-failed-${config.chainId}`,
+                    { status: 'failed', request: requestFile, identity, error: message,
+                        ...(error instanceof LiveGasClampError ? { gasClamp: error.hint } : {}),
+                        ...(rejectedAttempts.length ? { rejectedAttempts: [...rejectedAttempts] } : {}) });
+                const retry = mode === 'final' && allowOuterSeedRetry && rejectedAttempts.length < 3
+                    ? nextOuterSeed(error, request, config, chain, seenHints) : null;
+                if (!retry) throw new LiveQualificationError(`Live qualification failed on chain ${config.chainId}: ${message}. Evidence: ${path.join(directory, failure.filename)}`);
+                rejectedAttempts.push(failure);
+                // A provider hint is only a new seed. Reissue the unchanged complete
+                // canonical proof; the rejected/clamped response proves nothing.
+                request.networks[0].report.actions[retry.index].outer_gas = retry.outerGas;
+            }
         }
     }
     return { configs: results.map(result => result.config), reports: results.map(result => result.report), files, identity };
@@ -224,31 +288,35 @@ function readEvidence(directory, file) {
     return JSON.parse(bytes);
 }
 
+function assertChainEvidence(config, chain, tree, identity, directory, file) {
+    const evidence = readEvidence(directory, file);
+    assert.equal(evidence.status, 'passed', 'Unfinished live proof');
+    assert.deepEqual(evidence.identity, identity, 'Live evidence binary identity changed');
+    const request = readEvidence(directory, evidence.request);
+    assert.deepEqual(request, { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, mode: 'final',
+        networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, expectedBlockTimestamp: chain.blockTimestamp,
+            config: rustConfig(config, chain), report: request.networks[0].report }], tree: rustTree(tree) },
+    'Live proof request differs from its canonical preparation');
+    validateResult(evidence.response.results[0], config, chain, 'final', tree);
+    return evidence.response.results[0].report;
+}
+
 async function assertEvidence(artifact, directory, { readProvenance = provenance } = {}) {
     const bytes = fs.readFileSync(path.join(directory, 'qualification.json'));
     assert.equal(digest(bytes), artifact.qualificationSha256, 'Live qualification checksum changed');
     const qualification = JSON.parse(bytes);
-    assert.equal(qualification.status, 'passed', 'Unfinished resolver qualification');
-    assert.equal(qualification.gasEstimator, 'live-rpc', 'Resolver requires live RPC gas qualification');
-    assert.equal(artifact.segments.length, 1, 'Live resolver requires one proposal');
+    assert.equal(qualification.status, 'passed', 'Unfinished live qualification');
+    assert.equal(qualification.gasEstimator, 'live-rpc', 'Workflow requires live RPC gas qualification');
+    assert.equal(artifact.segments.length, 1, 'Live workflow requires one proposal');
     const { liveRpc } = qualification;
     assert(liveRpc?.final?.files?.length, 'Missing exact-root live proof');
     assert.deepEqual(await readProvenance(), liveRpc.identity, 'Live qualifier source or binary changed; requalify');
     const segment = artifact.segments[0];
     assert.equal(liveRpc.final.files.length, segment.networkConfigs.length, 'Missing live chain proofs');
     const reports = liveRpc.final.files.map((file, index) => {
-        const evidence = readEvidence(directory, file);
-        assert.equal(evidence.status, 'passed', 'Unfinished live proof');
-        assert.deepEqual(evidence.identity, liveRpc.identity, 'Live evidence binary identity changed');
         const config = segment.networkConfigs[index];
         const chain = artifact.preparedChains.find(c => String(c.chainId) === String(config.chainId));
-        const request = readEvidence(directory, evidence.request);
-        assert.deepEqual(request, { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, mode: 'final',
-            networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, expectedBlockTimestamp: chain.blockTimestamp,
-                config: rustConfig(config, chain), report: request.networks[0].report }], tree: rustTree(segment.merkleTree) },
-        'Live proof request differs from its canonical preparation');
-        validateResult(evidence.response.results[0], config, chain, 'final', segment.merkleTree);
-        return evidence.response.results[0].report;
+        return assertChainEvidence(config, chain, segment.merkleTree, liveRpc.identity, directory, file);
     });
     return { qualification, reports };
 }
@@ -276,7 +344,7 @@ async function replay(artifact, directory, { verifyEvidence = assertEvidence,
                 base_timestamp: block.timestamp, final_merkle_root: null });
         }
         const result = await runQualify('final', configs, chains, replayDirectory,
-            { reports: freshReports, tree: artifact.segments[0].merkleTree, identity });
+            { reports: freshReports, tree: artifact.segments[0].merkleTree, identity, allowOuterSeedRetry: false });
         assert.deepEqual(result.identity, identity, 'Live replay qualifier identity differs from qualification');
         assert.deepEqual(result.reports.map(report => report.actions.map(action => action.outer_gas)),
             reports.map(report => report.actions.map(action => action.outer_gas)),
@@ -313,5 +381,5 @@ async function assertHandoff(artifact, directory, dependencies) {
     return { filename, sha256: digest(fs.readFileSync(filename)) };
 }
 
-module.exports = { CLIENT_REVISION, VERIFIER_REVISION, AUTHORIZATION_SCOPE, SOURCE_FILES, LiveQualificationError, rustConfig, rustTree, validateResult, assertCompiledVersion, provenance,
-    qualify, readEvidence, assertEvidence, replay, handoffTemplate, assertHandoff };
+module.exports = { LiveGasClampError, binaryFailure, CLIENT_REVISION, VERIFIER_REVISION, AUTHORIZATION_SCOPE, SOURCE_FILES, LiveQualificationError, rustConfig, rustTree, validateResult, assertCompiledVersion, provenance,
+    qualify, readEvidence, assertChainEvidence, assertEvidence, replay, handoffTemplate, assertHandoff };

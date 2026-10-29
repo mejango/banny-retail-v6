@@ -5,7 +5,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { test } = require('node:test');
 const { ethers } = require('ethers');
-const { estimateGasViaManagedService, makeDeploymentData, getMaxGasLimit } = require('@sphinx-labs/core');
+const { executeBatchActions, estimateGasViaManagedService, makeDeploymentData, getMaxGasLimit } = require('@sphinx-labs/core');
 const { makeSphinxMerkleTree, SphinxLeafType } = require('@sphinx-labs/contracts');
 const { buildContractsByChain, loadRawItems } = require('./generate-v6-airdrop');
 const { actionDigest, outerBudget, capExecutionConfig, capLiveExecutionConfig, sdkExecutionBatches, localRelayBudget, worstProofLeaf, probeAllowance, coldAllowance, qualifiedAllowance, assertHeadroom, packSegments,
@@ -233,8 +233,9 @@ test('live SDK model fits buffered singleton estimates without changing signed o
     const raw = config(1, 2, '1000000');
     const oversized = { ...capLiveExecutionConfig(raw, 3), blockGasLimit: raw.blockGasLimit };
     const tree = makeSphinxMerkleTree(makeDeploymentData([oversized]));
-    await assert.rejects(sdkExecutionBatches(oversized,
-        tree.leavesWithProofs.filter(entry => entry.leaf.leafType === SphinxLeafType.EXECUTE), { liveRpc: true }), /singleton execution required/);
+    assert.deepEqual((await sdkExecutionBatches(oversized,
+        tree.leavesWithProofs.filter(entry => entry.leaf.leafType === SphinxLeafType.EXECUTE), { liveRpc: true }))
+        .map(batch => batch.length), [1, 1], 'Explicit dispatch remains singleton even when the model admits batching.');
 });
 
 test('SDK batches compatible small actions together and refuses unproven or oversized execution settings', async () => {
@@ -355,7 +356,7 @@ function replayFixture({ multipleExecutionTransactions = false, liveRpc = false,
                 transaction: { to: tx.to, data: tx.txData, value: tx.value, operation: tx.operation } })) }] };
     const runtimes = { safe: ROOT, moduleProxy: ROOT, relay: ROOT };
     fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ status: 'passed', sourceSha256: {},
-        executionPolicy: liveRpc ? 'live-sdk-singleton-model-v1' : multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : undefined,
+        executionPolicy: liveRpc ? 'live-explicit-singletons-v2' : multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : undefined,
         chains: [{ chainId: '1', runtimeKeccak256: runtimes }] }));
     const calls = [];
     let moduleNonce = '9';
@@ -439,7 +440,9 @@ test('live replay preserves model ceiling while keeping exact root and local all
     try {
         const before = structuredClone(fixture.artifact);
         const result = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
-        assert.equal(result.report.executionPolicy, 'live-sdk-singleton-model-v1');
+        assert.equal(result.report.executionPolicy, 'live-explicit-singletons-v2');
+        assert(fixture.calls.some(call => call[0] === 'sdk-singletons'));
+        assert(!fixture.calls.some(call => call[0] === 'sdk-batches'));
         assert.equal(result.report.status, 'passed');
         assert.deepEqual(fixture.artifact, before);
         assert.equal(localRelayBudget(fixture.context.config, fixture.context), 16_777_216);
@@ -529,4 +532,60 @@ test('sanitized live failures remain actionable while arbitrary provider errors 
         new LiveQualificationError('Live qualification failed: requested64000000, effective50000000; evidence retained'), () => {});
     assert.match(record.failure, /requested64000000, effective50000000/);
     assert(!JSON.stringify(record).includes('secret RPC response'));
+});
+
+test('explicit live dispatch keeps heterogeneous leaves singleton when the legacy SDK groups smaller actions', async () => {
+    const raw = config(1, 3, '14000000');
+    raw.actionInputs[1].gas = '1000000';
+    raw.actionInputs[2].gas = '2000000';
+    const before = structuredClone(raw);
+    const live = capLiveExecutionConfig(raw, 4);
+    const tree = makeSphinxMerkleTree(makeDeploymentData([live]));
+    const leaves = tree.leavesWithProofs.filter(entry => entry.leaf.leafType === SphinxLeafType.EXECUTE);
+    let next = 1n;
+    const model = { activeMerkleRoot: async () => tree.root,
+        merkleRootStates: async () => ({ status: next === 4n ? 2 : 1, leavesExecuted: next }),
+        getAddress: async () => MODULE };
+    const legacy = await executeBatchActions(leaves, model, BigInt(live.blockGasLimit), {}, 0,
+        async batch => { next += BigInt(batch.length); return { status: 1 }; }, estimateGasViaManagedService,
+        { deployment: { chainId: live.chainId } });
+    assert(legacy.batches.some(batch => batch.length > 1), 'The actual legacy SDK must reproduce the smaller-leaf grouping.');
+    assert.deepEqual(legacy.batches.flat(), leaves);
+    const explicit = await sdkExecutionBatches(live, leaves, { liveRpc: true });
+    assert.deepEqual(explicit.map(batch => batch.map(entry => Number(entry.leaf.index))), [[1], [2], [3]]);
+    assert.deepEqual(explicit.flat(), leaves);
+    assert.deepEqual(live.actionInputs, before.actionInputs, 'Transaction policy must not alter signed gas or canonical bytes.');
+    assert.equal(tree.root, makeSphinxMerkleTree(makeDeploymentData([before])).root);
+    assert.deepEqual(raw, before);
+    await assert.rejects(sdkExecutionBatches(live, [leaves[0], leaves[2]], { liveRpc: true }), /not contiguous/);
+});
+
+test('chain-aware fresh replay selects policy before the fork and records both mode postconditions exactly once', async () => {
+    const owner = require('./qualify-chain-gas');
+    const fixture = replayFixture({ multipleExecutionTransactions: true, liveRpc: true, gas: '14000000' });
+    const oldSelect = owner.selectProof, oldWrite = owner.writeForkProof;
+    const selected = { chainId: '1', policy: { backend: 'exact-root-fork' }, engine: { binarySha256: 'engine' } };
+    try {
+        const qfile = path.join(fixture.directory, 'qualification.json');
+        const q = JSON.parse(fs.readFileSync(qfile)); q.proofSelections = [selected]; fs.writeFileSync(qfile, JSON.stringify(q));
+        fixture.workflow.chainAware = true;
+        const header = fixture.workflow.replayDependencies.readHeader;
+        fixture.workflow.replayDependencies.readHeader = async (...args) => { const result = await header(...args); result.block.timestamp = 1793300000; return result; };
+        owner.selectProof = async (_config, chain) => { assert.equal(chain.blockTimestamp, 1793300000); fixture.calls.push(['select-policy']); return selected; };
+        const open = fixture.workflow.replayDependencies.openContext;
+        fixture.workflow.replayDependencies.openContext = async (...args) => {
+            assert.equal(args[4].chainProof, selected); assert(fixture.calls.some(call => call[0] === 'select-policy'));
+            const context = await open(...args); context.chainProof = selected; return context;
+        };
+        const verify = fixture.workflow.verifyFinal;
+        fixture.workflow.verifyFinal = async context => { await verify(context); context.report.recipientsAndOutfitsVerified = true; context.report.tokenCount = 2; };
+        owner.writeForkProof = async (context, _config, _chain, _tree, _directory, records) => {
+            assert.deepEqual(context.report.forkPostconditions.map(item => item.mode), ['cold', 'sdk-singletons']);
+            assert.deepEqual(records.map(item => item.mode), ['cold', 'sdk-singletons']);
+            return { normalized: { chainId: '1', actions: [] } };
+        };
+        const result = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
+        assert.equal(result.report.status, 'passed'); assert.equal(result.report.forkProofs.length, 1);
+        assert.equal(fixture.calls.filter(call => call[0] === 'verify').length, 2);
+    } finally { owner.selectProof = oldSelect; owner.writeForkProof = oldWrite; fs.rmSync(fixture.directory, { recursive: true, force: true }); }
 });

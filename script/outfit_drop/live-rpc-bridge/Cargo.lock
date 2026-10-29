@@ -3961,7 +3961,7 @@ dependencies = [
 [[package]]
 name = "sphinx-client"
 version = "0.1.1"
-source = "git+https://github.com/xBA5ED/sphinx-client?rev=e688649d716779aa2424f4a3f970a6dcae80aba2#e688649d716779aa2424f4a3f970a6dcae80aba2"
+source = "git+https://github.com/xBA5ED/sphinx-client?rev=afcdc4e3eb1eeccea5d9c47977ec4ca381b4bbce#afcdc4e3eb1eeccea5d9c47977ec4ca381b4bbce"
 dependencies = [
  "alloy",
  "clap",

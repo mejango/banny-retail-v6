@@ -9,6 +9,7 @@ const { ethers } = require('ethers');
 const { buildContractsByChain, itemTokenId, loadRawItems } = require('./generate-v6-airdrop');
 const { NETWORKS, partitionPlan, prepareApprovedExecution, combineMigrationBatches, SAFE_TRANSACTION_FIELDS } = require('./export-safe-airdrop');
 const { spawnAnvil } = require('./anvil');
+const { usesStateGasReservoir } = require('./gas-proof-policy');
 
 const SAFE_ABI = [
     'function VERSION() view returns (string)',
@@ -131,13 +132,14 @@ async function unusedPort() {
     return port;
 }
 
-async function startFork(rpcUrl, chainId, blockNumber, { budgeted = false } = {}) {
+async function startFork(rpcUrl, chainId, blockNumber, { budgeted = false, forkEngine } = {}) {
     const port = await unusedPort();
     const child = spawnAnvil([
         '--quiet', '--host', '127.0.0.1', '--port', String(port), '--accounts', '0',
         '--fork-url', rpcUrl, '--fork-block-number', String(blockNumber), '--chain-id', String(chainId),
-        ...(budgeted ? ['--hardfork', 'osaka', ...(!isArbitrum(chainId) ? ['--enable-tx-gas-limit'] : [])] : []),
-    ]);
+        ...(budgeted ? ['--hardfork', forkEngine?.hardfork || 'osaka', ...(!isArbitrum(chainId) ? ['--enable-tx-gas-limit'] : [])] : []),
+        ...(forkEngine?.noStorageCaching ? ['--no-storage-caching'] : []),
+    ], { binary: forkEngine?.binary || 'anvil' });
     const provider = new ethers.providers.StaticJsonRpcProvider(`http://127.0.0.1:${port}`, chainId);
     provider.pollingInterval = 100;
     let startError;
@@ -377,8 +379,7 @@ function gasBudget(chainId, blockGasLimit, { liveRpc = false, blockTimestamp } =
         // simulation acceptance. Pinned Sepolia chainspec:
         // ethereum/go-ethereum@d68cf359f9876a58fa41c1beab28cd05bc9df9a0,
         // params/chainspecs/sepolia.json, amsterdamTime=1791294816.
-        const reservoirActive = Number(chainId) === 11155111 && Number.isSafeInteger(blockTimestamp)
-            && blockTimestamp >= 1791294816;
+        const reservoirActive = usesStateGasReservoir(chainId, blockTimestamp);
         const observed = BigInt(blockGasLimit.toString());
         const reviewed = reservoirActive ? 0xffff_ffffn : BigInt(executionGasCap);
         return { executionGasCap, budget, headroomPercent: 5,

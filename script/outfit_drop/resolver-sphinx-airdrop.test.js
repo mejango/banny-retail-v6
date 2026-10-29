@@ -318,3 +318,12 @@ test('a guard appearing after preparation refuses the stale deployment root befo
         assert.equal(fs.readdirSync(directory).filter(file => file.startsWith('artwork-observation-')).length, 2);
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('generic live vectors do not loosen the resolver-only two-stage policy', () => {
+    for (const mutate of [chain => { chain.envelopes.pop(); chain.canonicalBatches.pop(); },
+        chain => { chain.envelopes.push(chain.envelopes[1]); chain.canonicalBatches.push(chain.canonicalBatches[1]); }]) {
+        const { chain } = fixture(); mutate(chain);
+        assert.throws(() => adapter.validatePrepared({ chainId: '1', safeAddress: SAFE, arbitraryChain: false }, chain),
+            /requires deployment followed/);
+    }
+});

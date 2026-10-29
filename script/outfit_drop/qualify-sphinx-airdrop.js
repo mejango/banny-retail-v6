@@ -61,8 +61,8 @@ function capExecutionConfig(config) {
     return capped;
 }
 
-// SDK estimates include their own buffers. This model ceiling only selects
-// singleton transactions; live proof independently owns exact outer budgets.
+// SDK estimates include their own buffers. This ceiling admits each single leaf;
+// explicit dispatch owns transaction shape and live proof owns exact outer budgets.
 function capLiveExecutionConfig(config, proofDepth) {
     assert(config.actionInputs.length, 'Live SDK model needs actions.');
     const observed = BigInt(config.observedBlockGasLimit || config.blockGasLimit);
@@ -77,8 +77,10 @@ function capLiveExecutionConfig(config, proofDepth) {
     return capped;
 }
 
-const executionPolicy = workflow => workflow.liveRpc ? 'live-sdk-singleton-model-v1'
+const executionPolicy = workflow => workflow.liveRpc ? 'live-explicit-singletons-v2'
     : workflow.multipleExecutionTransactions ? 'sdk-bounded-transactions-v1' : 'bounded-part-v1';
+const replayMode = workflow => workflow.liveRpc ? 'sdk-singletons'
+    : workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part';
 
 function sdkModelBudget(config, { liveRpc = false } = {}) {
     return liveRpc ? Number(getMaxGasLimit(BigInt(config.blockGasLimit))) : outerBudget(config);
@@ -101,8 +103,9 @@ function assertExecutionConfig(config, { liveRpc = false } = {}) {
         'SDK execution batching exceeds the reviewed transaction budget.');
 }
 
-// Reuse the installed SDK's batch selection, including its network policy and strict
-// gas comparison. A read-only module model records the batches without sending calls.
+// Reuse the installed SDK and strict gas comparison. Live execution explicitly
+// scopes each invocation to one leaf; the default remote SDK may batch smaller leaves.
+// This read-only model does not establish the remote executor's dispatch policy.
 async function sdkExecutionBatches(config, leaves, options = {}) {
     assertExecutionConfig(config, options);
     assert(leaves.length, 'Cannot plan an empty execution.');
@@ -111,15 +114,22 @@ async function sdkExecutionBatches(config, leaves, options = {}) {
     const module = { activeMerkleRoot: async () => ethers.constants.HashZero,
         merkleRootStates: async () => ({ status: next === end ? 2 : 1, leavesExecuted: next }),
         getAddress: async () => config.moduleAddress };
-    const result = await executeBatchActions(leaves, module, BigInt(config.blockGasLimit), {}, 0,
-        async batch => { next += BigInt(batch.length); return { status: 1 }; }, estimateGasViaManagedService,
-        { deployment: { chainId: config.chainId } });
-    assert.deepEqual(result.batches.flat(), leaves, 'SDK batching changed leaf order or omitted actions.');
-    if (options.liveRpc) assert(result.batches.every(batch => batch.length === 1),
-        'Live proof does not qualify SDK batching; singleton execution required.');
-    for (const batch of result.batches) assert(estimateBatch(config, batch) <= sdkModelBudget(config, options),
+    const batches = [];
+    for (const selected of options.liveRpc ? leaves.map(leaf => [leaf]) : [leaves]) {
+        if (options.liveRpc) assert.equal(BigInt(selected[0].leaf.index), next, 'Live singleton indices are not contiguous.');
+        const result = await executeBatchActions(selected, module, BigInt(config.blockGasLimit), {}, 0,
+            async batch => { next += BigInt(batch.length); return { status: 1 }; }, estimateGasViaManagedService,
+            { deployment: { chainId: config.chainId } });
+        batches.push(...result.batches);
+    }
+    assert.deepEqual(batches.flat(), leaves, 'SDK batching changed leaf order or omitted actions.');
+    if (options.liveRpc) {
+        assert.equal(next, end, 'Live singleton model did not complete.');
+        assert(batches.every(batch => batch.length === 1), 'Live execution requires explicit singleton dispatch.');
+    }
+    for (const batch of batches) assert(estimateBatch(config, batch) <= sdkModelBudget(config, options),
         'SDK execution batch exceeds the reviewed transaction budget.');
-    return result.batches;
+    return batches;
 }
 
 function worstProofLeaf(config, action, proofDepth) {
@@ -309,7 +319,8 @@ async function openContext(entry, prepared, report, validate = validatePrepared,
     const plans = validate(config, prepared);
     const pin = Number(config.blockNumber);
     assert(Number.isSafeInteger(pin) && pin > 0, 'A pinned block is required.');
-    const { child, provider } = await startFork(entry.rpcUrl, Number(config.chainId), pin, { budgeted: true });
+    const forkEngine = options.chainProof ? require('./qualify-chain-gas').forkOptions(options.chainProof) : undefined;
+    const { child, provider } = await startFork(entry.rpcUrl, Number(config.chainId), pin, { budgeted: true, forkEngine });
     try {
         assert.equal(new URL(provider.connection.url).hostname, '127.0.0.1', 'Writes require our loopback fork.');
         const block = await provider.getBlock(pin);
@@ -331,24 +342,33 @@ async function openContext(entry, prepared, report, validate = validatePrepared,
         for (const owner of owners) await impersonate(provider, owner);
         const safeNonce = (await safe.nonce()).toString();
         const context = { config, prepared, plans, child, provider, safe, module, owners, safeNonce, report,
-            initialSnapshot: await provider.send('evm_snapshot', []), liveRpc: Boolean(options.liveRpc) };
+            initialSnapshot: await provider.send('evm_snapshot', []), liveRpc: Boolean(options.liveRpc), chainProof: options.chainProof,
+            forkOuterGas: forkEngine ? options.chainProof.outerGas : undefined };
         Object.assign(report, { chainId: String(config.chainId), blockNumber: pin, blockHash: block.hash,
             blockGasLimit: block.gasLimit.toString(), safe: safe.address, module: module.address, relay: config.executorAddress,
-            safeNonce, moduleNonce: config.nonce, threshold, outerGasBudget: localRelayBudget(config, options), anvilHardfork: 'osaka',
+            safeNonce, moduleNonce: config.nonce, threshold, outerGasBudget: context.forkOuterGas ?? localRelayBudget(config, options), anvilHardfork: forkEngine?.hardfork || 'osaka',
             batchingEnabled: isActionTransactionBatchingEnabled(BigInt(config.chainId)), calibration: [], final: [] });
         if (config.observedBlockGasLimit) Object.assign(report, { sdkBlockGasLimit: config.blockGasLimit,
             sdkMaxExecutionGas: getMaxGasLimit(BigInt(config.blockGasLimit)).toString() });
         report.runtimeKeccak256 = Object.fromEntries(await Promise.all([
             ['safe', config.safeAddress], ['moduleProxy', config.moduleAddress], ['relay', config.executorAddress],
         ].map(async ([name, address]) => [name, ethers.utils.keccak256(await provider.getCode(address))])));
+        if (context.chainProof) {
+            assert.equal(block.timestamp, context.chainProof.pin.blockTimestamp, 'Fork proof pinned timestamp changed');
+            await require('./qualify-chain-gas').assertForkContext(context);
+        }
         return context;
     } catch (error) { child.kill(); throw error; }
 }
 
 async function relaySend(context, data) {
     assert.equal(new URL(context.provider.connection.url).hostname, '127.0.0.1');
-    return receiptFor(context.provider, { from: context.owners[0], to: context.config.executorAddress,
-        data: RELAY.encodeFunctionData('exec', [context.module.address, data]), gas: ethers.utils.hexValue(localRelayBudget(context.config, context)) });
+    const requested = { from: context.owners[0], to: context.config.executorAddress, value: '0x0',
+        data: RELAY.encodeFunctionData('exec', [context.module.address, data]),
+        gas: ethers.utils.hexValue(context.forkOuterGas ?? localRelayBudget(context.config, context)) };
+    const receipt = await receiptFor(context.provider, requested);
+    if (context.chainProof?.policy.backend === 'exact-root-fork') receipt.requestedTransaction = requested;
+    return receipt;
 }
 
 async function approveRoot(context, config, tree) {
@@ -374,20 +394,24 @@ async function executeRoot(context, config, tree, mode, records, save, requireHe
     await approveRoot(context, config, tree);
     const { provider, module } = context;
     const leaves = executeLeaves(tree, config.chainId);
+    const sdkMode = ['sdk-batches', 'sdk-singletons'].includes(mode);
+    if (mode === 'sdk-singletons') assert(context.liveRpc, 'Live singleton replay needs live qualification.');
     const batches = mode === 'cold' ? leaves.map(leaf => [leaf])
-        : mode === 'sdk-batches' ? await sdkExecutionBatches(config, leaves, context) : [leaves];
+        : sdkMode ? await sdkExecutionBatches(config, leaves, context) : [leaves];
     const measured = [];
     for (const batch of batches) {
         const indices = batch.map(entry => Number(entry.leaf.index));
         const receipt = await relaySend(context, module.interface.encodeFunctionData('execute', [batch]));
         const record = { root: tree.root, mode, indices, transactionHash: receipt.transactionHash,
             outerReceiptStatus: receipt.status, receiptGasUsed: receipt.gasUsed.toString() };
-        if (mode === 'sdk-batches') record.sdkEstimatedGas = estimateBatch(config, batch);
+        if (sdkMode) record.sdkEstimatedGas = estimateBatch(config, batch);
         records.push(record);
         record.events = moduleEvents(receipt, module);
         record.firstFailureIndex = record.events.find(event => event.name === 'SphinxActionFailed')?.index;
         save();
         try {
+            if (context.chainProof?.policy.backend === 'exact-root-fork') record.transaction = await require('./qualify-chain-gas')
+                .captureForkTransaction(context, receipt, receipt.requestedTransaction);
             const currentState = await module.merkleRootStates(tree.root);
             record.rootStatus = Number(currentState.status);
             record.activeRoot = await module.activeMerkleRoot(); save();
@@ -583,8 +607,17 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
                 prepared.plans = chain.plans || buildContractsByChain(loadRawItems())[chain.network.sourceChainId]
                     .filter(plan => chain.planNames.includes(plan.contractName));
             }
+            let replayOptions = workflow;
+            if (workflow.chainAware) {
+                prepared.blockTimestamp = block.timestamp;
+                const selection = await require('./qualify-chain-gas').selectProof(config, prepared);
+                const priorSelection = qualification.proofSelections.find(item => item.chainId === config.chainId);
+                assert.deepEqual(selection.policy, priorSelection.policy, 'Fresh proof backend/fork policy changed');
+                if (selection.engine) assert.deepEqual(selection.engine, priorSelection.engine, 'Fresh fork engine identity changed');
+                replayOptions = { ...workflow, chainProof: selection };
+            }
             const context = await deps.openContext({ rpcUrl, networkConfig: config }, prepared, report.chains[index],
-                workflow.validatePrepared || validateReplayPrepared, workflow);
+                workflow.validatePrepared || validateReplayPrepared, replayOptions);
             contexts.push(context); save();
             assert.deepEqual({ owners: await context.safe.getOwners(), threshold: String(context.report.threshold) },
                 chain.authority, 'Replay Safe authority changed.');
@@ -593,15 +626,21 @@ async function replayPreparedPart(artifact, directory, part, workflow = {}) {
             assert.deepEqual(context.report.runtimeKeccak256, prior.runtimeKeccak256, 'Replay Safe/module/relay runtime changed.');
             context.report.records = []; save();
             await deps.executeRoot(context, config, tree, 'cold', context.report.records, save);
-            await (workflow.verifyFinal || verifyFinal)(context); save();
+            await (workflow.verifyFinal || verifyFinal)(context);
+            if (workflow.chainAware) require('./qualify-chain-gas').markPostconditions(context, 'cold'); save();
             assert(await context.provider.send('evm_revert', [context.initialSnapshot]), 'Cannot restore pre-replay state.');
-            await deps.executeRoot(context, config, tree, workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part',
+            await deps.executeRoot(context, config, tree, replayMode(workflow),
                 context.report.records, save);
             await (workflow.verifyFinal || verifyFinal)(context);
+            if (workflow.chainAware) require('./qualify-chain-gas').markPostconditions(context, replayMode(workflow));
             context.report.finalModuleNonce = (await context.module.merkleRootNonce()).toString();
             assert.equal(context.report.finalModuleNonce, (BigInt(config.nonce) + 1n).toString(), 'Replay module nonce differs.');
             assert.equal((await context.safe.nonce()).toString(), context.safeNonce, 'Replay changed ordinary Safe nonce.');
             context.report.status = 'passed'; save();
+            if (workflow.chainAware && context.chainProof.policy.backend === 'exact-root-fork') {
+                (report.forkProofs ||= []).push(await require('./qualify-chain-gas').writeForkProof(context, config, prepared,
+                    tree, reportDirectory, context.report.records)); save();
+            }
         });
         checkSources();
         assert.equal(JSON.stringify(artifact), original, 'Replay mutated frozen preparation.');
@@ -619,7 +658,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     assert(Array.isArray(entries) && entries.length > 0 && entries.length <= 4, 'Qualify one network profile at a time.');
     assert.equal(new Set(entries.map(entry => String(entry.networkConfig.chainId))).size, entries.length, 'Repeated chain.');
     if (workflow.liveRpc) {
-        assert(workflow.multipleExecutionTransactions, 'Live resolver needs bounded execution transactions.');
+        assert(workflow.multipleExecutionTransactions, 'Live workflow needs bounded execution transactions.');
         assert(!calibrationSeed, 'Live gas qualification cannot reuse a calibration seed.');
     }
     if (workflow.multipleExecutionTransactions) entries = entries.map(entry => ({ ...entry,
@@ -630,12 +669,14 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     const sourceFiles = ['script/outfit_drop/qualify-sphinx-airdrop.js', 'script/outfit_drop/propose-sphinx-airdrop.js',
         'script/outfit_drop/simulate-safe-airdrop.js', 'script/outfit_drop/export-safe-airdrop.js', 'script/outfit_drop/generate-v6-airdrop.js',
         'script/outfit_drop/prepare-resolver-upgrade.js',
+        'script/outfit_drop/gas-proof-policy.js', 'script/outfit_drop/gas-proof-policy.json',
         'node_modules/@sphinx-labs/core/dist/actions/execute.js', 'node_modules/@sphinx-labs/core/dist/networks.js',
         'node_modules/@sphinx-labs/core/dist/utils.js',
         'node_modules/@sphinx-labs/core/dist/tasks/index.js', 'node_modules/@sphinx-labs/contracts/dist/merkle-tree.js',
         'node_modules/@sphinx-labs/plugins/dist/cli/propose/index.js',
         'node_modules/@sphinx-labs/contracts/contract-artifacts/sphinx/SphinxModule.sol/SphinxModule.json',
         ...(workflow.sourceFiles || []),
+        ...(workflow.chainAware ? require('./qualify-chain-gas').SOURCE_FILES : []),
         ...(workflow.liveRpc ? require('./qualify-resolver-live-rpc').SOURCE_FILES : [])];
     const report = { startedAt: new Date().toISOString(), status: 'running', localForkOnly: true,
         executionPolicy: executionPolicy(workflow),
@@ -647,14 +688,20 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
         report.localForkOnly = false;
         report.publicRpcReadOnly = true;
         report.localForkExecution = true;
-        report.limitations = 'Live eth_simulateV1 gas proof plus local resolver postconditions. Arbitrum proof excludes L1 posting fees and Nitro-specific execution behavior; actual executor fee and transport qualification is required. Executor must apply exact qualified outer limits and singleton execution. Owner signatures, approval gas, relay funding and hosted execution are not qualified.';
+        report.limitations = 'Live eth_simulateV1 gas proof plus local workflow postconditions. Arbitrum proof excludes L1 posting fees and Nitro-specific execution behavior; actual executor fee and transport qualification is required. Executor must apply exact qualified outer limits and singleton execution. Owner signatures, approval gas, relay funding and hosted execution are not qualified.';
     }
     const save = () => fs.writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`);
     const contexts = [];
+    let sizing;
     save();
     try {
+        const selections = workflow.chainAware ? await require('./qualify-chain-gas').selectProofs(entries, preparedChains) : [];
+        if (workflow.chainAware) {
+            report.proofSelections = selections; report.gasEstimator = require('./qualify-chain-gas').ESTIMATOR;
+            report.limitations = 'Reviewed per-chain final gas proofs: exact-root legacy forks or strict live RPC prefixes, plus full distribution postconditions. Native auto-selected engines supply sizing candidates only. Synthetic approval, owner signatures, approval gas, relay funding and hosted execution are not qualified. Fork validity windows and exact singleton outer budgets bind the executor handoff.';
+        }
         await allContexts(entries, async (entry, index) => {
-            const context = await openContext(entry, preparedChains.find(chain => String(chain.chainId) === String(entry.networkConfig.chainId)), report.chains[index], workflow.validatePrepared, { ...workflow, liveRpc: false });
+            const context = await openContext(entry, preparedChains.find(chain => String(chain.chainId) === String(entry.networkConfig.chainId)), report.chains[index], workflow.validatePrepared, { ...workflow, liveRpc: false, chainProof: selections[index] });
             contexts.push(context); save();
         });
         contexts.sort((a, b) => entries.findIndex(entry => String(entry.networkConfig.chainId) === String(a.config.chainId))
@@ -691,12 +738,15 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
             // live library selects the signed caps used by this proposal.
             const live = require('./qualify-resolver-live-rpc');
             const estimated = await live.qualify('estimate', calibrated, preparedChains, reportDirectory);
+            sizing = estimated;
             calibrated = estimated.configs.map(config => capLiveExecutionConfig(config, proofDepth));
             for (const [index, context] of contexts.entries()) {
                 context.liveRpc = true;
-                context.report.outerGasBudget = localRelayBudget(calibrated[index], { liveRpc: true });
+                context.report.outerGasBudget = context.forkOuterGas ?? localRelayBudget(calibrated[index], { liveRpc: true });
             }
-            report.liveRpc = { identity: estimated.identity, estimate: { files: estimated.files },
+            if (workflow.chainAware) report.nativeSizing = { identity: estimated.identity, estimate: { files: estimated.files },
+                scope: 'Current client auto-selected candidate engine, floored by reviewed local cold execution; final proof backend is selected independently.' };
+            else report.liveRpc = { identity: estimated.identity, estimate: { files: estimated.files },
                 preliminaryReports: estimated.reports };
             save();
         }
@@ -713,12 +763,16 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
                 actions: config.actionInputs.map(action => ({ digest: actionDigest(action), signedGas: action.gas })) })) }));
         save();
         if (workflow.liveRpc) {
-            assert.equal(segments.length, 1, 'Live resolver must preserve one proposal.');
-            const final = await require('./qualify-resolver-live-rpc').qualify('final', segments[0].networkConfigs,
-                preparedChains, reportDirectory, { reports: report.liveRpc.preliminaryReports,
-                    tree: segments[0].merkleTree, identity: report.liveRpc.identity });
-            report.liveRpc.final = { files: final.files };
-            delete report.liveRpc.preliminaryReports;
+            assert.equal(segments.length, 1, 'Live workflow must preserve one proposal.');
+            if (workflow.chainAware) report.finalProofs = await require('./qualify-chain-gas').qualifyRpc(segments[0].networkConfigs,
+                preparedChains, selections, segments[0].merkleTree, reportDirectory, sizing);
+            else {
+                const final = await require('./qualify-resolver-live-rpc').qualify('final', segments[0].networkConfigs,
+                    preparedChains, reportDirectory, { reports: report.liveRpc.preliminaryReports,
+                        tree: segments[0].merkleTree, identity: report.liveRpc.identity, allowOuterSeedRetry: true });
+                report.liveRpc.final = { files: final.files };
+                delete report.liveRpc.preliminaryReports;
+            }
             save();
         }
         for (const [index, segment] of segments.entries()) {
@@ -730,20 +784,41 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
                 const records = [];
                 context.report.final.push({ segment: index, root: segment.merkleTree.root, records }); save();
                 await executeRoot(context, config, segment.merkleTree, 'cold', records, save);
-                if (config.actionInputs.length > 1) {
+                if (workflow.chainAware) {
+                    await (workflow.verifyFinal || verifyFinal)(context);
+                    require('./qualify-chain-gas').markPostconditions(context, 'cold'); save();
+                }
+                if (config.actionInputs.length > 1 || workflow.chainAware) {
                     assert(await context.provider.send('evm_revert', [snapshot]), 'Cannot restore pre-segment state.');
                     await executeRoot(context, config, segment.merkleTree,
-                        workflow.multipleExecutionTransactions ? 'sdk-batches' : 'full-part', records, save);
+                        replayMode(workflow), records, save);
+                    if (workflow.chainAware) {
+                        await (workflow.verifyFinal || verifyFinal)(context);
+                        require('./qualify-chain-gas').markPostconditions(context, replayMode(workflow)); save();
+                    }
                 }
             });
         }
         await allContexts(contexts, async context => {
-            await (workflow.verifyFinal || verifyFinal)(context);
+            if (!workflow.chainAware) await (workflow.verifyFinal || verifyFinal)(context);
             context.report.finalModuleNonce = (await context.module.merkleRootNonce()).toString();
             const segmentCount = segments.filter(segment => segment.networkConfigs.some(config => config.chainId === context.config.chainId)).length;
             assert.equal(context.report.finalModuleNonce, (BigInt(context.config.nonce) + BigInt(segmentCount)).toString(), 'Final module nonce differs from the qualified segment sequence.');
             context.report.status = 'passed'; save();
         });
+        if (workflow.chainAware) {
+            const segment = segments[0];
+            for (const context of contexts.filter(item => item.chainProof.policy.backend === 'exact-root-fork')) {
+                const config = segment.networkConfigs.find(item => item.chainId === context.config.chainId);
+                const chain = preparedChains.find(item => String(item.chainId) === config.chainId);
+                report.finalProofs.push(await require('./qualify-chain-gas').writeForkProof(context, config, chain,
+                    segment.merkleTree, reportDirectory, context.report.final[0].records));
+            }
+            report.finalProofs.sort((a, b) => segment.networkConfigs.findIndex(c => c.chainId === a.chainId)
+                - segment.networkConfigs.findIndex(c => c.chainId === b.chainId));
+            assert.deepEqual(await require('./qualify-resolver-live-rpc').provenance(), sizing.identity, 'Sizing binary/source changed after final proofs');
+            require('./qualify-chain-gas').assertSources();
+        }
         // Do not certify a run whose local implementation changed while its forks were executing.
         for (const [file, hash] of Object.entries(report.sourceSha256)) assert.equal(sha256(fs.readFileSync(path.join(ROOT, file))), hash, 'Qualification source changed during execution.');
         report.status = 'passed'; report.finishedAt = new Date().toISOString(); save();

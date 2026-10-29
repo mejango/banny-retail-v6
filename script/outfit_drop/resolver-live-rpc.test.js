@@ -235,6 +235,7 @@ test('fresh replay keeps the original qualified binary identity across asynchron
                     send: async () => ({ number: 100, hash: chain.blockHash, timestamp: chain.blockTimestamp,
                         gasLimit: ethers.BigNumber.from(config.observedBlockGasLimit) }), formatter: { block: value => value } }),
                 runQualify: async (_mode, _configs, _chains, _directory, options) => {
+                    assert.equal(options.allowOuterSeedRetry, false);
                     assert.deepEqual(options.identity, identity, 'Header reads must not replace the qualified identity');
                     return { identity: changedResult ? { ...identity, binarySha256: hash('replacement') } : identity,
                         reports: [result.report], files: [] };
@@ -269,4 +270,170 @@ test('higher total gas needs the pinned Sepolia activation, independently of the
     lowReport.report.actions[0].outer_gas = 40_000_000;
     assert.throws(() => live.validateResult(lowReport, config, beforeChain, 'final', tree), /total gas ceiling/);
     assert.deepEqual(config, before, 'Rust physical ceiling must not mutate uploaded SDK model metadata');
+});
+
+test('shared live wire preserves mixed multi-action airdrop calls and exact SDK root bytes', () => {
+    const { config, chain } = fixture();
+    config.actionInputs = Array.from({ length: 19 }, (_, index) => ({ ...config.actionInputs[index % 2],
+        index: String(index + 1), operation: index % 2, txData: `0x${(index + 1).toString(16).padStart(2, '0')}` }));
+    const wire = live.rustConfig(config, chain);
+    assert.equal(wire.action_inputs.length, 19);
+    assert.deepEqual(wire.action_inputs.map(a => a.operation), config.actionInputs.map(a => a.operation ? 'DelegateCall' : 'Call'));
+    const tree = contracts.makeSphinxMerkleTree(core.makeDeploymentData([config]));
+    assert.deepEqual(live.rustTree(tree).leaves_with_proofs.map(x => x.leaf.data), tree.leavesWithProofs.map(x => x.leaf.data));
+    for (const mutate of [c => { c.actionInputs = []; }, c => { c.actionInputs[0].operation = 2; },
+        c => { c.actionInputs[1].index = '3'; }, c => { c.actionInputs[0].value = '1'; },
+        c => { c.actionInputs[0].requireSuccess = false; }]) {
+        const changed = structuredClone(config); mutate(changed);
+        assert.throws(() => live.rustConfig(changed, chain));
+    }
+});
+
+test('binary clamp errors expose only validated numeric hints, never raw provider diagnostics', () => {
+    const error = live.binaryFailure(1, 'simulation action 2 with 1 preceding actions changed outer gas: requested 16000000, effective 12000000; https://provider.invalid/secret-api-key');
+    assert(error instanceof live.LiveGasClampError);
+    assert.deepEqual(error.hint, { actionIndex: 2, precedingActions: 1, requestedOuterGas: 16_000_000, effectiveOuterGas: 12_000_000 });
+    assert(!error.message.includes('secret-api-key'));
+    assert(!error.message.includes('https://'));
+    assert(!(live.binaryFailure(1, 'action 2 with 1 preceding actions changed outer gas: requested 9007199254740992, effective 12000000') instanceof live.LiveGasClampError));
+    assert(!(live.binaryFailure(1, 'changed outer gas: requested 16000000, effective 12000000') instanceof live.LiveGasClampError));
+    assert(!(live.binaryFailure(1, 'action 2 with 1 preceding actions: unrelated error; changed outer gas: requested 16000000, effective 12000000') instanceof live.LiveGasClampError));
+    for (const field of ['actionIndex', 'precedingActions', 'requestedOuterGas', 'effectiveOuterGas']) {
+        assert.throws(() => new live.LiveGasClampError({ ...error.hint, [field]: -1 }));
+        assert.throws(() => new live.LiveGasClampError({ ...error.hint, [field]: 1.5 }));
+    }
+});
+
+test('opt-in final proof reissues the full unchanged request with one outer seed and retains rejected evidence', async () => {
+    const { config, chain, tree, result, identity } = fixture();
+    const reports = [{ ...structuredClone(result.report), final_merkle_root: null }];
+    const original = structuredClone({ config, tree, reports });
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-live-outer-seed-'));
+    const requests = [];
+    try {
+        const proved = await live.qualify('final', [config], [chain], directory, {
+            reports, tree, identity, allowOuterSeedRetry: true, readBinarySha256: () => identity.binarySha256,
+            run: async (_binary, _args, input) => {
+                const request = JSON.parse(input); requests.push(request);
+                if (requests.length === 1) throw new live.LiveGasClampError({ actionIndex: 2, precedingActions: 1,
+                    requestedOuterGas: 16_000_000, effectiveOuterGas: 12_000_000 });
+                const response = structuredClone(result); response.report.actions[1].outer_gas = 12_000_000;
+                return { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, results: [response] };
+            },
+        });
+        assert.equal(requests.length, 2);
+        const expected = structuredClone(requests[0]); expected.networks[0].report.actions[1].outer_gas = 12_000_000;
+        assert.deepEqual(requests[1], expected, 'Only one outer seed may change; full config/tree/prefix stays intact');
+        assert.deepEqual(requests[1].tree, live.rustTree(tree));
+        assert.deepEqual(requests[1].networks[0].config, live.rustConfig(config, chain));
+        assert.equal(requests[1].networks[0].config.action_inputs.length, 2);
+        const accepted = live.readEvidence(directory, proved.files[0]);
+        assert.deepEqual(live.readEvidence(directory, accepted.request), requests[1]);
+        assert.equal(accepted.rejectedAttempts.length, 1);
+        const rejected = live.readEvidence(directory, accepted.rejectedAttempts[0]);
+        assert.equal(rejected.status, 'failed');
+        assert.equal(rejected.gasClamp.effectiveOuterGas, 12_000_000);
+        assert.deepEqual(live.readEvidence(directory, rejected.request), requests[0]);
+        assert.deepEqual({ config, tree, reports }, original);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('outer seed adaptation rejects disabled, estimate, unknown, malformed and non-progressing failures', async () => {
+    const cases = [
+        { defaultDisabled: true }, { enabled: false }, { mode: 'estimate' }, { error: Object.assign(new Error('secret-api-key'), { code: 'SERVER_ERROR' }) },
+        { hint: { actionIndex: 3 } }, { hint: { precedingActions: 0 } },
+        { hint: { effectiveOuterGas: 8_000_000 } }, { hint: { effectiveOuterGas: 16_000_000 } },
+        { seed: 6_000_000, hint: { effectiveOuterGas: 7_000_000 } },
+        { hint: { requestedOuterGas: 300_000_000 } },
+        { hint: { effectiveOuterGas: 201_000_000, requestedOuterGas: 300_000_000 } },
+    ];
+    for (const item of cases) {
+        const { config, chain, tree, result, identity } = fixture();
+        const reports = [{ ...structuredClone(result.report), final_merkle_root: null }];
+        if (item.seed) reports[0].actions[1].outer_gas = item.seed;
+        const before = structuredClone(reports);
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-live-outer-reject-'));
+        let calls = 0;
+        try {
+            await assert.rejects(live.qualify(item.mode || 'final', [config], [chain], directory, {
+                ...(item.mode === 'estimate' ? {} : { reports, tree }), identity,
+                ...(item.defaultDisabled ? {} : { allowOuterSeedRetry: item.enabled !== false }),
+                readBinarySha256: () => identity.binarySha256,
+                run: async () => { calls++; throw item.error || new live.LiveGasClampError({ actionIndex: 2, precedingActions: 1,
+                    requestedOuterGas: 16_000_000, effectiveOuterGas: 12_000_000, ...item.hint }); },
+            }), error => error instanceof live.LiveQualificationError && !error.message.includes('secret-api-key'));
+            assert.equal(calls, 1);
+            assert.deepEqual(reports, before);
+            assert(!fs.readdirSync(directory).some(file => file.startsWith('live-rpc-final-') && !file.includes('-request-') && !file.includes('-failed-')));
+        } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+    }
+});
+
+test('outer seed retry stops after three adjustments and never bypasses final proof validation', async () => {
+    for (const kind of ['bounded', 'repeated', 'bad-proof']) {
+        const { config, chain, tree, result, identity } = fixture();
+        const reports = [{ ...structuredClone(result.report), final_merkle_root: null }];
+        const before = structuredClone(reports);
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-live-outer-bound-'));
+        let calls = 0;
+        try {
+            await assert.rejects(live.qualify('final', [config], [chain], directory, {
+                reports, tree, identity, allowOuterSeedRetry: true, readBinarySha256: () => identity.binarySha256,
+                run: async () => {
+                    calls++;
+                    if (kind === 'bad-proof' && calls === 2) {
+                        const response = structuredClone(result); response.report.final_merkle_root = ethers.constants.HashZero;
+                        return { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, results: [response] };
+                    }
+                    throw new live.LiveGasClampError({ actionIndex: 2, precedingActions: 1,
+                        requestedOuterGas: 20_000_000, effectiveOuterGas: kind === 'repeated' ? 9_000_000 : 8_000_000 + calls * 1_000_000 });
+                },
+            }), /Live qualification failed/);
+            assert.equal(calls, kind === 'bounded' ? 4 : 2);
+            assert.equal(fs.readdirSync(directory).filter(file => file.startsWith('live-rpc-final-failed-')).length, calls);
+            assert.deepEqual(reports, before);
+        } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+    }
+});
+
+test('frozen replay cannot adapt outer budgets even if a fresh strict proof returns a different allowance', async () => {
+    const { config, chain, tree, result, identity } = fixture();
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-live-frozen-outer-'));
+    try {
+        const artifact = { segments: [{ networkConfigs: [config], merkleTree: tree }], preparedChains: [chain] };
+        const changed = structuredClone(result.report); changed.actions[1].outer_gas++;
+        await assert.rejects(live.replay(artifact, directory, {
+            verifyEvidence: async () => ({ qualification: { liveRpc: { identity } }, reports: [result.report] }),
+            createProvider: () => ({ getNetwork: async () => ({ chainId: chain.chainId }),
+                send: async () => ({ number: 100, hash: chain.blockHash, timestamp: chain.blockTimestamp,
+                    gasLimit: ethers.BigNumber.from(config.observedBlockGasLimit) }), formatter: { block: value => value } }),
+            runQualify: async (_mode, _configs, _chains, _directory, options) => {
+                assert.equal(options.allowOuterSeedRetry, false);
+                return { identity, reports: [changed], files: [] };
+            },
+        }), /changed exact outer budgets/);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('outer seed rounding leaves allowance headroom and retains an exact fallback after a rounded seed fails', async () => {
+    const { config, chain, tree, result, identity } = fixture();
+    const reports = [{ ...structuredClone(result.report), final_merkle_root: null }];
+    const before = structuredClone(reports);
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-live-rounded-seed-'));
+    const requestedSeeds = [];
+    try {
+        const proved = await live.qualify('final', [config], [chain], directory, {
+            reports, tree, identity, allowOuterSeedRetry: true, readBinarySha256: () => identity.binarySha256,
+            run: async (_binary, _args, input) => {
+                const request = JSON.parse(input); requestedSeeds.push(request.networks[0].report.actions[1].outer_gas);
+                if (requestedSeeds.length <= 2) throw new live.LiveGasClampError({ actionIndex: 2, precedingActions: 1,
+                    requestedOuterGas: requestedSeeds.length === 1 ? 31_870_112 : 48_000_000, effectiveOuterGas: 24_861_101 });
+                const response = structuredClone(result); response.report.actions[1].outer_gas = 24_861_101;
+                return { schemaVersion: 1, clientRevision: live.CLIENT_REVISION, verifierRevision: live.VERIFIER_REVISION, results: [response] };
+            },
+        });
+        assert.deepEqual(requestedSeeds, [8_000_000, 24_000_000, 24_861_101]);
+        assert.equal(live.readEvidence(directory, proved.files[0]).rejectedAttempts.length, 2);
+        assert.deepEqual(reports, before);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });

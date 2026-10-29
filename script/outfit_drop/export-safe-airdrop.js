@@ -120,6 +120,8 @@ function assertGeneratedSnapshot(plans, items, root = ROOT) {
 }
 
 function partitionPlan(plan) {
+    // Ethereum slices need extra native-sizing headroom under Sphinx's signed gas cap.
+    const maxMints = plan.chain.id === 1 ? 24 : MAX_MINTS_PER_TRANSACTION;
     // A body and everything it wears must migrate together. Original per-tier mint order adds dependencies
     // between these groups; strongly connected groups cannot be split without changing assigned token IDs.
     const groups = plan.bannies.map(banny => [banny.tokenId, ...banny.outfitIds,
@@ -189,8 +191,8 @@ function partitionPlan(plan) {
         if (!ready.length) throw new Error('Unresolved mint-order dependencies');
         const index = ready[0];
         const ids = components[index].flatMap(group => groups[group]);
-        if (ids.length > MAX_MINTS_PER_TRANSACTION) throw new Error(`Indivisible body group has ${ids.length} tokens; exceeds verified slice limit`);
-        if (count + ids.length > MAX_MINTS_PER_TRANSACTION) {
+        if (ids.length > maxMints) throw new Error(`Indivisible body group has ${ids.length} tokens; exceeds verified slice limit`);
+        if (count + ids.length > maxMints) {
             batches.push(pending);
             pending = [];
             count = 0;

@@ -21,6 +21,8 @@ const generator = require('./generate-v6-airdrop');
 const ROOT = path.resolve(__dirname, '../..');
 const NOOP = ethers.utils.id('sphinxFetchConfig()').slice(0, 10);
 const RUN = ethers.utils.id('run()').slice(0, 10);
+const AIRDROP_WORKFLOW = 'banny-airdrop-v3-chain-aware-gas';
+const LIVE_AIRDROP_OPTIONS = Object.freeze({ multipleExecutionTransactions: true, liveRpc: true, chainAware: true });
 
 function selectChunks(batches, plans, env = process.env) {
     const read = name => {
@@ -187,6 +189,7 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
     assert.equal(path.resolve(projectRoot, scriptPath), path.join(ROOT, 'script/AirdropV4Bannys.s.sol'),
         'Use script/AirdropV4Bannys.s.sol for the bounded airdrop proposal');
     assert.equal(scriptFunctionCalldata, RUN, 'The bounded airdrop proposal supports run() only');
+    await require('./qualify-resolver-live-rpc').provenance();
     const items = generator.loadRawItems();
     const plans = generator.buildContractsByChain(items);
     const helperPlans = generator.buildCombinedContractsByChain(items);
@@ -216,7 +219,7 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
         }
         const selected = selectChunks(prepared.batches, plans[network.sourceChainId]);
         preparedByChain.push(selected.batches);
-        preparedChains.push({ chainId, blockHash: block.hash, network, profile, safe, hook: prepared.chain.hook,
+        preparedChains.push({ chainId, blockHash: block.hash, blockTimestamp: block.timestamp, network, profile, safe, hook: prepared.chain.hook,
             authority: { owners: prepared.chain.owners, threshold: prepared.chain.threshold },
             resolver: prepared.chain.resolver, envelopes: selected.batches.map(batch => batch.safeTransaction),
             plans: selected.plans });
@@ -256,12 +259,23 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
     }, null, 2)}\n`);
     let qualification;
     try {
-        qualification = await qualifyProfile(entries, preparedChains, reportDir);
+        qualification = await qualifyAirdrop(entries, preparedChains, reportDir, qualifyProfile);
     } catch (error) {
         throw new Error(`${safeError(error).message}; local evidence: ${reportDir}`);
     }
     assert(qualification.segments?.length, 'Qualification returned no proposal parts');
     return { ...qualification, entries, preparedChains, configArtifacts, buildInfos, reportDir, inputIdentity };
+}
+
+async function qualifyAirdrop(entries, preparedChains, directory,
+    qualify = require('./qualify-sphinx-airdrop').qualifyProfile, proofOwner = require('./qualify-chain-gas')) {
+    const qualified = await qualify(entries, preparedChains, directory, undefined, LIVE_AIRDROP_OPTIONS);
+    assert.equal(qualified.segments.length, 1, 'Live airdrop must preserve one proposal');
+    const artifact = { segments: qualified.segments, preparedChains,
+        qualificationSha256: sha256(fs.readFileSync(path.join(directory, 'qualification.json'))) };
+    const { proofs } = await proofOwner.assertEvidence(artifact, directory);
+    fs.writeFileSync(path.join(directory, 'executor-handoff.json'), `${JSON.stringify(proofOwner.handoffTemplate(artifact, proofs), null, 2)}\n`, { flag: 'wx' });
+    return qualified;
 }
 
 async function resolveCompilerArtifacts(getConfigArtifacts, initCodes, expectedIdentity, readIdentity, root = ROOT) {
@@ -497,12 +511,26 @@ async function assertReadyToSubmit(artifact, directory, progress, part, assertFr
     assertBuildInfoSources(artifact);
 }
 
+async function replayLiveAirdropPart(artifact, directory, part) {
+    return require('./qualify-chain-gas').replay(artifact, directory, part);
+}
+
+async function assertLiveAirdropReady(artifact, directory, progress, part, {
+    handoff = (...args) => require('./qualify-chain-gas').assertHandoff(...args),
+    checkReady = assertReadyToSubmit, replay = replayLiveAirdropPart,
+} = {}) {
+    const before = await handoff(artifact, directory);
+    await checkReady(artifact, directory, progress, part, assertPreparedFresh, replay);
+    assert.deepEqual(await handoff(artifact, directory), before, 'Executor handoff changed during readiness checks');
+}
+
 function snapshotRuntimeSources() {
     // Load workflow owners before the SDK's asynchronous compilation or resume
     // checks, so later lazy imports cannot escape the startup snapshot.
     require('./qualify-sphinx-airdrop');
     require('./prepare-resolver-upgrade');
     require('./qualify-resolver-live-rpc');
+    require('./qualify-chain-gas');
     return Object.fromEntries(Object.keys(require.cache)
         .filter(file => !file.endsWith('.test.js'))
         .map(file => [file, sha256(fs.readFileSync(file))]));
@@ -662,22 +690,49 @@ async function resumeOwned(context, directory, args = {}, { officialPropose = pr
     }
 }
 
+function liveArgs(argv, label = 'Live airdrops', requiredEstimator = 'live-rpc') {
+    const args = [...argv];
+    for (let index = 0; index < args.length; index++) {
+        if (args[index] === '--gas-estimator' || args[index].startsWith('--gas-estimator=')) {
+            const equals = args[index].includes('=');
+            const estimator = equals ? args[index].slice('--gas-estimator='.length) : args[index + 1];
+            assert.equal(estimator, requiredEstimator, `${label} require --gas-estimator ${requiredEstimator}; no Anvil fallback`);
+            args.splice(index, equals ? 1 : 2); index--;
+        }
+    }
+    return args;
+}
+
+function makeLiveAirdropPropose(context, options = {}) {
+    return makeAirdropPropose(context, { workflowTag: AIRDROP_WORKFLOW,
+        assertReady: assertLiveAirdropReady, ...options });
+}
+
+function resumeLiveAirdropPrepared(context, directory, args = {}, options = {}) {
+    return resumePrepared(context, directory, args, { workflowTag: AIRDROP_WORKFLOW,
+        assertReady: assertLiveAirdropReady, ...options });
+}
+
 if (require.main === module) {
+    const argv = liveArgs(process.argv.slice(2), 'Airdrop proofs', 'chain-aware');
     const context = makeSphinxContext();
-    if (process.argv[2] === 'resume') {
-        const { values, positionals } = parseArgs({ args: process.argv.slice(3), allowPositionals: true,
+    if (argv[0] === 'resume') {
+        const { values, positionals } = parseArgs({ args: argv.slice(1), allowPositionals: true,
             options: { 'dry-run': { type: 'boolean' }, confirm: { type: 'boolean' } } });
         assert.equal(positionals.length, 1, 'Use resume PREPARED_DIRECTORY [--dry-run] [--confirm]');
-        resumePrepared(context, positionals[0], { isDryRun: Boolean(values['dry-run']), confirm: Boolean(values.confirm) })
+        resumeLiveAirdropPrepared(context, positionals[0], { isDryRun: Boolean(values['dry-run']), confirm: Boolean(values.confirm) })
             .catch(error => { console.error(safeError(error).message); process.exitCode = 1; });
     } else {
-        assert(['propose', '--help', '-h'].includes(process.argv[2]), 'Use propose script/AirdropV4Bannys.s.sol --networks <networks>');
-        context.propose = makeAirdropPropose(context);
-        makeCLI(process.argv.slice(2), context);
+        assert(['propose', '--help', '-h'].includes(argv[0]), 'Use propose script/AirdropV4Bannys.s.sol --networks <networks>');
+        context.propose = makeLiveAirdropPropose(context);
+        if (argv.includes('--help') || argv.includes('-h')) makeCLI(argv, context);
+        else require('./qualify-resolver-live-rpc').provenance().then(() => makeCLI(argv, context))
+            .catch(error => { console.error(safeError(error).message); process.exitCode = 1; });
     }
 }
 
-module.exports = { NOOP, selectChunks, actionFor, deploymentsFor, pinReads, sourceIdentity, ensureBuildInfo,
+module.exports = { liveArgs, AIRDROP_WORKFLOW, LIVE_AIRDROP_OPTIONS, qualifyAirdrop, replayLiveAirdropPart, assertLiveAirdropReady,
+    makeLiveAirdropPropose, resumeLiveAirdropPrepared, NOOP, selectChunks, actionFor, deploymentsFor, pinReads, sourceIdentity, ensureBuildInfo,
     readFinalizedBlock, collectNetworkContext, collectAndQualify, makeAirdropPropose, safeError, writePreparedArtifact, readPreparedArtifact,
     nextReadyPart, assertPreparedFresh, assertReadyToSubmit, resumePrepared, assertCanonicalActions, assertActionsMatchEnvelopes,
     assertProjectIdentity, providerFor, progressFile, resumeCommand, resolveCompilerArtifacts, assertBuildInfoSources, snapshotRuntimeSources };

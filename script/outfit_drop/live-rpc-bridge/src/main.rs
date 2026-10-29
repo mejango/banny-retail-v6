@@ -10,7 +10,7 @@ use sphinx_client::{
 };
 use std::io::{self, Read};
 
-const REVISION: &str = "e688649d716779aa2424f4a3f970a6dcae80aba2";
+const REVISION: &str = "afcdc4e3eb1eeccea5d9c47977ec4ca381b4bbce";
 const VERIFIER_REVISION: &str = "9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c";
 const RPC_NETWORKS: &[(&str, u64)] = &[
     ("RPC_ETHEREUM_MAINNET", 1),
@@ -98,21 +98,21 @@ fn validate(request: &Request) -> Result<(), &'static str> {
         {
             return Err("live qualification needs existing idle Safe and module");
         }
-        if config.action_inputs.len() != 2 {
-            return Err("resolver qualification requires exactly two ordered actions");
+        if config.action_inputs.is_empty() {
+            return Err("qualification requires nonempty ordered actions");
         }
         for (index, action) in config.action_inputs.iter().enumerate() {
             if action.index != index as u64 + 1
                 || !action.value.is_zero()
                 || !action.require_success
-                || !matches!(action.operation, Operation::DelegateCall)
+                || !matches!(action.operation, Operation::Call | Operation::DelegateCall)
                 || !matches!(action.action_type, ActionType::Call)
                 || action.deployed_address.is_some()
                 || action.init_code.is_some()
                 || action.tx_data.is_empty()
                 || action.gas.is_zero()
             {
-                return Err("unexpected resolver action envelope");
+                return Err("unexpected action envelope");
             }
         }
         if network.expected_block_timestamp == 0 {
@@ -502,9 +502,30 @@ mod tests {
             request.networks[0].config.action_inputs[1].tx_data
         );
         request.networks[0].config.action_inputs[1].operation = Operation::Call;
+        let mut third = request.networks[0].config.action_inputs[0].clone();
+        third.index = 3;
+        request.networks[0].config.action_inputs.push(third);
+        assert_eq!(validate(&request), Ok(()));
+        // The transport preserves mixed setup/migration operations, while
+        // ordered canonical envelopes and zero value remain mandatory.
+        let accepted = request.networks[0].config.clone();
+        for changed in ["index", "value", "require_success", "gas", "tx_data"] {
+            let mut candidate = fixture();
+            candidate.networks[0].config = accepted.clone();
+            let action = &mut candidate.networks[0].config.action_inputs[2];
+            match changed {
+                "index" => action.index = 2,
+                "value" => action.value = alloy::primitives::U256::from(1u64),
+                "require_success" => action.require_success = false,
+                "gas" => action.gas = Default::default(),
+                _ => action.tx_data = Default::default(),
+            }
+            assert_eq!(validate(&candidate), Err("unexpected action envelope"));
+        }
+        request.networks[0].config.action_inputs.clear();
         assert_eq!(
             validate(&request),
-            Err("unexpected resolver action envelope")
+            Err("qualification requires nonempty ordered actions")
         );
         request = fixture();
         request.networks[0].rpc_env = "RPC_BASE_SEPOLIA".into();

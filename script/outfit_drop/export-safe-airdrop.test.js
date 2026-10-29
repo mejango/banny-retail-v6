@@ -136,7 +136,7 @@ test('partition preserves all original token IDs, recipients, per-tier order and
         componentSizes.set(plan.contractName, slices.flatMap(slice => slice.dependencyGroups.map(group => group.length)));
         count += slices.length;
     }
-    assert.equal(count, 35);
+    assert.equal(count, 42);
     assert(componentSizes.get('AirdropV4BannysBase1').includes(36));
     assert(componentSizes.get('AirdropV4BannysEthereum4').includes(9));
     const plan = plans[1][0];
@@ -144,7 +144,23 @@ test('partition preserves all original token IDs, recipients, per-tier order and
     assert.throws(() => partitionPlan({ ...plan, bannies: [{ tokenId: originalIds[0], outfitIds: originalIds.slice(1), backgroundId: 0 }] }), /Indivisible body group/);
 });
 
-test('all 70 migration slices encode separate setup and Safe-bound atomic recipient actions', () => {
+test('Ethereum and Sepolia share smaller slices while Base retains its indivisible 36-token component', () => {
+    const ethereum = plans[1].flatMap(partitionPlan);
+    assert(ethereum.every(slice => slice.assignments.expectedTokenIds.length <= 24));
+    assert(ethereum.some(slice => slice.assignments.expectedTokenIds.length === 24));
+    const sourceFor = chainId => NETWORKS.testnets.find(network => network.chainId === chainId).sourceChainId;
+    assert.deepEqual(plans[sourceFor(11155111)].flatMap(partitionPlan), ethereum);
+    const base = plans[8453].flatMap(partitionPlan);
+    const indivisible = base.find(slice => slice.dependencyGroups.some(group => group.length === 36));
+    assert(indivisible, 'Base must preserve its real mint-order dependency component');
+    assert(indivisible.assignments.expectedTokenIds.length >= 36);
+    assert(base.some(slice => slice.assignments.expectedTokenIds.length === MAX_MINTS_PER_TRANSACTION));
+    for (const chainId of [10, 8453, 42161]) {
+        assert(plans[chainId].flatMap(partitionPlan).every(slice => slice.assignments.expectedTokenIds.length <= MAX_MINTS_PER_TRANSACTION));
+    }
+});
+
+test('all 84 migration slices encode separate setup and Safe-bound atomic recipient actions', () => {
     let total = 0;
     const helpers = new Set();
     for (const [profile, networks] of Object.entries(NETWORKS)) for (const network of networks) {
@@ -219,7 +235,7 @@ test('all 70 migration slices encode separate setup and Safe-bound atomic recipi
             total++;
         }
     }
-    assert.equal(total, 70);
+    assert.equal(total, 84);
     assert.equal(helpers.size, 8);
 });
 
@@ -408,22 +424,23 @@ function chainPreparationFixture(network, profile) {
 }
 
 test('canonical chain preparation preserves all eight ordered exports and byte fixtures', async () => {
-    // Captured from the pre-extraction CLI using these RPC/artifact fixtures.
+    // Non-Ethereum bytes retain the pre-extraction fixtures; only Ethereum grouping uses the smaller slices.
     const originalDigests = {
-        1: '0x15fc63a36859bb8889a8ba5456ff694c239b1a67d829fedf0f005247fe2412d5',
+        1: '0x7fb061fe27b219d5e99ec5c464136bd9d97453048bde6a1e6ccb893a0e4441f1',
         10: '0x82604401c75afd98c596de85d186bbf255a7d8eb86281a797cab927149f6dbb0',
         8453: '0xa67f8ec8b7df634220732588ae313fcb8bd76fdb3670efd3c8492870b9155c76',
         42161: '0xbfdb5e76e5161c84a5ea0f9332015d9d7359c15f5f3a4d60f4b4254c9d8e0949',
-        11155111: '0x660d2c198d3b65d09ff52b973cdc9da579d525fe81e20161f0bf95d281b4f2f0',
+        11155111: '0xc40e68130c5123b2c55d6abb1800570f68ec9e3827b9c7fab9d0d6fdf0095d07',
         11155420: '0xb7822aef1e20f765dc602a7aa47d44e7bdf129bbb58655b21e7ef5d7cd5ff7ed',
         84532: '0x2714a007132d6003644f6a43bbe25aa30622347c5fe36dae1ba5710d8e0f23c5',
         421614: '0x00c11066beeed162cf02af2705fbc1324a887a1d44926c1949935b82beb50cea',
     };
+    const actualDigests = {};
     for (const [profile, networks] of Object.entries(NETWORKS)) for (const network of networks) {
         const fixture = chainPreparationFixture(network, profile);
         try {
             const { chain, batches } = await prepareChain(fixture.input);
-            const expectedCount = { 1: 18, 10: 1, 8453: 8, 42161: 8 }[network.sourceChainId];
+            const expectedCount = { 1: 25, 10: 1, 8453: 8, 42161: 8 }[network.sourceChainId];
             assert.equal(batches.length, expectedCount + 1);
             assert.equal(batches[0].safeTransaction.stage, 'setup');
             assert.equal(batches[0].batch.transactions.length, 2);
@@ -436,9 +453,10 @@ test('canonical chain preparation preserves all eight ordered exports and byte f
             ]));
             files['manifest.json'] = `${JSON.stringify({ profile, safe: SAFE, status: 'prepared; not signed or submitted', chains: [chain] }, null, 2)}\n`;
             const digest = ethers.utils.id(JSON.stringify(files));
-            assert.equal(digest, originalDigests[network.chainId]);
+            actualDigests[network.chainId] = digest;
         } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
     }
+    assert.deepEqual(actualDigests, originalDigests);
 });
 
 test('chain preparation preserves partial setup omission, runtime checks and nonce binding', async () => {
