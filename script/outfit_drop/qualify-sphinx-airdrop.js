@@ -642,6 +642,7 @@ async function qualifyProfile(entries, preparedChains, reportDirectory, calibrat
     const sourceFiles = ['script/outfit_drop/qualify-sphinx-airdrop.js', 'script/outfit_drop/propose-sphinx-airdrop.js',
         'script/outfit_drop/simulate-safe-airdrop.js', 'script/outfit_drop/export-safe-airdrop.js', 'script/outfit_drop/generate-v6-airdrop.js',
         'script/outfit_drop/prepare-resolver-upgrade.js',
+        'script/outfit_drop/gas-proof-policy.js', 'script/outfit_drop/gas-proof-policy.json',
         'node_modules/@sphinx-labs/core/dist/actions/execute.js', 'node_modules/@sphinx-labs/core/dist/networks.js',
         'node_modules/@sphinx-labs/core/dist/utils.js',
         'node_modules/@sphinx-labs/core/dist/tasks/index.js', 'node_modules/@sphinx-labs/contracts/dist/merkle-tree.js',

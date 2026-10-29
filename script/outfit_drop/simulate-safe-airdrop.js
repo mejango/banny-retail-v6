@@ -9,6 +9,7 @@ const { ethers } = require('ethers');
 const { buildContractsByChain, itemTokenId, loadRawItems } = require('./generate-v6-airdrop');
 const { NETWORKS, partitionPlan, prepareApprovedExecution, combineMigrationBatches, SAFE_TRANSACTION_FIELDS } = require('./export-safe-airdrop');
 const { spawnAnvil } = require('./anvil');
+const { usesStateGasReservoir } = require('./gas-proof-policy');
 
 const SAFE_ABI = [
     'function VERSION() view returns (string)',
@@ -377,8 +378,7 @@ function gasBudget(chainId, blockGasLimit, { liveRpc = false, blockTimestamp } =
         // simulation acceptance. Pinned Sepolia chainspec:
         // ethereum/go-ethereum@d68cf359f9876a58fa41c1beab28cd05bc9df9a0,
         // params/chainspecs/sepolia.json, amsterdamTime=1791294816.
-        const reservoirActive = Number(chainId) === 11155111 && Number.isSafeInteger(blockTimestamp)
-            && blockTimestamp >= 1791294816;
+        const reservoirActive = usesStateGasReservoir(chainId, blockTimestamp);
         const observed = BigInt(blockGasLimit.toString());
         const reviewed = reservoirActive ? 0xffff_ffffn : BigInt(executionGasCap);
         return { executionGasCap, budget, headroomPercent: 5,
