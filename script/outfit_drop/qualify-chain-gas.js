@@ -256,7 +256,7 @@ async function assertEvidence(artifact, directory, { readProvenance = live.prove
         assert.equal(proof.format, FORMAT); assert.equal(proof.kind, selection.policy.backend); assert.equal(proof.status, 'passed');
         assert.equal(proof.root, segment.merkleTree.root); assert.deepEqual(proof.selection, selection);
         if (proof.kind === 'exact-root-fork') return validateForkProof(proof, config, chain, segment.merkleTree, selection,
-            q.chains.find(item => item.chainId === String(config.chainId))); 
+            q.chains.find(item => item.chainId === String(config.chainId)));
         return normalizeRpc(live.assertChainEvidence(config, chain, segment.merkleTree, q.nativeSizing.identity, directory, proof.rpcEvidence));
     });
     return { qualification: q, proofs };
