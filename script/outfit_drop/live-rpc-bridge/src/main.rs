@@ -10,7 +10,7 @@ use sphinx_client::{
 };
 use std::io::{self, Read};
 
-const REVISION: &str = "e688649d716779aa2424f4a3f970a6dcae80aba2";
+const REVISION: &str = "afcdc4e3eb1eeccea5d9c47977ec4ca381b4bbce";
 const VERIFIER_REVISION: &str = "9a31bf8fb9bc464243d3252c69fcdc1f6460fe3c";
 const RPC_NETWORKS: &[(&str, u64)] = &[
     ("RPC_ETHEREUM_MAINNET", 1),
