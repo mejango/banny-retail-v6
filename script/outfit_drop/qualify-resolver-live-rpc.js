@@ -288,6 +288,19 @@ function readEvidence(directory, file) {
     return JSON.parse(bytes);
 }
 
+function assertChainEvidence(config, chain, tree, identity, directory, file) {
+    const evidence = readEvidence(directory, file);
+    assert.equal(evidence.status, 'passed', 'Unfinished live proof');
+    assert.deepEqual(evidence.identity, identity, 'Live evidence binary identity changed');
+    const request = readEvidence(directory, evidence.request);
+    assert.deepEqual(request, { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, mode: 'final',
+        networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, expectedBlockTimestamp: chain.blockTimestamp,
+            config: rustConfig(config, chain), report: request.networks[0].report }], tree: rustTree(tree) },
+    'Live proof request differs from its canonical preparation');
+    validateResult(evidence.response.results[0], config, chain, 'final', tree);
+    return evidence.response.results[0].report;
+}
+
 async function assertEvidence(artifact, directory, { readProvenance = provenance } = {}) {
     const bytes = fs.readFileSync(path.join(directory, 'qualification.json'));
     assert.equal(digest(bytes), artifact.qualificationSha256, 'Live qualification checksum changed');
@@ -301,18 +314,9 @@ async function assertEvidence(artifact, directory, { readProvenance = provenance
     const segment = artifact.segments[0];
     assert.equal(liveRpc.final.files.length, segment.networkConfigs.length, 'Missing live chain proofs');
     const reports = liveRpc.final.files.map((file, index) => {
-        const evidence = readEvidence(directory, file);
-        assert.equal(evidence.status, 'passed', 'Unfinished live proof');
-        assert.deepEqual(evidence.identity, liveRpc.identity, 'Live evidence binary identity changed');
         const config = segment.networkConfigs[index];
         const chain = artifact.preparedChains.find(c => String(c.chainId) === String(config.chainId));
-        const request = readEvidence(directory, evidence.request);
-        assert.deepEqual(request, { schemaVersion: 1, clientRevision: CLIENT_REVISION, verifierRevision: VERIFIER_REVISION, mode: 'final',
-            networks: [{ rpcEnv: chain.network.rpc, expectedBlockHash: chain.blockHash, expectedBlockTimestamp: chain.blockTimestamp,
-                config: rustConfig(config, chain), report: request.networks[0].report }], tree: rustTree(segment.merkleTree) },
-        'Live proof request differs from its canonical preparation');
-        validateResult(evidence.response.results[0], config, chain, 'final', segment.merkleTree);
-        return evidence.response.results[0].report;
+        return assertChainEvidence(config, chain, segment.merkleTree, liveRpc.identity, directory, file);
     });
     return { qualification, reports };
 }
@@ -378,4 +382,4 @@ async function assertHandoff(artifact, directory, dependencies) {
 }
 
 module.exports = { LiveGasClampError, binaryFailure, CLIENT_REVISION, VERIFIER_REVISION, AUTHORIZATION_SCOPE, SOURCE_FILES, LiveQualificationError, rustConfig, rustTree, validateResult, assertCompiledVersion, provenance,
-    qualify, readEvidence, assertEvidence, replay, handoffTemplate, assertHandoff };
+    qualify, readEvidence, assertChainEvidence, assertEvidence, replay, handoffTemplate, assertHandoff };
