@@ -21,8 +21,8 @@ const generator = require('./generate-v6-airdrop');
 const ROOT = path.resolve(__dirname, '../..');
 const NOOP = ethers.utils.id('sphinxFetchConfig()').slice(0, 10);
 const RUN = ethers.utils.id('run()').slice(0, 10);
-const AIRDROP_WORKFLOW = 'banny-airdrop-v2-live-rpc';
-const LIVE_AIRDROP_OPTIONS = Object.freeze({ multipleExecutionTransactions: true, liveRpc: true });
+const AIRDROP_WORKFLOW = 'banny-airdrop-v3-chain-aware-gas';
+const LIVE_AIRDROP_OPTIONS = Object.freeze({ multipleExecutionTransactions: true, liveRpc: true, chainAware: true });
 
 function selectChunks(batches, plans, env = process.env) {
     const read = name => {
@@ -268,14 +268,13 @@ async function collectAndQualify(scriptPath, scriptFunctionCalldata, safe, rpcUr
 }
 
 async function qualifyAirdrop(entries, preparedChains, directory,
-    qualify = require('./qualify-sphinx-airdrop').qualifyProfile, live = require('./qualify-resolver-live-rpc')) {
+    qualify = require('./qualify-sphinx-airdrop').qualifyProfile, proofOwner = require('./qualify-chain-gas')) {
     const qualified = await qualify(entries, preparedChains, directory, undefined, LIVE_AIRDROP_OPTIONS);
     assert.equal(qualified.segments.length, 1, 'Live airdrop must preserve one proposal');
-    const reports = qualified.report.liveRpc.final.files.map(file =>
-        live.readEvidence(directory, file).response.results[0].report);
-    fs.writeFileSync(path.join(directory, 'executor-handoff.json'), `${JSON.stringify(live.handoffTemplate({
-        segments: qualified.segments, qualificationSha256: sha256(fs.readFileSync(path.join(directory, 'qualification.json'))),
-    }, directory, reports), null, 2)}\n`, { flag: 'wx' });
+    const artifact = { segments: qualified.segments, preparedChains,
+        qualificationSha256: sha256(fs.readFileSync(path.join(directory, 'qualification.json'))) };
+    const { proofs } = await proofOwner.assertEvidence(artifact, directory);
+    fs.writeFileSync(path.join(directory, 'executor-handoff.json'), `${JSON.stringify(proofOwner.handoffTemplate(artifact, proofs), null, 2)}\n`, { flag: 'wx' });
     return qualified;
 }
 
@@ -513,12 +512,11 @@ async function assertReadyToSubmit(artifact, directory, progress, part, assertFr
 }
 
 async function replayLiveAirdropPart(artifact, directory, part) {
-    await require('./qualify-resolver-live-rpc').replay(artifact, directory);
-    return require('./qualify-sphinx-airdrop').replayPreparedPart(artifact, directory, part, LIVE_AIRDROP_OPTIONS);
+    return require('./qualify-chain-gas').replay(artifact, directory, part);
 }
 
 async function assertLiveAirdropReady(artifact, directory, progress, part, {
-    handoff = (...args) => require('./qualify-resolver-live-rpc').assertHandoff(...args),
+    handoff = (...args) => require('./qualify-chain-gas').assertHandoff(...args),
     checkReady = assertReadyToSubmit, replay = replayLiveAirdropPart,
 } = {}) {
     const before = await handoff(artifact, directory);
@@ -532,6 +530,7 @@ function snapshotRuntimeSources() {
     require('./qualify-sphinx-airdrop');
     require('./prepare-resolver-upgrade');
     require('./qualify-resolver-live-rpc');
+    require('./qualify-chain-gas');
     return Object.fromEntries(Object.keys(require.cache)
         .filter(file => !file.endsWith('.test.js'))
         .map(file => [file, sha256(fs.readFileSync(file))]));
@@ -691,13 +690,13 @@ async function resumeOwned(context, directory, args = {}, { officialPropose = pr
     }
 }
 
-function liveArgs(argv, label = 'Live airdrops') {
+function liveArgs(argv, label = 'Live airdrops', requiredEstimator = 'live-rpc') {
     const args = [...argv];
     for (let index = 0; index < args.length; index++) {
         if (args[index] === '--gas-estimator' || args[index].startsWith('--gas-estimator=')) {
             const equals = args[index].includes('=');
             const estimator = equals ? args[index].slice('--gas-estimator='.length) : args[index + 1];
-            assert.equal(estimator, 'live-rpc', `${label} require --gas-estimator live-rpc; no Anvil fallback`);
+            assert.equal(estimator, requiredEstimator, `${label} require --gas-estimator ${requiredEstimator}; no Anvil fallback`);
             args.splice(index, equals ? 1 : 2); index--;
         }
     }
@@ -715,7 +714,7 @@ function resumeLiveAirdropPrepared(context, directory, args = {}, options = {}) 
 }
 
 if (require.main === module) {
-    const argv = liveArgs(process.argv.slice(2));
+    const argv = liveArgs(process.argv.slice(2), 'Airdrop proofs', 'chain-aware');
     const context = makeSphinxContext();
     if (argv[0] === 'resume') {
         const { values, positionals } = parseArgs({ args: argv.slice(1), allowPositionals: true,

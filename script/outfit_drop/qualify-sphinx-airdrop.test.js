@@ -559,3 +559,33 @@ test('explicit live dispatch keeps heterogeneous leaves singleton when the legac
     assert.deepEqual(raw, before);
     await assert.rejects(sdkExecutionBatches(live, [leaves[0], leaves[2]], { liveRpc: true }), /not contiguous/);
 });
+
+test('chain-aware fresh replay selects policy before the fork and records both mode postconditions exactly once', async () => {
+    const owner = require('./qualify-chain-gas');
+    const fixture = replayFixture({ multipleExecutionTransactions: true, liveRpc: true, gas: '14000000' });
+    const oldSelect = owner.selectProof, oldWrite = owner.writeForkProof;
+    const selected = { chainId: '1', policy: { backend: 'exact-root-fork' }, engine: { binarySha256: 'engine' } };
+    try {
+        const qfile = path.join(fixture.directory, 'qualification.json');
+        const q = JSON.parse(fs.readFileSync(qfile)); q.proofSelections = [selected]; fs.writeFileSync(qfile, JSON.stringify(q));
+        fixture.workflow.chainAware = true;
+        const header = fixture.workflow.replayDependencies.readHeader;
+        fixture.workflow.replayDependencies.readHeader = async (...args) => { const result = await header(...args); result.block.timestamp = 1793300000; return result; };
+        owner.selectProof = async (_config, chain) => { assert.equal(chain.blockTimestamp, 1793300000); fixture.calls.push(['select-policy']); return selected; };
+        const open = fixture.workflow.replayDependencies.openContext;
+        fixture.workflow.replayDependencies.openContext = async (...args) => {
+            assert.equal(args[4].chainProof, selected); assert(fixture.calls.some(call => call[0] === 'select-policy'));
+            const context = await open(...args); context.chainProof = selected; return context;
+        };
+        const verify = fixture.workflow.verifyFinal;
+        fixture.workflow.verifyFinal = async context => { await verify(context); context.report.recipientsAndOutfitsVerified = true; context.report.tokenCount = 2; };
+        owner.writeForkProof = async (context, _config, _chain, _tree, _directory, records) => {
+            assert.deepEqual(context.report.forkPostconditions.map(item => item.mode), ['cold', 'sdk-singletons']);
+            assert.deepEqual(records.map(item => item.mode), ['cold', 'sdk-singletons']);
+            return { normalized: { chainId: '1', actions: [] } };
+        };
+        const result = await replayPreparedPart(fixture.artifact, fixture.directory, 1, fixture.workflow);
+        assert.equal(result.report.status, 'passed'); assert.equal(result.report.forkProofs.length, 1);
+        assert.equal(fixture.calls.filter(call => call[0] === 'verify').length, 2);
+    } finally { owner.selectProof = oldSelect; owner.writeForkProof = oldWrite; fs.rmSync(fixture.directory, { recursive: true, force: true }); }
+});

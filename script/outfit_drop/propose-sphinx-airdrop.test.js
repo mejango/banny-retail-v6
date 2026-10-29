@@ -710,7 +710,7 @@ test('startup snapshot binds every loaded dependency including outside repositor
 
 test('full airdrop qualification requires one live singleton root and writes its exact executor handoff', async () => {
     const adapter = require('./propose-sphinx-airdrop');
-    const live = require('./qualify-resolver-live-rpc');
+    const owner = require('./qualify-chain-gas');
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-airdrop-live-'));
     const network = config();
     network.actionInputs.push({ ...network.actionInputs[1], index: '3', txData: '0xabcdef' });
@@ -723,16 +723,16 @@ test('full airdrop qualification requires one live singleton root and writes its
     const qualifier = async (entries, chains, dir, seed, options) => {
         assert.equal(entries, segments); assert.equal(chains, segments); assert.equal(dir, directory);
         assert.equal(seed, undefined);
-        assert.deepEqual(options, { multipleExecutionTransactions: true, liveRpc: true });
+        assert.deepEqual(options, { multipleExecutionTransactions: true, liveRpc: true, chainAware: true });
         assert.equal(options.verifyFinal, undefined, 'Full airdrop must retain the recipient/outfit verifier');
         fs.writeFileSync(path.join(directory, 'qualification.json'), JSON.stringify({ status: 'passed' }));
         return { segments, report: { liveRpc: { final: { files: [evidence] } } } };
     };
     try {
         const qualified = await adapter.qualifyAirdrop(segments, segments, directory, qualifier, {
-            readEvidence: (dir, file) => { assert.equal(dir, directory); assert.equal(file, evidence);
-                return { response: { results: [{ report }] } }; },
-            handoffTemplate: live.handoffTemplate,
+            assertEvidence: async (artifact, dir) => { assert.equal(dir, directory); assert.equal(artifact.segments[0].merkleTree.root, tree.root);
+                return { proofs: [owner.normalizeRpc(report)] }; },
+            handoffTemplate: owner.handoffTemplate,
         });
         assert.equal(qualified.segments[0].merkleTree.root, tree.root);
         const actual = JSON.parse(fs.readFileSync(path.join(directory, 'executor-handoff.json')));
@@ -777,7 +777,7 @@ test('full airdrop submission brackets fresh readiness with the same exact execu
 
 test('full live entrypoint rejects local preparation identity and any estimator fallback', async () => {
     const adapter = require('./propose-sphinx-airdrop');
-    assert.equal(adapter.AIRDROP_WORKFLOW, 'banny-airdrop-v2-live-rpc');
+    assert.equal(adapter.AIRDROP_WORKFLOW, 'banny-airdrop-v3-chain-aware-gas');
     assert.deepEqual(adapter.liveArgs(['propose', '--gas-estimator=live-rpc', '--dry-run']), ['propose', '--dry-run']);
     assert.throws(() => adapter.liveArgs(['propose', '--gas-estimator', 'anvil']), /no Anvil fallback/);
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'banny-airdrop-local-reject-'));
@@ -788,25 +788,15 @@ test('full live entrypoint rejects local preparation identity and any estimator 
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('full airdrop replay requires fresh live proof before local singleton replay with default distribution checks', async () => {
+test('full airdrop replay delegates to the typed mixed owner and never masks its failure', async () => {
     const adapter = require('./propose-sphinx-airdrop');
-    const live = require('./qualify-resolver-live-rpc');
-    const qualifier = require('./qualify-sphinx-airdrop');
-    const oldLive = live.replay, oldLocal = qualifier.replayPreparedPart;
-    const artifact = {}, calls = [];
+    const owner = require('./qualify-chain-gas');
+    const oldReplay = owner.replay;
+    const artifact = {};
     try {
-        live.replay = async (a, d) => { assert.equal(a, artifact); assert.equal(d, 'saved'); calls.push('live'); };
-        qualifier.replayPreparedPart = async (a, d, part, options) => {
-            assert.equal(a, artifact); assert.equal(d, 'saved'); assert.equal(part, 0);
-            assert.deepEqual(options, { multipleExecutionTransactions: true, liveRpc: true });
-            assert.equal(options.validatePrepared, undefined);
-            assert.equal(options.verifyFinal, undefined, 'Retain canonical full-airdrop postconditions');
-            calls.push('local'); return 'verified';
-        };
+        owner.replay = async (a, d, part) => { assert.equal(a, artifact); assert.equal(d, 'saved'); assert.equal(part, 0); return 'verified'; };
         assert.equal(await adapter.replayLiveAirdropPart(artifact, 'saved', 0), 'verified');
-        assert.deepEqual(calls, ['live', 'local']);
-        live.replay = async () => { throw Error('prefix simulation rejected'); };
-        qualifier.replayPreparedPart = async () => assert.fail('No local fallback after live failure');
-        await assert.rejects(adapter.replayLiveAirdropPart(artifact, 'saved', 0), /prefix simulation rejected/);
-    } finally { live.replay = oldLive; qualifier.replayPreparedPart = oldLocal; }
+        owner.replay = async () => { throw Error('selected proof backend failed'); };
+        await assert.rejects(adapter.replayLiveAirdropPart(artifact, 'saved', 0), /selected proof backend failed/);
+    } finally { owner.replay = oldReplay; }
 });

@@ -132,13 +132,14 @@ async function unusedPort() {
     return port;
 }
 
-async function startFork(rpcUrl, chainId, blockNumber, { budgeted = false } = {}) {
+async function startFork(rpcUrl, chainId, blockNumber, { budgeted = false, forkEngine } = {}) {
     const port = await unusedPort();
     const child = spawnAnvil([
         '--quiet', '--host', '127.0.0.1', '--port', String(port), '--accounts', '0',
         '--fork-url', rpcUrl, '--fork-block-number', String(blockNumber), '--chain-id', String(chainId),
-        ...(budgeted ? ['--hardfork', 'osaka', ...(!isArbitrum(chainId) ? ['--enable-tx-gas-limit'] : [])] : []),
-    ]);
+        ...(budgeted ? ['--hardfork', forkEngine?.hardfork || 'osaka', ...(!isArbitrum(chainId) ? ['--enable-tx-gas-limit'] : [])] : []),
+        ...(forkEngine?.noStorageCaching ? ['--no-storage-caching'] : []),
+    ], { binary: forkEngine?.binary || 'anvil' });
     const provider = new ethers.providers.StaticJsonRpcProvider(`http://127.0.0.1:${port}`, chainId);
     provider.pollingInterval = 100;
     let startError;
